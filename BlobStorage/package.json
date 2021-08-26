@@ -1,0 +1,65 @@
+{
+  "name": "coralogix-azure-serverless",
+  "title": "Azure Functions for integration with Coralogix",
+  "version": "1.0.0",
+  "description": "Azure Functions Set for integration with Coralogix",
+  "homepage": "https://coralogix.com",
+  "license": "Apache-2.0",
+  "private": true,
+  "scripts": {
+    "lint": "eslint . --ext .ts",
+    "build": "npm run lint && tsc",
+    "build:production": "npm run prestart && npm prune --production",
+    "watch": "tsc --w",
+    "prestart": "npm run build && func extensions install",
+    "start:host": "func start",
+    "start": "npm-run-all --parallel start:host watch",
+    "test": "echo \"No tests yet...\""
+  },
+  "author": {
+    "name": "Coralogix",
+    "email": "info@coralogix.com",
+    "url": "https://coralogix.com"
+  },
+  "engines": {
+    "node": "12.x"
+  },
+  "contributors": [
+    {
+      "name": "Eldar Aliiev",
+      "email": "eldar@coralogix.com",
+      "url": "https://github.com/EldarAliiev"
+    }
+  ],
+  "keywords": [
+    "coralogix",
+    "azure",
+    "javascript",
+    "function",
+    "blob"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coralogix/coralogix-azure-serverless.git"
+  },
+  "bugs": {
+    "email": "info@coralogix.com",
+    "url": "https://github.com/coralogix/coralogix-azure-serverless/issues"
+  },
+  "devDependencies": {
+    "@azure/functions": "^1.0.1-beta1",
+    "@types/node": "^14.14.10",
+    "@typescript-eslint/eslint-plugin": "^4.8.2",
+    "@typescript-eslint/parser": "^4.8.2",
+    "eslint": "^7.14.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^3.3.3"
+  },
+  "dependencies": {
+    "coralogix-logger": "^1.1.27"
+  },
+  "files": [
+    "LICENSE",
+    "README.md"
+  ]
+}
