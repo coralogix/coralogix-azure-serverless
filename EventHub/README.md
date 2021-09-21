@@ -44,9 +44,9 @@ $ make functools
 Configure (Replace environment variables with appropriate values) and install ``Coralogix`` function for ``Azure Functions``:
 
 ```bash
-$ export AZURE_REGION=YOUR_REGION
-$ export AZURE_FUNCTION_NAME=coralogixblob
-$ export AZURE_STORAGE_CONNECTION=<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>
+$ export AZURE_REGION=centralus
+$ export AZURE_FUNCTION_NAME=coralogixhub
+$ export AZURE_EVENTHUB_CONNECTION=<YOUR_EVENTHUB_CONNECTION_STRING>
 
 $ export CORALOGIX_PRIVATE_KEY=YOUR_PRIVATE_KEY
 $ export CORALOGIX_APP_NAME=APP_NAME
@@ -57,38 +57,33 @@ $ make configure
 $ make publish
 ```
 
-The ``<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>`` should be replaced with ``Storage Account`` connection string which you can find in ``Storage Account`` -> ``Access keys`` -> ``Connection string``. It should looks like:
+The ``<YOUR_EVENTHUB_CONNECTION_STRING>`` should be replaced with ``Event Hub`` connection string which you can find in ``Event Hub`` -> ``Shared access policies`` -> ``Selected SAS policy`` -> ``Connection string-primary key``.
+It should looks like:
 
 ```
-DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_ACCOUNT_KEY;EndpointSuffix=core.windows.net
+Endpoint=sb://eventhub1.servicebus.windows.net/;SharedAccessKeyName=sas1;SharedAccessKey=TBAfq6...QLwrdeFFE=
 ```
 
 Check sections below to find more information about configuration.
 
-## BlobStorage
+## EventHub
 
-By default ``BlobStorage`` function will be triggered when you'll upload files to ``logs`` container in your ``Storage Account``. You can change this to your custom container name in file ``BlobStorage/function.json`` (``bindings.path`` parameter):
+By default ``EventHub`` function will be triggered when new events are shipped to the Hub named ``eventHubName`` that is accessed via ``EventHubConnection``. You can change this to your custom container name in file ``EventHub/function.json`` (``bindings.path`` parameter):
 
 ```json
 {
-  "scriptFile": "../dist/BlobStorage/index.js",
+  "scriptFile": "../dist/EventHub/index.js",
   "disabled": false,
   "bindings": [
     {
-      "name": "blob",
-      "type": "blobTrigger",
+      "name": "eventHub",
+      "type": "eventHubTrigger",
       "direction": "in",
-      "path": "<YOUR_CONTAINER_NAME>/{name}",
-      "connection":"InputStorage"
+      "cardinality": "many",
+      "eventHubName": "hub",
+      "connection": "EventHubConnection",
+      "consumerGroup": "$Default"
     }
   ]
 }
 ```
-
-If you store multiline data, just export ``NEWLINE_PATTERN`` environment variable with regex for line splitting and execute:
-
-```bash
-$ make configure
-```
-
-After that your separate lines will be joined correctly.
