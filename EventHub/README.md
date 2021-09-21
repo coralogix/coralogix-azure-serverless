@@ -64,11 +64,18 @@ It should looks like:
 Endpoint=sb://eventhub1.servicebus.windows.net/;SharedAccessKeyName=sas1;SharedAccessKey=TBAfq6...QLwrdeFFE=
 ```
 
+Or if it's a specific Hub access policy:
+
+```
+Endpoint=sb://eventhub1.servicebus.windows.net/;SharedAccessKeyName=p1;SharedAccessKey=4yzo4Mcl...A24=;EntityPath=hub
+```
+
 Check sections below to find more information about configuration.
 
 ## EventHub
 
-By default ``EventHub`` function will be triggered when new events are shipped to the Hub named ``eventHubName`` that is accessed via ``EventHubConnection``. You can change this to your custom container name in file ``EventHub/function.json`` (``bindings.path`` parameter):
+By default ``EventHub`` function will be triggered when new events are shipped to the Hub named ``eventHubName`` that is accessed via ``EventHubConnection``. 
+Note: if the access policy contains the event hub name, it will override the value in ``eventHubName``.
 
 ```json
 {
