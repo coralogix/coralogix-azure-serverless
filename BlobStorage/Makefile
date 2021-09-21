@@ -8,6 +8,8 @@ export CORALOGIX_APP_NAME ?= Azure
 export CORALOGIX_SUB_SYSTEM ?= blob
 export NEWLINE_PATTERN ?= (?:\r\n|\r|\n)
 
+export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs" # Change to .us / .in for other clusters
+
 functools:
 	@npm install -g azure-functions-core-tools@3 --unsafe-perm true
 
@@ -25,7 +27,7 @@ install:
 		--name $(AZURE_RESOURCE_GROUP) \
 		--location $(AZURE_REGION)
 	@az storage account create \
-		--name $(AZURE_FUNCTION_NAME)storage2 \
+		--name $(AZURE_FUNCTION_NAME)storage \
 		--location $(AZURE_REGION) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
 		--sku Standard_LRS
@@ -36,13 +38,13 @@ install:
 		--runtime node \
 		--runtime-version 12 \
 		--functions-version 3 \
-		--storage-account $(AZURE_FUNCTION_NAME)storage2
+		--storage-account $(AZURE_FUNCTION_NAME)storage
 
 configure:
 	@az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
-		--settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" "NEWLINE_PATTERN=$(NEWLINE_PATTERN)" "AzureWebJobsInputStorage=$(AZURE_STORAGE_CONNECTION)" "CORALOGIX_URL=${CORALOGIX_URL}"
+		--settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" "NEWLINE_PATTERN=$(NEWLINE_PATTERN)" "AzureWebJobsInputStorage=$(AZURE_STORAGE_CONNECTION)" "CORALOGIX_URL=$(CORALOGIX_URL)"
 
 publish: build
 	@func azure functionapp publish $(AZURE_FUNCTION_NAME)
