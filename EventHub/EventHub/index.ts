@@ -16,10 +16,14 @@ import { Log, Severity, CoralogixLogger, LoggerConfig } from "coralogix-logger";
 /**
  * @description Function entrypoint
  * @param {object} context - Function context
- * @param {string} eventHubMessages - Function event hub messages
+ * @param {array} eventHubMessages - event hub messages
  */
-const eventHubTrigger: AzureFunction = function (context: Context, eventHubMessages: any): void {
-    context.log(`eventHub trigger function processing hub name: ${context.bindingData.eventHubName} with messages: ${eventHubMessages}`);
+const eventHubTrigger: AzureFunction = function (context: Context, events: any): void {
+    context.log(`eventHub trigger function named: ${context.executionContext.functionName}`);
+
+    if (events.length === 0) {
+        return;
+      }
 
     CoralogixLogger.configure(new LoggerConfig({
         privateKey: process.env.CORALOGIX_PRIVATE_KEY,
@@ -29,14 +33,16 @@ const eventHubTrigger: AzureFunction = function (context: Context, eventHubMessa
 
     const logger: CoralogixLogger = new CoralogixLogger("eventhub");
 
-    eventHubMessages.forEach((record) => {
-        const body = JSON.stringify(record);
+    events.forEach((record) => {
+        record.records.forEach((inner) => {
+            const body = JSON.stringify(inner);
 
-        logger.addLog(new Log({
-            severity: Severity.info,
-            text: body,
-            threadId: context.bindingData.name
-        }));
+            logger.addLog(new Log({
+                severity: Severity.info,
+                text: body,
+                threadId: context.executionContext.functionName
+            }));
+        });
     });
 
     CoralogixLogger.flush();
