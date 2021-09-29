@@ -8,7 +8,9 @@ export CORALOGIX_APP_NAME ?= Azure
 export CORALOGIX_SUB_SYSTEM ?= blob
 export NEWLINE_PATTERN ?= (?:\r\n|\r|\n)
 
-export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs" # Change to .us / .in for other clusters
+# Change to "https://api.coralogix.us:443/api/v1/logs" for US cluster
+# Change to "https://api.app.coralogix.in:443/api/v1/logs" for IN cluster
+export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs" 
 
 functools:
 	@npm install -g azure-functions-core-tools@3 --unsafe-perm true
