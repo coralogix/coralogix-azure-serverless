@@ -1,0 +1,10 @@
+*.js.map
+*.ts
+.git*
+.vscode
+.gitignore
+.eslintrc
+.eslintignore
+.editorconfig
+local.settings.json
+test

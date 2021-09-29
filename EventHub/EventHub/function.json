@@ -1,0 +1,15 @@
+{
+  "scriptFile": "../dist/EventHub/index.js",
+  "disabled": false,
+  "bindings": [
+    {
+      "name": "eventHub",
+      "type": "eventHubTrigger",
+      "direction": "in",
+      "cardinality": "many",
+      "eventHubName": "hub2",
+      "connection": "EventHubConnection",
+      "consumerGroup": "$Default"
+    }
+  ]
+}

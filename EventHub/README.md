@@ -1,4 +1,4 @@
-# Azure BlobStorage Trigger Function for Coralogix
+# Azure EventHub Trigger Function for Coralogix
 
 Coralogix provides a seamless integration with ``Azure`` cloud so you can send your logs from anywhere and parse them according to your needs.
 
@@ -26,7 +26,7 @@ Clone this repo:
 
 ```bash
 $ git clone https://github.com/coralogix/coralogix-azure-serverless.git
-$ cd coralogix-azure-serverless/BlogStorage
+$ cd coralogix-azure-serverless/EventHub
 ```
 
 Login with Azure cli:
@@ -44,9 +44,9 @@ $ make functools
 Configure (Replace environment variables with appropriate values) and install ``Coralogix`` function for ``Azure Functions``:
 
 ```bash
-$ export AZURE_REGION=YOUR_REGION
-$ export AZURE_FUNCTION_NAME=coralogixblob
-$ export AZURE_STORAGE_CONNECTION=<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>
+$ export AZURE_REGION=centralus
+$ export AZURE_FUNCTION_NAME=coralogixhub
+$ export AZURE_EVENTHUB_CONNECTION=<YOUR_EVENTHUB_CONNECTION_STRING>
 
 $ export CORALOGIX_PRIVATE_KEY=YOUR_PRIVATE_KEY
 $ export CORALOGIX_APP_NAME=APP_NAME
@@ -57,38 +57,40 @@ $ make configure
 $ make publish
 ```
 
-The ``<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>`` should be replaced with ``Storage Account`` connection string which you can find in ``Storage Account`` -> ``Access keys`` -> ``Connection string``. It should looks like:
+The ``<YOUR_EVENTHUB_CONNECTION_STRING>`` should be replaced with ``Event Hub`` connection string which you can find in ``Event Hub`` -> ``Shared access policies`` -> ``Selected SAS policy`` -> ``Connection string-primary key``.
+It should looks like:
 
 ```
-DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_ACCOUNT_KEY;EndpointSuffix=core.windows.net
+Endpoint=sb://eventhub1.servicebus.windows.net/;SharedAccessKeyName=sas1;SharedAccessKey=TBAfq6...QLwrdeFFE=
+```
+
+Or if it's a specific Hub access policy:
+
+```
+Endpoint=sb://eventhub1.servicebus.windows.net/;SharedAccessKeyName=p1;SharedAccessKey=4yzo4Mcl...A24=;EntityPath=hub
 ```
 
 Check sections below to find more information about configuration.
 
-## BlobStorage
+## EventHub
 
-By default ``BlobStorage`` function will be triggered when you'll upload files to ``logs`` container in your ``Storage Account``. You can change this to your custom container name in file ``BlobStorage/function.json`` (``bindings.path`` parameter):
+By default ``EventHub`` function will be triggered when new events are shipped to the Hub named ``eventHubName`` that is accessed via ``EventHubConnection``. 
+Note: if the access policy contains the event hub name, it will override the value in ``eventHubName``.
 
 ```json
 {
-  "scriptFile": "../dist/BlobStorage/index.js",
+  "scriptFile": "../dist/EventHub/index.js",
   "disabled": false,
   "bindings": [
     {
-      "name": "blob",
-      "type": "blobTrigger",
+      "name": "eventHub",
+      "type": "eventHubTrigger",
       "direction": "in",
-      "path": "<YOUR_CONTAINER_NAME>/{name}",
-      "connection":"InputStorage"
+      "cardinality": "many",
+      "eventHubName": "hub",
+      "connection": "EventHubConnection",
+      "consumerGroup": "$Default"
     }
   ]
 }
 ```
-
-If you store multiline data, just export ``NEWLINE_PATTERN`` environment variable with regex for line splitting and execute:
-
-```bash
-$ make configure
-```
-
-After that your separate lines will be joined correctly.
