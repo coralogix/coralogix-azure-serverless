@@ -47,6 +47,6 @@ configure:
 		--settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" "NEWLINE_PATTERN=$(NEWLINE_PATTERN)" "AzureWebJobsInputStorage=$(AZURE_STORAGE_CONNECTION)" "CORALOGIX_URL=$(CORALOGIX_URL)"
 
 publish: build
-	@func azure functionapp publish $(AZURE_FUNCTION_NAME)
+	@func azure functionapp publish $(AZURE_FUNCTION_NAME) --typescript
 
 all: functools clean install configure publish
