@@ -47,6 +47,7 @@ Configure (Replace environment variables with appropriate values) and install ``
 $ export AZURE_REGION=centralus
 $ export AZURE_FUNCTION_NAME=coralogixhub
 $ export AZURE_EVENTHUB_CONNECTION=<YOUR_EVENTHUB_CONNECTION_STRING>
+$ export AZURE_STORAGE_CONNECTION=<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>
 
 $ export CORALOGIX_PRIVATE_KEY=YOUR_PRIVATE_KEY
 $ export CORALOGIX_APP_NAME=APP_NAME
@@ -64,10 +65,10 @@ It should looks like:
 Endpoint=sb://eventhub1.servicebus.windows.net/;SharedAccessKeyName=sas1;SharedAccessKey=TBAfq6...QLwrdeFFE=
 ```
 
-Or if it's a specific Hub access policy:
+The ``<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>`` should be replaced with ``Storage Account`` connection string which you can find in ``Storage Account`` -> ``Access keys`` -> ``Connection string``. It should looks like:
 
 ```
-Endpoint=sb://eventhub1.servicebus.windows.net/;SharedAccessKeyName=p1;SharedAccessKey=4yzo4Mcl...A24=;EntityPath=hub
+DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_ACCOUNT_KEY;EndpointSuffix=core.windows.net
 ```
 
 Check sections below to find more information about configuration.
