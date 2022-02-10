@@ -73,6 +73,6 @@ publish: build
 	@echo "Will now publish the function we created"
 	@func azure functionapp publish $(AZURE_FUNCTION_NAME) --typescript
 
-deploy: install configure publish
+deploy: functools install configure publish
 
 all: functools clean install configure publish
