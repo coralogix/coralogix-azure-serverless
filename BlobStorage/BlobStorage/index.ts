@@ -19,8 +19,8 @@ import { Log, Severity, CoralogixLogger, LoggerConfig } from "coralogix-logger";
  * @param {string} blob - Function input blob
  */
 const blobStorageTrigger: AzureFunction = function (context: Context, blob: any): void {
-    context.log("Blob trigger function processed blob \n Name:", context.bindingData.name, "\n Blob Size:", blob.length, "Bytes");
-
+    context.log("Processing:", context.bindingData.name);
+    context.log("Blob Size:", blob.length, "Bytes")
     CoralogixLogger.configure(new LoggerConfig({
         privateKey: process.env.CORALOGIX_PRIVATE_KEY,
         applicationName: process.env.CORALOGIX_APP_NAME || "NO_APPLICATION",
