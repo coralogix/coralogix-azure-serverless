@@ -22,13 +22,18 @@
     "url": "https://coralogix.com"
   },
   "engines": {
-    "node": "12.x"
+    "node": ">=12.0.0"
   },
   "contributors": [
     {
       "name": "Eldar Aliiev",
       "email": "eldar@coralogix.com",
       "url": "https://github.com/EldarAliiev"
+    },
+    {
+      "name": "Tal Knopf",
+      "email": "talk@coralogix.com",
+      "url": "https://github.com/talknopf"
     }
   ],
   "keywords": [
