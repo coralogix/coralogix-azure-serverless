@@ -44,17 +44,12 @@ $ make functools
 Configure (Replace environment variables with appropriate values) and install ``Coralogix`` function for ``Azure Functions``:
 
 ```bash
-$ export AZURE_REGION=YOUR_REGION
-$ export AZURE_FUNCTION_NAME=coralogixblob
-$ export AZURE_STORAGE_CONNECTION=<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>
+export AZURE_STORAGE_CONNECTION=<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>
+export CORALOGIX_PRIVATE_KEY=YOUR_PRIVATE_KEY
 
-$ export CORALOGIX_PRIVATE_KEY=YOUR_PRIVATE_KEY
-$ export CORALOGIX_APP_NAME=APP_NAME
-$ export CORALOGIX_SUB_SYSTEM=SUB_NAME
-
-$ make install
-$ make configure
-$ make publish
+make install
+make configure
+make publish
 ```
 
 The ``<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>`` should be replaced with ``Storage Account`` connection string which you can find in ``Storage Account`` -> ``Access keys`` -> ``Connection string``. It should looks like:
@@ -88,7 +83,7 @@ By default ``BlobStorage`` function will be triggered when you'll upload files t
 If you store multiline data, just export ``NEWLINE_PATTERN`` environment variable with regex for line splitting and execute:
 
 ```bash
-$ make configure
+make configure
 ```
 
 After that your separate lines will be joined correctly.
