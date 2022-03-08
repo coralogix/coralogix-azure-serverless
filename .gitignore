@@ -5,13 +5,15 @@ csx
 edge
 .vscode
 Publish
-
+.editorconfig
+.eslintignore
+.eslintrc
 *.user
 *.suo
 *.cscfg
 *.Cache
 project.lock.json
-
+.azure_auth
 /packages
 /TestResults
 
