@@ -1,5 +1,18 @@
 {
   "version": "2.0",
+  "aggregator": {
+    "batchSize": 1,
+    "flushTimeout": "00:00:30"
+  },
+  "retry": {
+    "strategy": "exponentialBackoff",
+    "maxRetryCount": 3, 
+  },
+  "extensions": {
+    "blobs": {
+      "maxDegreeOfParallelism": 1
+    }
+  },
   "logging": {
     "applicationInsights": {
       "samplingSettings": {
