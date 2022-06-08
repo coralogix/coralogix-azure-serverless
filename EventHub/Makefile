@@ -1,9 +1,7 @@
 export AZURE_REGION ?= westeurope
-export AZURE_RESOURCE_GROUP ?= AzureFunctionsCoralogix
-export AZURE_FUNCTION_NAME ?= coralogixhubfunc
-export AZURE_STORAGE_CONNECTION ?= ""
+export AZURE_RESOURCE_GROUP ?= Azrg
+export AZURE_FUNCTION_NAME ?= crxhubfunc
 
-export AZURE_EVENTHUB_CONNECTION ?= ""
 
 export CORALOGIX_PRIVATE_KEY ?= ""
 export CORALOGIX_APP_NAME ?= Azure
@@ -47,7 +45,7 @@ configure:
 	@az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
-        --settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" "AzureWebJobsStorage=$(AZURE_STORAGE_CONNECTION)" "EventHubConnection=$(AZURE_EVENTHUB_CONNECTION)" "CORALOGIX_URL=$(CORALOGIX_URL)"
+        --settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" "AzureWebJobsStorage=$(AZURE_STORAGE_CONNECTION)" "CORALOGIX_URL=$(CORALOGIX_URL)"
 
 publish: build
 	@func azure functionapp publish $(AZURE_FUNCTION_NAME) --typescript

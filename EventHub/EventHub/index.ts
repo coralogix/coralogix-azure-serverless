@@ -19,38 +19,30 @@ import { Log, Severity, CoralogixLogger, LoggerConfig } from "coralogix-logger";
  * @param {array} eventHubMessages - event hub messages
  */
 const eventHubTrigger: AzureFunction = function (context: Context, events: any): void {
-    context.log(`eventHub trigger function named: ${context.executionContext.functionName} version 1.1.0`);
-
-    if ((!Array.isArray(events)) || (events.length === 0)) {
+    context.log(`eventHub trigger function named: ${context.executionContext.functionName}`);
+    if ((!Array.isArray(events)) || (events.length === 0)) { 
         return;
       }
-
-    CoralogixLogger.configure(new LoggerConfig({
+    //Setting up the Coralogix Logger
+    const config = new LoggerConfig({
         privateKey: process.env.CORALOGIX_PRIVATE_KEY,
         applicationName: process.env.CORALOGIX_APP_NAME || "NO_APPLICATION",
         subsystemName: process.env.CORALOGIX_SUB_SYSTEM || "NO_SUBSYSTEM"
-    }));
-
-    const logger: CoralogixLogger = new CoralogixLogger("eventhub");
+    });
+    CoralogixLogger.configure(config);
+    const logger: CoralogixLogger = new CoralogixLogger("evhub");
     const threadId: string = context.executionContext.functionName;
 
-    events.forEach((record) => {
-        if (record == null) {
-            return;
-        }
-
-        if (Array.isArray(record)) {
-            record.forEach((inner) => {
-                writeLog(inner, threadId, logger);
-            });
-        }
-        else if (Array.isArray(record.records)) {
-            record.records.forEach((inner) => {
-                writeLog(inner, threadId, logger);
-            });
-        }
+    //Parsing the event bulk, assuming we work with "many" as the cardinality attribute
+    events.forEach((message, index) => {
+        context.log(`Processed message: ${JSON.stringify(message)}`);
+        context.log(`EnqueuedTimeUtc = ${context.bindingData.enqueuedTimeUtcArray[index]}`);
+        context.log(`SequenceNumber = ${context.bindingData.sequenceNumberArray[index]}`);
+        context.log(`Offset = ${context.bindingData.offsetArray[index]}`);
+        writeLog(message, threadId, logger);
     });
 
+    //Making sure the logger buffer is clean
     CoralogixLogger.flush();
     context.done();
 };
@@ -59,9 +51,7 @@ const writeLog = function(text: any, thread: any, logger: CoralogixLogger): void
     if (text == null) {
         return;
     }
-
     const body = JSON.stringify(text);
-
     logger.addLog(new Log({
         severity: Severity.info,
         text: body,

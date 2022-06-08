@@ -3,11 +3,11 @@
   "disabled": false,
   "bindings": [
     {
-      "name": "eventHub",
+      "name": "events",
       "type": "eventHubTrigger",
       "direction": "in",
       "cardinality": "many",
-      "eventHubName": "hub2",
+      "eventHubName": "coralogix",
       "connection": "EventHubConnection",
       "consumerGroup": "$Default"
     }
