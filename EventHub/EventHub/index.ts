@@ -39,7 +39,19 @@ const eventHubTrigger: AzureFunction = function (context: Context, events: any):
         context.log(`EnqueuedTimeUtc = ${context.bindingData.enqueuedTimeUtcArray[index]}`);
         context.log(`SequenceNumber = ${context.bindingData.sequenceNumberArray[index]}`);
         context.log(`Offset = ${context.bindingData.offsetArray[index]}`);
-        writeLog(message, threadId, logger);
+        if ('records' in message) {
+            if (Array.isArray(message.records)) {
+                message.records.forEach((inner_record) => {
+                    writeLog(inner_record, threadId, logger);
+                    }
+                )
+            }
+
+        }
+        else {
+            writeLog(message, threadId, logger);    
+        }
+        
     });
 
     //Making sure the logger buffer is clean
