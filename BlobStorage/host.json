@@ -6,11 +6,13 @@
   },
   "retry": {
     "strategy": "exponentialBackoff",
-    "maxRetryCount": 3, 
+    "maxRetryCount": 5,
+    "minimumInterval": "00:00:10",
+    "maximumInterval": "00:10:00" 
   },
   "extensions": {
     "blobs": {
-      "maxDegreeOfParallelism": 1
+      "maxDegreeOfParallelism": 5
     }
   },
   "logging": {
