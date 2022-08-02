@@ -8,4 +8,4 @@ We provide two trigger strategies, please select one and follow the inner README
 
 ---
 info@coralogix.com
-Coralogix 2021
+Coralogix 2022

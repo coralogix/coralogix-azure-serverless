@@ -6,10 +6,11 @@
  * @link        https://coralogix.com/
  * @copyright   Coralogix Ltd.
  * @licence     Apache-2.0
- * @version     1.0.0
+ * @version     1.0.1
  * @since       1.0.0
  */
 
+import { gunzipSync } from "zlib";
 import { AzureFunction, Context } from "@azure/functions";
 import { Log, Severity, CoralogixLogger, LoggerConfig } from "coralogix-logger";
 
@@ -31,7 +32,13 @@ const blobStorageTrigger: AzureFunction = function (context: Context, blob: any)
     const newlinePattern: RegExp = process.env.NEWLINE_PATTERN ? RegExp(process.env.NEWLINE_PATTERN) : /(?:\r\n|\r|\n)/g;
     const logger: CoralogixLogger = new CoralogixLogger("blob");
     try {
-        context.bindings.blob.toString().split(newlinePattern).forEach((record: string) => {
+        let blobData = context.bindings.blob;
+
+        if (context.bindingData.name.endsWith(".gz")) {
+            blobData = gunzipSync(blobData);
+        }
+
+        blobData.toString().split(newlinePattern).forEach((record: string) => {
             if (record) {
                 logger.addLog(new Log({
                     severity: Severity.info,
@@ -40,23 +47,22 @@ const blobStorageTrigger: AzureFunction = function (context: Context, blob: any)
                 }));
             }
         });
-    } catch(error) {
-        context.log.error("Error during proccessing of: ",context.bindingData.name)
-        context.log.error("Error during proccessing of: ", error)
-        try{
+    } catch (error) {
+        context.log.error(`Error during proccessing of ${context.bindingData.name}: ${error}`);
+        try {
             logger.addLog(new Log({
-                    severity: Severity.error,
-                    text: "Azure blob log collector failed during process of log file:" + error,
-                    threadId: context.bindingData.name
-                }));
-        }catch(coralogix_error){
-            context.log.error("Error during sending exception to Coralogix:", coralogix_error)
+                severity: Severity.error,
+                text: "Azure blob log collector failed during process of log file:" + error,
+                threadId: context.bindingData.name
+            }));
+        } catch (coralogix_error) {
+            context.log.error("Error during sending exception to Coralogix:", coralogix_error);
         }
-        
+
     }
 
     CoralogixLogger.flush();
-    context.log("finished processing of:",context.bindingData.name);
+    context.log("Finished processing of:", context.bindingData.name);
     context.done();
 };
 
