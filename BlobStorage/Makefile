@@ -53,7 +53,7 @@ install:
 		--consumption-plan-location $(AZURE_REGION) \
 		--runtime node \
 		--runtime-version 16 \
-		--functions-version ~4 \
+		--functions-version 4 \
 		--storage-account $(AZURE_FUNCTION_NAME)
 
 configure:
