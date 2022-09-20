@@ -10,11 +10,11 @@ export NEWLINE_PATTERN ?= (?:\r\n|\r|\n)
 
 # Change to "https://api.coralogix.us:443/api/v1/logs" for US cluster
 # Change to "https://api.app.coralogix.in:443/api/v1/logs" for IN cluster
-export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs" 
+export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs"
 
 functools:
-	@echo "Will now install: azure-functions-core-tools v3 "
-	@npm install -g azure-functions-core-tools@3 --unsafe-perm true
+	@echo "Will now install: azure-functions-core-tools v4 "
+	@npm install -g azure-functions-core-tools@4 --unsafe-perm true
 
 dependencies:
 	@echo "Will now build the dependencies"
@@ -39,7 +39,7 @@ install:
 		--name "$(AZURE_FUNCTION_NAME)" \
 		--location $(AZURE_REGION) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
-		--sku Standard_LRS 
+		--sku Standard_LRS
 	@echo "Will now create the function with the following parametrs"
 	@echo "Function Name: $(AZURE_FUNCTION_NAME)"
 	@echo "Resource Group: $(AZURE_RESOURCE_GROUP)"
@@ -52,8 +52,8 @@ install:
 		--resource-group $(AZURE_RESOURCE_GROUP) \
 		--consumption-plan-location $(AZURE_REGION) \
 		--runtime node \
-		--runtime-version 12 \
-		--functions-version 3 \
+		--runtime-version 16 \
+		--functions-version ~4 \
 		--storage-account $(AZURE_FUNCTION_NAME)
 
 configure:
