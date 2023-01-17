@@ -48,7 +48,7 @@ then
     #If storage queue name is not empty (changed from default of "logs"
     echo "Monitored Storage Queue: $AZURE_STORAGE_QUEUE_NAME"
     echo "Deploying in Azure Region: $AZURE_REGION"
-    sed -i 's/logs/$AZURE_STORAGE_QUEUE_NAME/g' StorageQueue/function.json
+    sed -i "s/logs/$AZURE_STORAGE_QUEUE_NAME/g" StorageQueue/function.json
     echo "----- MAKE INSTALL -----"
     make install
     check_fault
