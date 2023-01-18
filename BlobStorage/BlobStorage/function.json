@@ -7,7 +7,7 @@
       "type": "blobTrigger",
       "direction": "in",
       "path": "logs/{name}",
-      "connection":"InputStorage"
+      "connection":"AzureWebJobsInputStorage"
     }
   ]
 }
