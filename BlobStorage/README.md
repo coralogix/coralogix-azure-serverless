@@ -6,19 +6,33 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 * An Azure account with an active subscription.
 
-* The [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 3.x.
-
 * [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.4 or later.
 
 * [Node.js](https://nodejs.org/).
 
 ## General
+**AZURE_STORAGE_CONNECTION** - Storage Account Connection String of the location of the logs to send to coralogix. Go to you ``Storage Account`` -> ``<your logs storage account`` -> ``Access Keys`` -> ``key1`` -> ``Connection String``.
 
-**Private Key** – A unique ID which represents your company, this Id will be sent to your mail once you register to *Coralogix*.
+**CORALOGIX_PRIVATE_KEY** – A unique ID which represents your company, this Id will be sent to your mail once you register to *Coralogix*. more information can be found [here](https://coralogix.com/docs/private-key/).
 
-**Application Name** – The name of your main application, for example, a company named *“SuperData”* would probably insert the *“SuperData”* string parameter or if they want to debug their test environment they might insert the *“SuperData– Test”*.
+**CORALOGIX_APP_NAME** – The name of your main application, for example, a company named *“SuperData”* would probably insert the *“SuperData”* string parameter or if they want to debug their test environment they might insert the *“SuperData– Test”*.
 
-**SubSystem Name** – Your application probably has multiple subsystems, for example: Backend servers, Middleware, Frontend servers etc. in order to help you examine the data you need, inserting the subsystem parameter is vital.
+**CORALOGIX_SUB_SYSTEM** – Your application probably has multiple subsystems, for example: Backend servers, Middleware, Frontend servers etc. in order to help you examine the data you need, inserting the subsystem parameter is vital.
+
+**CORALOGIX_URL** – Your coralgix account domain specific endpoint. more information can be found below.
+
+
+### Coralogix's Endpoints 
+
+Depending on your region, you need to configure correct Coralogix url variable. Here are the available Endpoints:
+
+| Region  | Coralogix Endpoint                          |
+|---------|------------------------------------------|
+| USA1 (Ohio)   | `https://api.coralogix.us:443/api/v1/logs`      |
+| APAC1 (Mumbai)  | `https://api.app.coralogix.in:443/api/v1/logs`  | 
+| APAC2 (Singapore)  | `https://api.coralogixsg.com:443/api/v1/logs`   | 
+| EUROPE1 (Ireland)| `https://api.coralogix.com:443/api/v1/logs`     | 
+| EUROPE2 (Stockholm)| `https://api.eu2.coralogix.com:443/api/v1/logs` | 
 
 ## Installation
 
@@ -35,30 +49,42 @@ Login with Azure cli:
 $ az login
 ```
 
-Install ``Azure Functions Core Tools``:
+Install ``Azure Functions Core Tools 4``:
 
 ```bash
 $ make functools
 ```
 
-Configure (Replace environment variables with appropriate values) and install ``Coralogix`` function for ``Azure Functions``:
+Note: only install the Azure function tools if you dont already have it.  
+
+Configure environment variables with appropriate values and install ``Coralogix`` function for ``Azure Functions``:
 
 ```bash
-export AZURE_STORAGE_CONNECTION=<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>
-export CORALOGIX_PRIVATE_KEY=YOUR_PRIVATE_KEY
+$ export AZURE_REGION=centralus # default is 'westeurope'
+$ export AZURE_FUNCTION_NAME=crxblob$(echo $RANDOM|head -c 5;echo;) # default is 'crxhub'
+$ export AZURE_RESOURCE_GROUP=crxrg$(echo $RANDOM|head -c 5;echo;) # default is 'crxrg'
+$ export AZURE_STORAGE_CONNECTION="<your_storage_account_primary_connection_string>" # not optional, be sure to use quotation marks for the export to work
+$ export CORALOGIX_PRIVATE_KEY=<your_coralogix_secret> # not optional
+$ export CORALOGIX_APP_NAME=<your_coralogix_app_name> # default is 'Azure'
+$ export CORALOGIX_SUB_SYSTEM=<your_coralogix_subsystem_name> # default is 'eventhub'
+$ export CORALOGIX_URL="https://api.coralogix.us:443/api/v1/logs" # default is 'https://api.coralogix.com:443/api/v1/logs'
 
-make install
-make configure
-make publish
+
+$ make install
+$ make configure
+$ make publish
 ```
 
-The ``<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>`` should be replaced with ``Storage Account`` connection string which you can find in ``Storage Account`` -> ``Access keys`` -> ``Connection string``. It should looks like:
-
-```
-DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_ACCOUNT_KEY;EndpointSuffix=core.windows.net
-```
+Thats it! new events will now trigger the function and be sent to coralogix.  
 
 Check sections below to find more information about configuration.
+
+## Removal
+
+
+```bash
+$ make delete
+```
 
 ## BlobStorage
 

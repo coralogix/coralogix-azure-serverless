@@ -6,21 +6,37 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 * An Azure account with an active subscription.
 
-* An active Eventhub Namespace with an Hub Named ``coralogix``
-
-* The [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 3.x.
+* An active Eventhub Namespace with an Hub Named ``coralogix``.
 
 * [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.4 or later.
 
 * [Node.js](https://nodejs.org/).
 
+
 ## General
 
-**Private Key** – A unique ID which represents your company, this Id will be sent to your mail once you register to *Coralogix*.
+**AZURE_EVENTHUB_CONNECTION_STRING** - The eventhub namespace primary connection string, which you can find in  ``Event Hub`` -> ``Shared access policies`` -> ``<your_policy>`` -> ``Connection string-primary key``.
 
-**Application Name** – The name of your main application, for example, a company named *“SuperData”* would probably insert the *“SuperData”* string parameter or if they want to debug their test environment they might insert the *“SuperData– Test”*.
+**CORALOGIX_PRIVATE_KEY** – A unique ID which represents your company, this Id will be sent to your mail once you register to *Coralogix*. more information can be found [here](https://coralogix.com/docs/private-key/).
 
-**SubSystem Name** – Your application probably has multiple subsystems, for example: Backend servers, Middleware, Frontend servers etc. in order to help you examine the data you need, inserting the subsystem parameter is vital.
+**CORALOGIX_APP_NAME** – The name of your main application, for example, a company named *“SuperData”* would probably insert the *“SuperData”* string parameter or if they want to debug their test environment they might insert the *“SuperData– Test”*.
+
+**CORALOGIX_SUB_SYSTEM** – Your application probably has multiple subsystems, for example: Backend servers, Middleware, Frontend servers etc. in order to help you examine the data you need, inserting the subsystem parameter is vital.
+
+**CORALOGIX_URL** – Your coralgix account domain specific endpoint. more information can be found below.
+
+
+### Coralogix's Endpoints 
+
+Depending on your region, you need to configure correct Coralogix url variable. Here are the available Endpoints:
+
+| Region  | Coralogix Endpoint                          |
+|---------|------------------------------------------|
+| USA1 (Ohio)   | `https://api.coralogix.us:443/api/v1/logs`      |
+| APAC1 (Mumbai)  | `https://api.app.coralogix.in:443/api/v1/logs`  | 
+| APAC2 (Singapore)  | `https://api.coralogixsg.com:443/api/v1/logs`   | 
+| EUROPE1 (Ireland)| `https://api.coralogix.com:443/api/v1/logs`     | 
+| EUROPE2 (Stockholm)| `https://api.eu2.coralogix.com:443/api/v1/logs` | 
 
 ## Installation
 
@@ -37,47 +53,50 @@ Login with Azure cli:
 $ az login
 ```
 
-Install ``Azure Functions Core Tools``:
+Install ``Azure Functions Core Tools 4``:
 
 ```bash
 $ make functools
 ```
+Note: only install the Azure function tools if you dont already have it.  
 
-Configure (Replace environment variables with appropriate values) and install ``Coralogix`` function for ``Azure Functions``:
+Configure environment variables with appropriate values and install ``Coralogix`` function for ``Azure Functions``:
 
 ```bash
-$ export AZURE_REGION=centralus #optional the default is westeurope
-$ export AZURE_FUNCTION_NAME=crxhub$(echo $RANDOM|head -c 5;echo;)
-$ export AZURE_RESOURCE_GROUP=crxRG$(echo $RANDOM|head -c 5;echo;)
-$ export CORALOGIX_PRIVATE_KEY=<your_coralogix_secret>
-$ export CORALOGIX_APP_NAME=<your_coralogix_app_name>
-$ export CORALOGIX_SUB_SYSTEM=<your_coralogix_subsystem_name>
+$ export AZURE_REGION=centralus # default is 'westeurope'
+$ export AZURE_FUNCTION_NAME=crxhub$(echo $RANDOM|head -c 5;echo;) # default is 'crxhub'
+$ export AZURE_RESOURCE_GROUP=crxrg$(echo $RANDOM|head -c 5;echo;) # default is 'crxrg'
+$ export AZURE_EVENTHUB_CONNECTION_STRING="<your_eventhub_namespace_primary_connection_string>" # not optional, be sure to use quotation marks for the export to work
+$ export CORALOGIX_PRIVATE_KEY=<your_coralogix_secret> # not optional
+$ export CORALOGIX_APP_NAME=<your_coralogix_app_name> # default is 'Azure'
+$ export CORALOGIX_SUB_SYSTEM=<your_coralogix_subsystem_name> # default is 'eventhub'
+$ export CORALOGIX_URL="https://api.coralogix.us:443/api/v1/logs" # default is 'https://api.coralogix.com:443/api/v1/logs'
+
 
 $ make install
 $ make configure
 $ make publish
 ```
 
-The ``<YOUR_EVENTHUB_CONNECTION_STRING>`` should be replaced with ``Event Hub`` connection string.
-This needs to be done manually after the function was created
-which you can find in ``Event Hub`` -> ``Shared access policies`` -> ``Selected SAS policy`` -> ``Connection string-primary key``.
-It should looks like:
-
-```
-Endpoint=sb://eventhub1.servicebus.windows.net/;SharedAccessKeyName=sas1;SharedAccessKey=TBAfq6...QLwrdeFFE=
-```
+Thats it! new events will now trigger the function and be sent to coralogix.  
 
 Check sections below to find more information about configuration.
 
+## Removal
+
+
+```bash
+$ make delete
+```
+
 ## EventHub
 
-By default ``EventHub`` function will be triggered when new events are shipped to the Hub named 
-``coralogix`` that is accessed via ``EventHubConnection``. 
+By default ``EventHub`` function will be triggered when new events are shipped to a Hub named 
+``coralogix``.
 
-The value of the ``connection`` key is the Variable name containing the connection string for the eventhub namespace.
-Without this the trigger will not work
+To change the triggering eventhub name change the value of `bindings.eventHubName`.
 
-Once installation is done you will need to manually add this variable.
+For example to have the function get trigger by an eventhub called `trigger-eventhub` modify 'function.json' :
 
 ```json
 {
@@ -89,7 +108,7 @@ Once installation is done you will need to manually add this variable.
       "type": "eventHubTrigger",
       "direction": "in",
       "cardinality": "many",
-      "eventHubName": "coralogix",
+      "eventHubName": "trigger-eventhub",
       "connection": "EventHubConnection",
       "consumerGroup": "$Default"
     }
