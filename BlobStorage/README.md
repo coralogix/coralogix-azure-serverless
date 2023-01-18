@@ -6,7 +6,7 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 * An Azure account with an active subscription.
 
-* The [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 3.x.
+* The [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 4.x.
 
 * [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.4 or later.
 
