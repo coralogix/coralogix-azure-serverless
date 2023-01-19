@@ -18,9 +18,9 @@ import { Log, Severity, CoralogixLogger, LoggerConfig } from "coralogix-logger";
  * @param {object} context - Function context
  * @param {array} eventHubMessages - event hub messages
  */
-const eventHubTrigger: AzureFunction = function (context: Context, events: any): void {
+const eventHubTrigger: AzureFunction = async function (context: Context, events: any): Promise<void> {
     context.log(`eventHub trigger function named: ${context.executionContext.functionName}`);
-    if ((!Array.isArray(events)) || (events.length === 0)) { 
+    if ((!Array.isArray(events)) || (events.length === 0)) {
         return;
       }
     //Setting up the Coralogix Logger
@@ -49,14 +49,13 @@ const eventHubTrigger: AzureFunction = function (context: Context, events: any):
 
         }
         else {
-            writeLog(message, threadId, logger);    
+            writeLog(message, threadId, logger);
         }
-        
+
     });
 
     //Making sure the logger buffer is clean
     CoralogixLogger.flush();
-    context.done();
 };
 
 const writeLog = function(text: any, thread: any, logger: CoralogixLogger): void {
