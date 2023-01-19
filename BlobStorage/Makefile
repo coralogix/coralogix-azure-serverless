@@ -1,20 +1,29 @@
-export AZURE_REGION ?= westeurope
-export AZURE_RESOURCE_GROUP ?= coralogixfunctionRG
-export AZURE_FUNCTION_NAME ?= coralogixlogshipper
-export AZURE_STORAGE_CONNECTION ?= ""
+# Configurable exports
 
-export CORALOGIX_PRIVATE_KEY ?= ""
-export CORALOGIX_APP_NAME ?= azure-function-log-collector
-export CORALOGIX_SUB_SYSTEM ?= "$(AZURE_REGION)-function-log-collector"
+export AZURE_REGION ?= westeurope
+export CORALOGIX_APP_NAME ?= Azure
+export CORALOGIX_SUB_SYSTEM ?= "blobStorage"
 export NEWLINE_PATTERN ?= (?:\r\n|\r|\n)
 
-# Change to "https://api.coralogix.us:443/api/v1/logs" for US cluster
-# Change to "https://api.app.coralogix.in:443/api/v1/logs" for IN cluster
-export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs" 
+#  Cluster	                API Endpoint
+#  .com	                    https://api.coralogix.com:443/api/v1/logs
+#  .us	                    https://api.coralogix.us:443/api/v1/logs
+#  .in	                    https://api.app.coralogix.in:443/api/v1/logs
+#  .app.eu2.coralogix.com	https://api.eu2.coralogix.com:443/api/v1/logs
+#  .app.coralogixsg.com	    https://api.coralogixsg.com:443/api/v1/logs
+
+export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs"
+
+# Fixed exports
+
+export AZURE_RESOURCE_GROUP ?= CrlgxRG$(UUID)
+export AZURE_FUNCTION_NAME ?= blobfunc$(UUID)
+export AZURE_FUNCTION_STORAGE_ACCOUNT ?= storage$(UUID)
+
 
 functools:
-	@echo "Will now install: azure-functions-core-tools v3 "
-	@npm install -g azure-functions-core-tools@3 --unsafe-perm true
+	@echo "Will now install: azure-functions-core-tools v4 "
+	@npm install -g azure-functions-core-tools@4 --unsafe-perm true
 
 dependencies:
 	@echo "Will now build the dependencies"
@@ -29,49 +38,54 @@ clean:
 	@rm -rf dist
 
 install:
-	@echo "Creating Azure RG: $(AZURE_RESOURCE_GROUP) in Region: $(AZURE_REGION)"
+	@echo "Creating Resource Group $(AZURE_RESOURCE_GROUP) in Region: $(AZURE_REGION)"
 	@az group create \
 		--name $(AZURE_RESOURCE_GROUP) \
 		--location $(AZURE_REGION)
-	@echo "Creating Azure Storage account: $(AZURE_FUNCTION_NAME)storage in Region: $(AZURE_REGION)"
+	@echo "Creating Storage Account $(AZURE_FUNCTION_STORAGE_ACCOUNT) in Region: $(AZURE_REGION)"
 	@echo "Will be included in RG: $(AZURE_RESOURCE_GROUP) and have Standard LRS redundency"
-	@az storage account create \
-		--name "$(AZURE_FUNCTION_NAME)" \
+	az storage account create \
+		--name "$(AZURE_FUNCTION_STORAGE_ACCOUNT)" \
 		--location $(AZURE_REGION) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
-		--sku Standard_LRS 
+		--sku Standard_LRS
 	@echo "Will now create the function with the following parametrs"
 	@echo "Function Name: $(AZURE_FUNCTION_NAME)"
 	@echo "Resource Group: $(AZURE_RESOURCE_GROUP)"
 	@echo "Consumption Plan Location: $(AZURE_REGION)"
-	@echo "Runtime: node Version: 12"
-	@echo "Functions Version: 3"
-	@echo "Storage-account $(AZURE_FUNCTION_NAME)"
-	@az functionapp create \
+	@echo "Runtime: node Version: 16"
+	@echo "Functions Version: 4"
+	@echo "Storage-account $(AZURE_FUNCTION_STORAGE_ACCOUNT)"
+	az functionapp create \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
 		--consumption-plan-location $(AZURE_REGION) \
 		--runtime node \
-		--runtime-version 12 \
-		--functions-version 3 \
-		--storage-account $(AZURE_FUNCTION_NAME)
+		--runtime-version 16 \
+		--functions-version 4 \
+		--storage-account $(AZURE_FUNCTION_STORAGE_ACCOUNT)
 
 configure:
-	@echo "Will now Configure the Function Environment"
+	@echo "Configuring the Function Environment"
 	@echo "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)"
 	@echo "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)"
 	@echo "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)"
-	@echo "NEWLINE_PATTERN=\'$(NEWLINE_PATTERN)\'"
-	@echo "AzureWebJobsInputStorage=$(AZURE_STORAGE_CONNECTION)"
+	@echo "NEWLINE_PATTERN=$(NEWLINE_PATTERN)"
+	@echo "AzureWebJobsStorage=$(AZURE_STORAGE_CONNECTION_STRING)"
 	@echo "CORALOGIX_URL=$(CORALOGIX_URL)"
-	@az functionapp config appsettings set \
+	az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
-		--settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" "NEWLINE_PATTERN=$(NEWLINE_PATTERN)" "AzureWebJobsInputStorage=$(AZURE_STORAGE_CONNECTION)" "CORALOGIX_URL=$(CORALOGIX_URL)"
+		--settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" \
+		"CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" \
+		"CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" \
+		"NEWLINE_PATTERN=$(NEWLINE_PATTERN)" \
+		"AzureWebJobsStorage=$(AZURE_STORAGE_CONNECTION_STRING)" \
+		"CORALOGIX_URL=$(CORALOGIX_URL)"
 
 publish: build
 	@echo "Will now publish the function we created"
-	@func azure functionapp publish $(AZURE_FUNCTION_NAME) --typescript
+	func azure functionapp publish $(AZURE_FUNCTION_NAME) --typescript
 
 deploy: install configure publish
 

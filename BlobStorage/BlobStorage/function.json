@@ -1,13 +1,13 @@
 {
-  "scriptFile": "../dist/BlobStorage/index.js",
-  "disabled": false,
   "bindings": [
     {
       "name": "blob",
       "type": "blobTrigger",
       "direction": "in",
       "path": "logs/{name}",
-      "connection":"InputStorage"
+      "connection":"AzureWebJobsStorage"
     }
-  ]
+  ],
+  "scriptFile": "../dist/BlobStorage/index.js",
+  "disabled": false
 }

@@ -6,11 +6,11 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 * An Azure account with an active subscription.
 
-* The [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 3.x.
+* [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 4.x.
 
-* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.4 or later.
+* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.44.0 or later.
 
-* [Node.js](https://nodejs.org/).
+* [Node.js](https://nodejs.org/) version 16
 
 ## General
 
@@ -44,8 +44,17 @@ $ make functools
 Configure (Replace environment variables with appropriate values) and install ``Coralogix`` function for ``Azure Functions``:
 
 ```bash
-export AZURE_STORAGE_CONNECTION=<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>
-export CORALOGIX_PRIVATE_KEY=YOUR_PRIVATE_KEY
+# A Unique Identifier to ensure successful deployment of resources with universally unique requirements
+export UUID=$(od -vN "7" -An -tx1 /dev/urandom|tr -d " \n"; echo)
+# Storage Account "Connection String"
+export AZURE_STORAGE_CONNECTION_STRING='<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>'
+# Private key for Coralogix
+export CORALOGIX_PRIVATE_KEY='<YOUR_PRIVATE_KEY>'
+# Name of Azure Blob storage container to monitor (MUST be all lowercase)
+export AZURE_BLOB_CONTAINER_NAME='<AZURE_BLOB_CONTAINER>'
+# Desired Application name and Subsystem name for ingested Storage Queue messages
+export CORALOGIX_APP_NAME=YOUR_APP_NAME
+export CORALOGIX_SUB_SYSTEM=YOUR_SUB_SYSTEM_NAME
 
 make install
 make configure

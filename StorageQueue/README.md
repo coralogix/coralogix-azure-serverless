@@ -12,7 +12,7 @@ The Azure Storage Queue integration allows parsing of queue messages in JSON for
 
 * [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.44.0
 
-* [Node.js](https://nodejs.org/) version 18
+* [Node.js](https://nodejs.org/) version 16
 
 ## General
 
