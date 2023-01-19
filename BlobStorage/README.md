@@ -10,7 +10,7 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 * [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.44.0 or later.
 
-* [Node.js](https://nodejs.org/) version 16
+* [Node.js](https://nodejs.org/) version 16.
 
 ## General
 
