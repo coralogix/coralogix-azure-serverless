@@ -47,7 +47,7 @@ then
     echo "Using $UUID as our uniqness seed for this deployment."
     #If storage queue name is not empty (changed from default of "logs"
     echo "Monitored EventHub: $AZURE_EVENTHUB_NAME"
-    sed -i "s/YOUR_EVENTHUB/$AZURE_EVENTHUB_NAME/g" EventHub/function.json
+    sed -i.bak "s/YOUR_EVENTHUB/$AZURE_EVENTHUB_NAME/g" EventHub/function.json
     echo "----- MAKE INSTALL -----"
     make install
     check_fault

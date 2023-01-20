@@ -6,7 +6,7 @@
       "direction": "in",
       "cardinality": "many",
       "eventHubName": "YOUR_EVENTHUB",
-      "connection": "AzureWebJobsStorage",
+      "connection": "EventHubConnection",
       "consumerGroup": "$Default"
     }
   ],
