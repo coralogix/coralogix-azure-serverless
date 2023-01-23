@@ -69,7 +69,8 @@ configure:
 	@echo "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)"
 	@echo "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)"
 	@echo "STORAGE_QUEUE_CONNECT_STRING=$(QUEUE_STORAGE_ACCOUNT_CONNECTION_STRING)"
-	@echo "CORALOGIX_URL=$(CORALOGIX_URL)"	az functionapp config appsettings set \
+	@echo "CORALOGIX_URL=$(CORALOGIX_URL)"
+	az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
 		--settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" \
