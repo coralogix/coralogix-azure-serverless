@@ -47,7 +47,7 @@ install:
 		--location $(AZURE_REGION) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
 		--sku Standard_LRS
-	@echo "Will now create the function with the following parametrs"
+	@echo "Will now create the function with the following parameters"
 	@echo "Function Name: $(AZURE_FUNCTION_NAME)"
 	@echo "Resource Group: $(AZURE_RESOURCE_GROUP)"
 	@echo "Consumption Plan Location: $(AZURE_REGION)"
@@ -68,14 +68,14 @@ configure:
 	@echo "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)"
 	@echo "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)"
 	@echo "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)"
-	@echo "AzureWebJobsStorage=$(AZURE_STORAGE_CONNECTION_STRING)"
+	@echo "STORAGE_QUEUE_CONNECT_STRING=$(QUEUE_STORAGE_ACCOUNT_CONNECTION_STRING)"
 	@echo "CORALOGIX_URL=$(CORALOGIX_URL)"	az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
 		--settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" \
 		"CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" \
 		"CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" \
-		"AzureWebJobsStorage=$(AZURE_STORAGE_CONNECTION_STRING)" \
+		"STORAGE_QUEUE_CONNECT_STRING=$(QUEUE_STORAGE_ACCOUNT_CONNECTION_STRING)" \
 		"CORALOGIX_URL=$(CORALOGIX_URL)"
 
 publish: build

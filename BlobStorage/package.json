@@ -1,7 +1,7 @@
 {
   "name": "coralogix-azure-serverless",
   "title": "Azure Functions for integration with Coralogix",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Azure Functions Set for integration with Coralogix",
   "homepage": "https://coralogix.com",
   "license": "Apache-2.0",
@@ -34,6 +34,11 @@
       "name": "Tal Knopf",
       "email": "talk@coralogix.com",
       "url": "https://github.com/talknopf"
+    },
+    {
+      "name": "Michael Briggs",
+      "email": "michael.briggs@coralogix.com",
+      "url": "https://www.linkedin.com/in/michael-briggs-58369b67/"
     }
   ],
   "keywords": [

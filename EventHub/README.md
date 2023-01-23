@@ -8,11 +8,11 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 * An active Eventhub Namespace with an Hub Named ``coralogix``
 
-* The [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 3.x.
+* [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 4.x.
 
-* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.4 or later.
+* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.44.0 or later.
 
-* [Node.js](https://nodejs.org/).
+* [Node.js](https://nodejs.org/) version 16.
 
 ## General
 
@@ -46,21 +46,26 @@ $ make functools
 Configure (Replace environment variables with appropriate values) and install ``Coralogix`` function for ``Azure Functions``:
 
 ```bash
-$ export AZURE_REGION=centralus #optional the default is westeurope
-$ export AZURE_FUNCTION_NAME=crxhub$(echo $RANDOM|head -c 5;echo;)
-$ export AZURE_RESOURCE_GROUP=crxRG$(echo $RANDOM|head -c 5;echo;)
-$ export CORALOGIX_PRIVATE_KEY=<your_coralogix_secret>
-$ export CORALOGIX_APP_NAME=<your_coralogix_app_name>
-$ export CORALOGIX_SUB_SYSTEM=<your_coralogix_subsystem_name>
+# A Unique Identifier to ensure successful deployment of resources with universally unique requirements
+export UUID=$(od -vN "7" -An -tx1 /dev/urandom|tr -d " \n"; echo)
+# SAS Policy "Connection String" of EventHub Instance or Namespace
+export EVENTHUB_SAS_POLICY_CONNECTION_STRING='<YOUR_AZURE_SAS_POLICY_CONNECTION_STRING>'
+# Private key for Coralogix
+export CORALOGIX_PRIVATE_KEY='<YOUR_PRIVATE_KEY>'
+# Name of Azure EventHub to monitor
+export AZURE_EVENTHUB_NAME='<YOUR_AZURE_EVENTHUB_NAME>'
+# Replace the placeholder YOUR_EVENTHUB value in the function.json file
+sed -i "s/YOUR_EVENTHUB/$AZURE_EVENTHUB_NAME/g" EventHub/function.json
+# Desired Application name and Subsystem name for ingested EventHub messages
+export CORALOGIX_APP_NAME=YOUR_APP_NAME
+export CORALOGIX_SUB_SYSTEM=YOUR_SUB_SYSTEM_NAME
 
-$ make install
-$ make configure
-$ make publish
+make install
+make configure
+make publish
 ```
 
-The ``<YOUR_EVENTHUB_CONNECTION_STRING>`` should be replaced with ``Event Hub`` connection string.
-This needs to be done manually after the function was created
-which you can find in ``Event Hub`` -> ``Shared access policies`` -> ``Selected SAS policy`` -> ``Connection string-primary key``.
+The ``<YOUR_AZURE_SAS_POLICY_CONNECTION_STRING>`` should be replaced with ``Event Hub`` connection string which you can find in ``Event Hub`` -> ``Shared access policies`` -> ``Select a SAS policy`` -> ``Connection string-primary key``.
 It should looks like:
 
 ```
@@ -71,29 +76,4 @@ Check sections below to find more information about configuration.
 
 ## EventHub
 
-By default ``EventHub`` function will be triggered when new events are shipped to the Hub named 
-``coralogix`` that is accessed via ``EventHubConnection``. 
-
-The value of the ``connection`` key is the Variable name containing the connection string for the eventhub namespace.
-Without this the trigger will not work
-
-Once installation is done you will need to manually add this variable.
-
-```json
-{
-  "scriptFile": "../dist/EventHub/index.js",
-  "disabled": false,
-  "bindings": [
-    {
-      "name": "events",
-      "type": "eventHubTrigger",
-      "direction": "in",
-      "cardinality": "many",
-      "eventHubName": "coralogix",
-      "connection": "EventHubConnection",
-      "consumerGroup": "$Default"
-    }
-  ]
-}
-
-```
+There are no additional configuration options available nor required at this time.

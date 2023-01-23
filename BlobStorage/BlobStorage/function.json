@@ -5,7 +5,7 @@
       "type": "blobTrigger",
       "direction": "in",
       "path": "logs/{name}",
-      "connection":"AzureWebJobsStorage"
+      "connection":"BLOB_CONNECT_STRING"
     }
   ],
   "scriptFile": "../dist/BlobStorage/index.js",

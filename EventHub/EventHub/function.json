@@ -1,15 +1,15 @@
 {
-  "scriptFile": "../dist/EventHub/index.js",
-  "disabled": false,
   "bindings": [
     {
       "name": "events",
       "type": "eventHubTrigger",
       "direction": "in",
       "cardinality": "many",
-      "eventHubName": "coralogix",
-      "connection": "EventHubConnection",
+      "eventHubName": "YOUR_EVENTHUB",
+      "connection": "EVENTHUB_CONNECT_STRING",
       "consumerGroup": "$Default"
     }
-  ]
+  ],
+  "scriptFile": "../dist/EventHub/index.js",
+  "disabled": false
 }
