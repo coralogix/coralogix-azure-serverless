@@ -48,8 +48,8 @@ Configure (Replace environment variables with appropriate values) and install ``
 ```bash
 # A Unique Identifier to ensure successful deployment of resources with universally unique requirements
 export UUID=$(od -vN "7" -An -tx1 /dev/urandom|tr -d " \n"; echo)
-# SAS Policy "Connection String" of EventHub
-export AZURE_SAS_POLICY_CONNECTION_STRING='<YOUR_AZURE_SAS_POLICY_CONNECTION_STRING>'
+# SAS Policy "Connection String" of EventHub Instance or Namespace
+export EVENTHUB_SAS_POLICY_CONNECTION_STRING='<YOUR_AZURE_SAS_POLICY_CONNECTION_STRING>'
 # Private key for Coralogix
 export CORALOGIX_PRIVATE_KEY='<YOUR_PRIVATE_KEY>'
 # Name of Azure EventHub to monitor

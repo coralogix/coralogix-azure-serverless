@@ -46,8 +46,8 @@ Configure (Replace environment variables with appropriate values) and install ``
 ```bash
 # A Unique Identifier to ensure successful deployment of resources with universally unique requirements
 export UUID=$(od -vN "7" -An -tx1 /dev/urandom|tr -d " \n"; echo)
-# Storage Account "Connection String"
-export AZURE_STORAGE_CONNECTION_STRING='<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>'
+# Storage Account "Connection String" containing the Blob
+export BLOB_STORAGE_ACCOUNT_CONNECTION_STRING='<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>'
 # Private key for Coralogix
 export CORALOGIX_PRIVATE_KEY='<YOUR_PRIVATE_KEY>'
 # Name of Azure Blob storage container to monitor (MUST be all lowercase)

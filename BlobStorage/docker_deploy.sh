@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #Add required variables for given integration to this string
-required_env_vars="AZURE_STORAGE_CONNECTION_STRING AZURE_BLOB_CONTAINER_NAME CORALOGIX_PRIVATE_KEY AZURE_REGION"
+required_env_vars="BLOB_STORAGE_ACCOUNT_CONNECTION_STRING AZURE_BLOB_CONTAINER_NAME CORALOGIX_PRIVATE_KEY AZURE_REGION"
 
 #Function to validate required variables are set
 check_vars()

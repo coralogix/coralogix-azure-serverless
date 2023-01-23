@@ -48,7 +48,7 @@ install:
 		--location $(AZURE_REGION) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
 		--sku Standard_LRS
-	@echo "Will now create the function with the following parametrs"
+	@echo "Will now create the function with the following parameters"
 	@echo "Function Name: $(AZURE_FUNCTION_NAME)"
 	@echo "Resource Group: $(AZURE_RESOURCE_GROUP)"
 	@echo "Consumption Plan Location: $(AZURE_REGION)"
@@ -69,7 +69,7 @@ configure:
 	@echo "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)"
 	@echo "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)"
 	@echo "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)"
-	@echo "EventHubConnection=$(AZURE_SAS_POLICY_CONNECTION_STRING)"
+	@echo "EVENTHUB_CONNECT_STRING=$(EVENTHUB_SAS_POLICY_CONNECTION_STRING)"
 	@echo "CORALOGIX_URL=$(CORALOGIX_URL)"
 	@az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
@@ -77,7 +77,7 @@ configure:
 		--settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" \
 		"CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" \
 		"CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" \
-		"EventHubConnection=$(AZURE_SAS_POLICY_CONNECTION_STRING)" \
+		"EVENTHUB_CONNECT_STRING=$(EVENTHUB_SAS_POLICY_CONNECTION_STRING)" \
 		"CORALOGIX_URL=$(CORALOGIX_URL)"
 
 publish: build

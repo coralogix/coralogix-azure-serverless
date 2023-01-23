@@ -49,7 +49,7 @@ install:
 		--location $(AZURE_REGION) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
 		--sku Standard_LRS
-	@echo "Will now create the function with the following parametrs"
+	@echo "Will now create the function with the following parameters"
 	@echo "Function Name: $(AZURE_FUNCTION_NAME)"
 	@echo "Resource Group: $(AZURE_RESOURCE_GROUP)"
 	@echo "Consumption Plan Location: $(AZURE_REGION)"
@@ -71,7 +71,7 @@ configure:
 	@echo "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)"
 	@echo "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)"
 	@echo "NEWLINE_PATTERN=$(NEWLINE_PATTERN)"
-	@echo "AzureWebJobsStorage=$(AZURE_STORAGE_CONNECTION_STRING)"
+	@echo "BLOB_CONNECT_STRING=$(BLOB_STORAGE_ACCOUNT_CONNECTION_STRING)"
 	@echo "CORALOGIX_URL=$(CORALOGIX_URL)"
 	az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
@@ -80,7 +80,7 @@ configure:
 		"CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" \
 		"CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" \
 		"NEWLINE_PATTERN=$(NEWLINE_PATTERN)" \
-		"AzureWebJobsStorage=$(AZURE_STORAGE_CONNECTION_STRING)" \
+		"BLOB_CONNECT_STRING=$(BLOB_STORAGE_ACCOUNT_CONNECTION_STRING)" \
 		"CORALOGIX_URL=$(CORALOGIX_URL)"
 
 publish: build

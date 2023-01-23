@@ -5,7 +5,7 @@
       "type": "queueTrigger",
       "direction": "in",
       "queueName": "logs",
-      "connection": "AzureWebJobsStorage"
+      "connection": "STORAGE_QUEUE_CONNECT_STRING"
     }
   ],
   "scriptFile": "../dist/StorageQueue/index.js"

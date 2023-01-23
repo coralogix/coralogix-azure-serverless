@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #Add required variables for given integration to this string
-required_env_vars="AZURE_SAS_POLICY_CONNECTION_STRING AZURE_EVENTHUB_NAME CORALOGIX_PRIVATE_KEY AZURE_REGION"
+required_env_vars="EVENTHUB_SAS_POLICY_CONNECTION_STRING AZURE_EVENTHUB_NAME CORALOGIX_PRIVATE_KEY AZURE_REGION"
 
 #Function to validate required variables are set
 check_vars()

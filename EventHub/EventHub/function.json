@@ -6,7 +6,7 @@
       "direction": "in",
       "cardinality": "many",
       "eventHubName": "YOUR_EVENTHUB",
-      "connection": "EventHubConnection",
+      "connection": "EVENTHUB_CONNECT_STRING",
       "consumerGroup": "$Default"
     }
   ],
