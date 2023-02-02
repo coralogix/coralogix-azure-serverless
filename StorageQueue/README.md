@@ -50,6 +50,7 @@ Configure (Replace environment variables with appropriate values) and install ``
 export UUID=$(od -vN "7" -An -tx1 /dev/urandom|tr -d " \n"; echo)
 # Storage Account "Connection String"
 export QUEUE_STORAGE_ACCOUNT_CONNECTION_STRING=<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>
+
 # Private key for Coralogix
 export CORALOGIX_PRIVATE_KEY=YOUR_PRIVATE_KEY
 # Desired Application name and Subsystem name for ingested Storage Queue messages
