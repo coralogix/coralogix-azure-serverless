@@ -4,6 +4,13 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 The Azure Storage Queue integration allows parsing of queue messages in JSON format. Other format messages will not be processed and submitted to the Coralogix platform.
 
+## Automated Deployment
+
+A new automated deployment method is available and can be found by visiting the following repository:
+[https://github.com/coralogix/coralogix-azure-deploy](https://github.com/coralogix/coralogix-azure-deploy)
+
+The steps below, for the manual process, should remail functional in the event that you are unable to use the above method, but the above method is the standard/supported method at this time.
+
 ## Prerequisites
 
 * An Azure account with an active subscription.
