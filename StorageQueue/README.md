@@ -37,6 +37,13 @@ Login with Azure cli:
 $ az login
 ```
 
+Set Azure subscription id:
+```bash
+# If you have more than one Azure subscription assigned to your account, make sure to set where you want to deploy the integration.
+# You can get the subscription ID by using the CLI command 'az account list' or via the Azure web UI. 
+$ az account set -s SUBSCRIPTION_ID
+```
+
 Install ``Azure Functions Core Tools``:
 
 ```bash

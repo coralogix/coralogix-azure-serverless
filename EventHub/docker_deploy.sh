@@ -39,6 +39,13 @@ then
     echo "Logging into Azure Account"
     az login
     check_fault
+    if [ $SUBSCRIPTION_ID ]
+    then
+        echo "Using Azure subscription $SUBSCRIPTION_ID"
+        az account set --subscription $SUBSCRIPTION_ID
+    else
+        echo "Using Default Azure subscription"
+    fi
     echo "Setting up environment"
     make clean
     make functools
@@ -59,6 +66,6 @@ then
     check_fault
 
 else
-    echo -n "This deployment script is designed to function with a prebuilt docker container.\nYou can find its repo here: https://github.com/MichaelBriggs-Coralogix/coralogix-azure-deploy";
+    echo -n "This deployment script is designed to function with a prebuilt docker container.\nYou can find its repo here: https://github.com/coralogix/coralogix-azure-deploy";
     exit 1
 fi
