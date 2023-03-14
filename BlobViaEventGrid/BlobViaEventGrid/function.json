@@ -1,0 +1,19 @@
+{
+  "disabled": false,
+  "bindings": [
+    {
+      "type": "eventGridTrigger",
+      "name": "eventGridEvent",
+      "direction": "in"
+    },
+    {
+      "name": "myBlob",
+      "type": "blob",
+      "direction": "in",
+      "path": "{data.url}",
+      "connection": "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING",
+      "datatype": "binary"
+    }
+  ],
+  "scriptFile": "../dist/BlobViaEventGrid/index.js"
+}
