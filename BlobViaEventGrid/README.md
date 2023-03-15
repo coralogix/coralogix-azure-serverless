@@ -76,6 +76,9 @@ The ``<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>`` should be replaced with ``Stora
 DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_ACCOUNT_KEY;EndpointSuffix=core.windows.net
 ```
 
+After publishing your function, you will need to create and apply an eventgrid subscription to the function per the Azure example below.
+
+
 Check sections below to find more information about configuration.
 
 ## BlobViaEventGrid
