@@ -3,8 +3,10 @@ import { gunzipSync } from "zlib";
 import { Log, Severity, CoralogixLogger, LoggerConfig } from "coralogix-logger";
 
 const eventGridTrigger: AzureFunction = async function (context: Context, eventGridEvent: any, myBlob: any): Promise<void> {
-    context.log(eventGridEvent);
-    context.log("Processing:", context.bindingData.blobName);
+    
+    const blobURL = context.bindingData.data.url;
+    const blobName = blobURL.slice(blobURL.lastIndexOf("/")+1);
+    context.log("Processing:", blobName);
 
     CoralogixLogger.configure(new LoggerConfig({
         privateKey: process.env.CORALOGIX_PRIVATE_KEY,
@@ -16,9 +18,8 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
     const logger: CoralogixLogger = new CoralogixLogger("blob");
     try {
         let blobData = myBlob;
-        context.log.info(myBlob)
 
-        if (context.bindingData.blobName.endsWith(".gz")) {
+        if (blobName.endsWith(".gz")) {
             blobData = gunzipSync(blobData);
         }
 
@@ -27,26 +28,25 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
                 logger.addLog(new Log({
                     severity: Severity.info,
                     text: record,
-                    threadId: context.bindingData.blobName
+                    threadId: blobName
                 }));
             }
         });
     } catch (error) {
-        context.log.error(`Error during proccessing of ${context.bindingData.blobName}: ${error}`);
+        context.log.error(`Error during proccessing of ${blobName}: ${error}`);
         try {
             logger.addLog(new Log({
                 severity: Severity.error,
                 text: "Azure blob log collector failed during process of log file:" + error,
-                threadId: context.bindingData.blobName
+                threadId: blobName
             }));
         } catch (coralogix_error) {
             context.log.error("Error during sending exception to Coralogix:", coralogix_error);
         }
 
     }
-
+    context.log("Finished processing of:", blobName);
     CoralogixLogger.flush();
-    context.log("Finished processing of:", context.bindingData.blobName);
 };
 
 export default eventGridTrigger;

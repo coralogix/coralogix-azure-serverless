@@ -52,9 +52,7 @@ then
     check_fault
     export UUID=$(od -vN "7" -An -tx1 /dev/urandom|tr -d " \n"; echo)
     echo "Using $UUID as our uniqness seed for this deployment."
-    #If storage queue name is not empty (changed from default of "logs"
     echo "Monitored Container (Blob): $AZURE_BLOB_CONTAINER_NAME"
-    sed -i "s/logs/$AZURE_BLOB_CONTAINER_NAME/g" BlobStorage/function.json
     echo "----- MAKE INSTALL -----"
     make install
     check_fault
