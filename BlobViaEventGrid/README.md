@@ -1,4 +1,4 @@
-# Azure BlobStorage Trigger Function for Coralogix
+# Azure BlobStorage via EventGrid Trigger Function for Coralogix
 
 Coralogix provides a seamless integration with ``Azure`` cloud so you can send your logs from anywhere and parse them according to your needs.
 
@@ -11,6 +11,8 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 * [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.44.0 or later.
 
 * [Node.js](https://nodejs.org/) version 16.
+
+* [Configured EventGrid Subscription](https://learn.microsoft.com/en-us/azure/event-grid/resize-images-on-storage-blob-upload-event?tabs=nodejsv10%2Cazure-cli#create-an-event-subscription) (Done after deploying, but is required)
 
 ## General
 
@@ -76,25 +78,11 @@ DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_ACCOUNT_
 
 Check sections below to find more information about configuration.
 
-## BlobStorage
+## BlobViaEventGrid
 
-By default ``BlobStorage`` function will be triggered when you'll upload files to ``logs`` container in your ``Storage Account``. You can change this to your custom container name in file ``BlobStorage/function.json`` (``bindings.path`` parameter):
+By default ``BlobViaEventGrid`` function will be triggered on all files files uploaded to the ``AZURE_BLOB_CONTAINER_NAME`` container in your ``Storage Account``. Filters can be defined within your EventGrid Subscription.
 
-```json
-{
-  "scriptFile": "../dist/BlobStorage/index.js",
-  "disabled": false,
-  "bindings": [
-    {
-      "name": "blob",
-      "type": "blobTrigger",
-      "direction": "in",
-      "path": "<YOUR_CONTAINER_NAME>/{name}",
-      "connection":"InputStorage"
-    }
-  ]
-}
-```
+[Azure EventGrid Subscription Example](https://learn.microsoft.com/en-us/azure/event-grid/resize-images-on-storage-blob-upload-event?tabs=nodejsv10%2Cazure-cli#create-an-event-subscription)
 
 If you store multiline data, just export ``NEWLINE_PATTERN`` environment variable with regex for line splitting and execute:
 
