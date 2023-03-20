@@ -4,7 +4,7 @@
       "name": "queueItem",
       "type": "queueTrigger",
       "direction": "in",
-      "queueName": "logs",
+      "queueName": "%STORAGE_QUEUE_NAME%",
       "connection": "STORAGE_QUEUE_CONNECT_STRING"
     }
   ],
