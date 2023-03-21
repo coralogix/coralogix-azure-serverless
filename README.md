@@ -4,7 +4,6 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 We provide several trigger strategies, please select one and follow the inner README:
 - [EventHub](/EventHub)
-- [BlobStorage](/BlobStorage)
 - [BlobViaEventGrid](/BlobViaEventGrid)
 - [StorageQueue](/StorageQueue)
 

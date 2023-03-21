@@ -4,103 +4,29 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 The Azure Storage Queue integration allows parsing of queue messages in JSON format. Other format messages will not be processed and submitted to the Coralogix platform.
 
-## Automated Deployment
-
-A new automated deployment method is available and can be found by visiting the following repository:
-[https://github.com/coralogix/coralogix-azure-deploy](https://github.com/coralogix/coralogix-azure-deploy)
-
-The steps below, for the manual process, should remail functional in the event that you are unable to use the above method, but the above method is the standard/supported method at this time.
-
 ## Prerequisites
 
 * An Azure account with an active subscription.
 
-* [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 4
+## Azure Resource Manager Template Deployment
 
-* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.44.0
+The Storage Queue integration can be deployed by clicking the link below and signing into your Azure account:
+[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2FFEAT%2FARM-Deploy%2FStorageQueue%2FARM%2FStorageQueue.json)
 
-* [Node.js](https://nodejs.org/) version 16
+## Guide
 
-## General
+**Subscription** - The Azure Subscription into which you wish to deploy the integration.
 
-**Private Key** – Can be found in your Coralogix account under Settings -> Send your logs. It is located in the upper left corner.
+**Resource Group** - The Resource Group into which you wish to deploy the integration.
 
-**Application Name** – A mandatory metadata field that is sent with each log and helps to classify it.
+**Coralogix URL** - The logs API URL for your Coralogix region.
 
-**SubSystem Name** – A mandatory metadata field that is sent with each log and helps to classify it.
+**Coralogix Private Key** – Can be found in your Coralogix account under Settings -> Send your logs. It is located in the upper left corner.
 
-## Installation
+**Coralogix Application** – A mandatory metadata field that is sent with each log and helps to classify it. (Default: Azure)
 
-Clone this repo:
+**Coralogix Subsystem** – A mandatory metadata field that is sent with each log and helps to classify it. (Default: StorageQueue)
 
-```bash
-$ git clone https://github.com/coralogix/coralogix-azure-serverless.git
-$ cd coralogix-azure-serverless/StorageQueue
-```
+**Storage Queue Connect String** - The Primary Connect String of the Storage Account containing the Storage Queue to be monitored.
 
-Login with Azure cli:
-
-```bash
-$ az login
-```
-
-Set Azure subscription id:
-```bash
-# If you have more than one Azure subscription assigned to your account, make sure to set where you want to deploy the integration.
-# You can get the subscription ID by using the CLI command 'az account list' or via the Azure web UI. 
-$ az account set -s SUBSCRIPTION_ID
-```
-
-Install ``Azure Functions Core Tools``:
-
-```bash
-$ make functools
-```
-
-Configure (Replace environment variables with appropriate values) and install ``Coralogix`` function for ``Azure Functions``:
-
-```bash
-# A Unique Identifier to ensure successful deployment of resources with universally unique requirements
-export UUID=$(od -vN "7" -An -tx1 /dev/urandom|tr -d " \n"; echo)
-# Storage Account "Connection String"
-export QUEUE_STORAGE_ACCOUNT_CONNECTION_STRING=<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>
-
-# Private key for Coralogix
-export CORALOGIX_PRIVATE_KEY=YOUR_PRIVATE_KEY
-# Desired Application name and Subsystem name for ingested Storage Queue messages
-export CORALOGIX_APP_NAME=YOUR_APP_NAME
-export CORALOGIX_SUB_SYSTEM=YOUR_SUB_SYSTEM_NAME
-
-make install
-make configure
-make publish
-```
-
-The ``<YOUR_STORAGE_ACCOUNT_CONNECTION_STRING>`` should be replaced with ``Storage Account`` connection string which you can find in ``Storage Account`` -> ``Access keys`` -> ``Connection string``. It should looks like:
-
-```
-DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_ACCOUNT_KEY;EndpointSuffix=core.windows.net
-```
-
-Check sections below to find more information about configuration.
-
-## Storage Queue customization
-
-By default the ``StorageQueue`` function will be triggered when you'll add messages to ``logs`` Storage Queue in your ``Storage Account``. You can change this to your custom container name in file ``StorageQueue/function.json`` (``bindings.queueName`` parameter):
-
-```json
-{
-  "bindings": [
-    {
-      "name": "queueItem",
-      "type": "queueTrigger",
-      "direction": "in",
-      "queueName": "logs",
-      "connection": "AzureWebJobsStorage"
-    }
-  ],
-  "scriptFile": "../dist/StorageQueue/index.js"
-}
-```
-
-Review the top of the Makefile for additional environmental variables that you can adjust as needed. Make sure that if you modify the Function name or Azure Storage Account name, that they are globally unique.
+**Storage Queue Name** - The name of the Storage Queue to be monitored.

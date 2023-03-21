@@ -2,92 +2,31 @@
 
 Coralogix provides a seamless integration with ``Azure`` cloud so you can send your logs from anywhere and parse them according to your needs.
 
-## Automated Deployment
-
-A new automated deployment method is available and can be found by visiting the following repository:
-[https://github.com/coralogix/coralogix-azure-deploy](https://github.com/coralogix/coralogix-azure-deploy)
-
-The steps below, for the manual process, should remail functional in the event that you are unable to use the above method, but the above method is the standard/supported method at this time.
+The Azure EventHub integration allows parsing of queue messages in JSON format. Other format messages will not be processed and submitted to the Coralogix platform.
 
 ## Prerequisites
 
 * An Azure account with an active subscription.
 
-* An active Eventhub Namespace with an Hub Named ``coralogix``
+## Azure Resource Manager Template Deployment
 
-* [Azure Functions Core Tools](https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local#v2) version 4.x.
+The EventHub integration can be deployed by clicking the link below and signing into your Azure account:
+[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2FFEAT%2FARM-Deploy%2FEventHub%2FARM%2FEventHub.json)
 
-* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) version 2.44.0 or later.
+## Guide
 
-* [Node.js](https://nodejs.org/) version 16.
+**Subscription** - The Azure Subscription into which you wish to deploy the integration.
 
-## General
+**Resource Group** - The Resource Group into which you wish to deploy the integration.
 
-**Private Key** – A unique ID which represents your company, this Id will be sent to your mail once you register to *Coralogix*.
+**Coralogix URL** - The logs API URL for your Coralogix region.
 
-**Application Name** – The name of your main application, for example, a company named *“SuperData”* would probably insert the *“SuperData”* string parameter or if they want to debug their test environment they might insert the *“SuperData– Test”*.
+**Coralogix Private Key** – Can be found in your Coralogix account under Settings -> Send your logs. It is located in the upper left corner.
 
-**SubSystem Name** – Your application probably has multiple subsystems, for example: Backend servers, Middleware, Frontend servers etc. in order to help you examine the data you need, inserting the subsystem parameter is vital.
+**Coralogix Application** – A mandatory metadata field that is sent with each log and helps to classify it. (Default: Azure)
 
-## Installation
+**Coralogix Subsystem** – A mandatory metadata field that is sent with each log and helps to classify it. (Default: EventHub)
 
-Clone this repo:
+**Eventhub SAS Policy Connection String** - The Shared Access Policy Connection String-primary key of the Eventhub hub or instance (either will work).
 
-```bash
-$ git clone https://github.com/coralogix/coralogix-azure-serverless.git
-$ cd coralogix-azure-serverless/EventHub
-```
-
-Login with Azure cli:
-
-```bash
-$ az login
-```
-
-Set Azure subscription id:
-```bash
-# If you have more than one Azure subscription assigned to your account, make sure to set where you want to deploy the integration.
-# You can get the subscription ID by using the CLI command 'az account list' or via the Azure web UI. 
-$ az account set -s SUBSCRIPTION_ID
-```
-
-Install ``Azure Functions Core Tools``:
-
-```bash
-$ make functools
-```
-
-Configure (Replace environment variables with appropriate values) and install ``Coralogix`` function for ``Azure Functions``:
-
-```bash
-# A Unique Identifier to ensure successful deployment of resources with universally unique requirements
-export UUID=$(od -vN "7" -An -tx1 /dev/urandom|tr -d " \n"; echo)
-# SAS Policy "Connection String" of EventHub Instance or Namespace
-export EVENTHUB_SAS_POLICY_CONNECTION_STRING='<YOUR_AZURE_SAS_POLICY_CONNECTION_STRING>'
-# Private key for Coralogix
-export CORALOGIX_PRIVATE_KEY='<YOUR_PRIVATE_KEY>'
-# Name of Azure EventHub to monitor
-export AZURE_EVENTHUB_NAME='<YOUR_AZURE_EVENTHUB_NAME>'
-# Replace the placeholder YOUR_EVENTHUB value in the function.json file
-sed -i "s/YOUR_EVENTHUB/$AZURE_EVENTHUB_NAME/g" EventHub/function.json
-# Desired Application name and Subsystem name for ingested EventHub messages
-export CORALOGIX_APP_NAME=YOUR_APP_NAME
-export CORALOGIX_SUB_SYSTEM=YOUR_SUB_SYSTEM_NAME
-
-make install
-make configure
-make publish
-```
-
-The ``<YOUR_AZURE_SAS_POLICY_CONNECTION_STRING>`` should be replaced with ``Event Hub`` connection string which you can find in ``Event Hub`` -> ``Shared access policies`` -> ``Select a SAS policy`` -> ``Connection string-primary key``.
-It should looks like:
-
-```
-Endpoint=sb://eventhub1.servicebus.windows.net/;SharedAccessKeyName=sas1;SharedAccessKey=TBAfq6...QLwrdeFFE=
-```
-
-Check sections below to find more information about configuration.
-
-## EventHub
-
-There are no additional configuration options available nor required at this time.
+**Eventhub Instance Name** - The name of the Eventhub Instance to be monitored.

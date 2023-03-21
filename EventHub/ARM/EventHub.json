@@ -24,22 +24,16 @@
     },
     "CoralogixApplication": {
       "type": "string",
+      "defaultValue": "Azure",
       "metadata": {
         "description": "The name of the Application in Coralogix."
       }
     },
     "CoralogixSubsystem": {
       "type": "string",
+      "defaultValue": "EventHub",
       "metadata": {
         "description": "The name of the Subsystem in Coralogix."
-      }
-    },
-    "functionAppName": {
-      "type": "string",
-      "defaultValue": "[format('EventHub-{0}', uniqueString(resourceGroup().id))]",
-      "maxLength": 32,
-      "metadata": {
-        "description": "The globally unique name of the Azure Function app."
       }
     },
     "EventhubSASPolicyConnectionString": {
@@ -56,11 +50,12 @@
     }
   },
   "variables": {
-    "hostingPlanName": "[parameters('functionAppName')]",
-    "applicationInsightsName": "[parameters('functionAppName')]",
-    "storageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
+    "functionAppName": "[format('EventHub-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubSASPolicyConnectionString'), parameters('EventhubInstanceName'))))]",
+    "hostingPlanName": "[variables('functionAppName')]",
+    "applicationInsightsName": "[variables('functionAppName')]",
+    "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://mbpublicstorageacct.blob.core.windows.net/codearchives/eventhub.zip"
+    "packageUri": "https://azure-functions-repo.s3.eu-central-1.amazonaws.com/eventhub.zip"
   },
   "resources": [
     {
@@ -104,7 +99,7 @@
     {
       "type": "Microsoft.Web/sites",
       "apiVersion": "2022-03-01",
-      "name": "[parameters('functionAppName')]",
+      "name": "[variables('functionAppName')]",
       "location": "[variables('location')]",
       "kind": "functionapp",
       "properties": {
@@ -125,7 +120,7 @@
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
-              "value": "[toLower(parameters('functionAppName'))]"
+              "value": "[toLower(variables('functionAppName'))]"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -179,12 +174,12 @@
     {
       "type": "Microsoft.Web/sites/extensions",
       "apiVersion": "2022-03-01",
-      "name": "[format('{0}/{1}', parameters('functionAppName'), 'zipdeploy')]",
+      "name": "[format('{0}/{1}', variables('functionAppName'), 'zipdeploy')]",
       "properties": {
         "packageUri": "[variables('packageUri')]"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
     }
   ]
