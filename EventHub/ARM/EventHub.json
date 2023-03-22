@@ -55,7 +55,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://azure-functions-repo.s3.eu-central-1.amazonaws.com/eventhub.zip"
+    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/eventhub.zip"
   },
   "resources": [
     {
