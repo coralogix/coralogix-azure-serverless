@@ -13,7 +13,7 @@ The Azure BlobStorage via EventGrid integration allows parsing of Azure Blobs, t
 ## Azure Resource Manager Template Deployment
 
 The BlobStorage Via Eventgrid trigger integration can be deployed by clicking the link below and signing into your Azure account:
-[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2FFEAT%2FARM-Deploy%2FStorageQueue%2FARM%2FStorageQueue.json)
+[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2FFEAT%2FARM-Deploy%2FBlobViaEventGrid%2FARM%2FBlobViaEventGrid.json)
 
 After deployment is complete, you need to configure and align an EventGrid subscription as detailed in the Microsoft document linked above in the Prerequisites section.
 

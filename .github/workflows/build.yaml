@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    branches-ignore: [master]
+  pull_request:
+    types: [closed]
+    branches: [master]
+
+env:
+  AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.get-changed-packages.outputs.packages }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Get Changed Packages
+        id: get-changed-packages
+        run: |
+          export PACKAGES=$(git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha || 'origin/master' }} ${{ github.sha }} ./*/ | cut -f1 -d/ | sort | uniq | jq -rcnR '[inputs]')
+          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      AWS_SERVERLESS_BUCKET: ${{ secrets.AWS_PUBLIC_BUCKET }}
+    needs: [check]
+    strategy:
+      matrix:
+        package: ${{ fromJSON(needs.check.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16
+
+      - name: install AWS cli
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+      - name: Install dependencies
+        working-directory: ./${{ matrix.package }}
+        run: npm install
+
+      - name: Build
+        working-directory: ./${{ matrix.package }}
+        run: npm run build
+
+      - name: Package
+        working-directory: ./${{ matrix.package }}
+        run: zip -r ${{ matrix.package }}.zip . -x ".*"
+
+      - name: Setup AWS credentials
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Upload to S3
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        working-directory: ./${{ matrix.package }}
+        run: |
+          aws s3 cp \
+            ${{ matrix.package }}.zip \
+            s3://${{ env.AWS_SERVERLESS_BUCKET }}/azure-functions-repo/${{ matrix.package }}.zip
