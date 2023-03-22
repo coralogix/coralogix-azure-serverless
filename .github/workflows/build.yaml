@@ -26,8 +26,8 @@ jobs:
       - name: Get Changed Packages
         id: get-changed-packages
         run: |
-          export PACKAGES=$(git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha || 'origin/master' }} ${{ github.sha }} ./*/ | cut -f1 -d/ | sort | uniq)
-          echo "::set-output name=packages::$PACKAGES"
+          export PACKAGES=$(git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha || 'origin/master' }} ${{ github.sha }} ./*/ | cut -f1 -d/ | sort | uniq )
+          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
   build:
     name: Build
     runs-on: ubuntu-latest
