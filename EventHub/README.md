@@ -11,7 +11,7 @@ The Azure EventHub integration allows parsing of queue messages in JSON format. 
 ## Azure Resource Manager Template Deployment
 
 The EventHub integration can be deployed by clicking the link below and signing into your Azure account:
-[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2FFEAT%2FARM-Deploy%2FEventHub%2FARM%2FEventHub.json)
+[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2FEventHub%2FARM%2FEventHub.json)
 
 ## Guide
 

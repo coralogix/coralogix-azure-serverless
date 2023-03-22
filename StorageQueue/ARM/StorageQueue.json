@@ -2,18 +2,18 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "CoralogixURL": {
+    "CoralogixRegion": {
       "type": "string",
-      "defaultValue": "https://api.coralogix.com:443/api/v1/logs",
+      "defaultValue": "Europe",
       "allowedValues": [
-        "https://api.coralogix.com:443/api/v1/logs",
-        "https://api.coralogix.us:443/api/v1/logs",
-        "https://api.app.coralogix.in:443/api/v1/logs",
-        "https://api.eu2.coralogix.com:443/api/v1/logs",
-        "https://api.coralogixsg.com:443/api/v1/logs"
-        ],
+        "Europe",
+        "US",
+        "Europe2",
+        "India",
+        "Singapore"
+      ],
       "metadata": {
-        "description": "The Logs API URL of your Coralogix region."
+        "description": "The region of the Coralogix account."
       }
     },
     "CoralogixPrivateKey": {
@@ -50,6 +50,7 @@
     }
   },
   "variables": {
+    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://api.coralogix.com:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US'), 'https://api.coralogix.us:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://api.eu2.coralogix.com:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India'), 'https://api.app.coralogix.in:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://api.coralogixsg.com:443/api/v1/logs', 'NULL')))))]",
     "functionAppName": "[format('StorageQueue-{0}', uniqueString(concat(resourceGroup().id, parameters('StorageQueueConnectString'), parameters('StorageQueueName'))))]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
@@ -152,7 +153,7 @@
             },
             {
               "Name": "CORALOGIX_URL",
-              "Value": "[parameters('CoralogixURL')]"
+              "Value": "[variables('CoralogixURL')]"
             },
             {
               "name": "STORAGE_QUEUE_CONNECT_STRING",
