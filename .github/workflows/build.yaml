@@ -1,8 +1,6 @@
 name: Release
 
 on:
-  push:
-    branches-ignore: [master]
   pull_request:
     types: [closed]
     branches: [master]
