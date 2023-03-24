@@ -24,22 +24,26 @@
     },
     "CoralogixApplication": {
       "type": "string",
-      "defaultValue": "Azure",
       "metadata": {
         "description": "The name of the Application in Coralogix."
       }
     },
     "CoralogixSubsystem": {
       "type": "string",
-      "defaultValue": "EventHub",
       "metadata": {
         "description": "The name of the Subsystem in Coralogix."
       }
     },
-    "EventhubSASPolicyConnectionString": {
+    "EventhubResourceGroup": {
       "type": "string",
       "metadata": {
-        "description": "The SAS Policy Connection String of the EventHub (Hub or Instance)."
+        "description": "The name of the Resource Group that contains the EventHub."
+      }
+    },
+    "EventhubNamespace": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the EventHub Namespace."
       }
     },
     "EventhubInstanceName": {
@@ -47,11 +51,17 @@
       "metadata": {
         "description": "The name of the EventHub Instance."
       }
+    },
+    "EventhubSharedAccessKeyName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the EventHub Shared Access Key."
+      }
     }
   },
   "variables": {
     "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://api.coralogix.com:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US'), 'https://api.coralogix.us:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://api.eu2.coralogix.com:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India'), 'https://api.app.coralogix.in:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://api.coralogixsg.com:443/api/v1/logs', 'NULL')))))]",
-    "functionAppName": "[format('EventHub-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubSASPolicyConnectionString'), parameters('EventhubInstanceName'))))]",
+    "functionAppName": "[format('EventHub-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubNamespace'), parameters('EventhubInstanceName'))))]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
@@ -157,7 +167,7 @@
             },
             {
               "name": "EVENTHUB_CONNECT_STRING",
-              "value": "[parameters('EventhubSASPolicyConnectionString')]"
+              "value": "[concat('Endpoint=sb://', parameters('eventHubNamespace'), '.servicebus.windows.net/;SharedAccessKeyName=', parameters('EventhubSharedAccessKeyName'), ';SharedAccessKey=', listKeys(resourceId(parameters('EventhubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventhubNamespace'), parameters('EventhubSharedAccessKeyName')), '2017-04-01').primaryKey, ';EntityPath=', parameters('EventhubInstanceName'))]"
             },
             {
               "name": "EVENTHUB_INSTANCE_NAME",

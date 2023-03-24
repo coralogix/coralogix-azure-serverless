@@ -24,28 +24,39 @@
     },
     "CoralogixApplication": {
       "type": "string",
-      "defaultValue": "Azure",
       "metadata": {
         "description": "The name of the Application in Coralogix."
       }
     },
     "CoralogixSubsystem": {
       "type": "string",
-      "defaultValue": "BlobStorage",
       "metadata": {
         "description": "The name of the Subsystem in Coralogix."
       }
     },
-    "BlobStorageConnectString": {
+    "StorageAccountName": {
       "type": "string",
       "metadata": {
-        "description": "The connection string of the storage account containing the Blob container."
+        "description": "The name of the storage account containing the Blob container. Must be of type StorageV2 (general purpose v2)"
+      }
+    },
+    "StorageAccountResourceGroup": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource group name of the storage account containing the Blob container."
       }
     },
     "BlobContainerName": {
       "type": "string",
       "metadata": {
         "description": "The name of the Blob container."
+      }
+    },
+    "EventGridSystemTopicName": {
+      "type": "string",
+      "defaultValue": "new",
+      "metadata": {
+        "description": "The name of an existing Event Grid System Topic for the storage account containing the blob container, or leave as 'new' to create one."
       }
     },
     "NewlinePattern": {
@@ -58,19 +69,22 @@
   },
   "variables": {
     "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://api.coralogix.com:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US'), 'https://api.coralogix.us:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://api.eu2.coralogix.com:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India'), 'https://api.app.coralogix.in:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://api.coralogixsg.com:443/api/v1/logs', 'NULL')))))]",
-    "functionAppName": "[format('BlobStorage-{0}', uniqueString(concat(resourceGroup().id, parameters('BlobStorageConnectString'), parameters('BlobContainerName'))))]",
+    "functionAppName": "[format('BlobStorage-{0}', uniqueString(concat(resourceGroup().id, parameters('StorageAccountName'), parameters('BlobContainerName'))))]",
+    "functionAppResourceGroupName": "[resourceGroup().name]",
+    "functionAppLocation": "[resourceGroup().location]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
-    "storageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
-    "location": "[resourceGroup().location]",
+    "functionStorageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
+    "needEventGrid": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), 'true', 'false')]",
+    "eventGridTopicName": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), format('{0}-eg', parameters('storageAccountName')), parameters('EventGridSystemTopicName'))]",
     "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobViaEventGrid.zip"
   },
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
       "apiVersion": "2022-05-01",
-      "name": "[variables('storageAccountName')]",
-      "location": "[variables('location')]",
+      "name": "[variables('functionStorageAccountName')]",
+      "location": "[variables('functionAppLocation')]",
       "sku": {
         "name": "Standard_LRS"
       },
@@ -80,7 +94,7 @@
       "type": "Microsoft.Web/serverfarms",
       "apiVersion": "2022-03-01",
       "name": "[variables('hostingPlanName')]",
-      "location": "[variables('location')]",
+      "location": "[variables('functionAppLocation')]",
       "sku": {
         "name": "Y1",
         "tier": "Dynamic",
@@ -95,7 +109,7 @@
       "type": "Microsoft.Insights/components",
       "apiVersion": "2020-02-02",
       "name": "[variables('applicationInsightsName')]",
-      "location": "[variables('location')]",
+      "location": "[variables('functionAppLocation')]",
       "tags": {
         "[format('hidden-link:{0}', resourceId('Microsoft.Web/sites', variables('applicationInsightsName')))]": "Resource"
       },
@@ -108,7 +122,7 @@
       "type": "Microsoft.Web/sites",
       "apiVersion": "2022-03-01",
       "name": "[variables('functionAppName')]",
-      "location": "[variables('location')]",
+      "location": "[variables('functionAppLocation')]",
       "kind": "functionapp",
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
@@ -120,11 +134,11 @@
             },
             {
               "name": "AzureWebJobsStorage",
-              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value)]"
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('functionStorageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value)]"
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('functionStorageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]"
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
@@ -164,7 +178,7 @@
             },
             {
               "name": "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING",
-              "value": "[parameters('BlobStorageConnectString')]"
+              "value": "[Concat('DefaultEndpointsProtocol=https;AccountName=',parameters('StorageAccountName'),';AccountKey=',listKeys(resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('StorageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=core.windows.net')]"
             },
             {
               "name": "NEWLINE_PATTERN",
@@ -176,7 +190,7 @@
       "dependsOn": [
         "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]",
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
-        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName'))]"
       ]
     },
     {
@@ -188,6 +202,71 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
+      ]
+    },
+    {
+      "name": "SubscriptionDeployment",
+      "resourceGroup": "[parameters('StorageAccountResourceGroup')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "outer"
+        },
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.EventGrid/systemTopics",
+              "condition": "[equals(variables('needEventGrid'), 'true')]",
+              "apiVersion": "2021-12-01",
+              "name": "[variables('eventGridTopicName')]",
+              "location": "[resourceGroup().location]",
+              "properties": {
+                "source": "[resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                "topicType": "Microsoft.Storage.StorageAccounts"
+              }
+            },
+            {
+              "type": "Microsoft.EventGrid/systemTopics/eventSubscriptions",
+              "apiVersion": "2022-06-15",
+              "name": "[format('{0}/{1}-{2}', variables('eventGridTopicName'), variables('functionAppName'), uniqueString(concat(variables('functionAppName'), variables('functionAppResourceGroupName'))))]",
+              "dependsOn": [
+                  "[resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.EventGrid/systemTopics', variables('eventGridTopicName'))]"
+              ],
+              "properties": {
+                  "destination": {
+                      "properties": {
+                          "resourceId": "[concat(resourceId(variables('functionAppResourceGroupName'), 'Microsoft.Web/sites', variables('functionAppName')), '/functions/BlobViaEventGrid')]",
+                          "maxEventsPerBatch": 1,
+                          "preferredBatchSizeInKilobytes": 64
+                      },
+                      "endpointType": "AzureFunction"
+                  },
+                  "filter": {
+                      "includedEventTypes": [
+                          "Microsoft.Storage.BlobCreated"
+                      ],
+                      "enableAdvancedFilteringOnArrays": true
+                  },
+                  "labels": [
+                      "functions-blobviaeventgrid"
+                  ],
+                  "eventDeliverySchema": "EventGridSchema",
+                  "retryPolicy": {
+                      "maxDeliveryAttempts": 30,
+                      "eventTimeToLiveInMinutes": 1440
+                  }
+              }
+            }
+          ],
+          "outputs": {}
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites/extensions', variables('functionAppName'), 'zipdeploy')]"
       ]
     }
   ]

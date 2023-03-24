@@ -15,18 +15,20 @@ The Storage Queue integration can be deployed by clicking the link below and sig
 
 ## Guide
 
-**Subscription** - The Azure Subscription into which you wish to deploy the integration.
+**Subscription** - The Azure Subscription into which you wish to deploy the integration (Must be the same as the monitored storage account).
 
 **Resource Group** - The Resource Group into which you wish to deploy the integration.
 
-**Coralogix URL** - The logs API URL for your Coralogix region.
+**Coralogix Region** - The region of the Coralogix account.
 
 **Coralogix Private Key** – Can be found in your Coralogix account under Settings -> Send your logs. It is located in the upper left corner.
 
-**Coralogix Application** – A mandatory metadata field that is sent with each log and helps to classify it. (Default: Azure)
+**Coralogix Application** – A mandatory metadata field that is sent with each log and helps to classify it.
 
-**Coralogix Subsystem** – A mandatory metadata field that is sent with each log and helps to classify it. (Default: StorageQueue)
+**Coralogix Subsystem** – A mandatory metadata field that is sent with each log and helps to classify it.
 
-**Storage Queue Connect String** - The Primary Connect String of the Storage Account containing the Storage Queue to be monitored.
+**Storage Account Name** - The name of the storage account containing the Storage Queue. Must be of type StorageV2 (general purpose v2).
+
+**Storage Account Resource Group** - The resource group name of the storage account containing the Storage Queue to be monitored.
 
 **Storage Queue Name** - The name of the Storage Queue to be monitored.

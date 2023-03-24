@@ -8,8 +8,8 @@ const queueTrigger: AzureFunction = async function (context: Context, queueItem:
     //Setting up the Coralogix Logger
     const config = new LoggerConfig({
         privateKey: process.env.CORALOGIX_PRIVATE_KEY,
-        applicationName: process.env.CORALOGIX_APP_NAME || "Azure",
-        subsystemName: process.env.CORALOGIX_SUB_SYSTEM || "StorageQueue"
+        applicationName: process.env.CORALOGIX_APP_NAME || "NO_APPLICATION",
+        subsystemName: process.env.CORALOGIX_SUB_SYSTEM || "NO_SUBSCRIPTION"
     });
 
     CoralogixLogger.configure(config);

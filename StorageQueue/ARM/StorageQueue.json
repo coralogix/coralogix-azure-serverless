@@ -24,22 +24,26 @@
     },
     "CoralogixApplication": {
       "type": "string",
-      "defaultValue": "Azure",
       "metadata": {
         "description": "The name of the Application in Coralogix."
       }
     },
     "CoralogixSubsystem": {
       "type": "string",
-      "defaultValue": "StorageQueue",
       "metadata": {
         "description": "The name of the Subsystem in Coralogix."
       }
     },
-    "StorageQueueConnectString": {
+    "StorageAccountName": {
       "type": "string",
       "metadata": {
-        "description": "The connection string of the storage queue."
+        "description": "The name of the storage account containing the Blob container. Must be of type StorageV2 (general purpose v2)"
+      }
+    },
+    "StorageAccountResourceGroup": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource group name of the storage account containing the Blob container."
       }
     },
     "StorageQueueName": {
@@ -51,7 +55,7 @@
   },
   "variables": {
     "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://api.coralogix.com:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US'), 'https://api.coralogix.us:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://api.eu2.coralogix.com:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India'), 'https://api.app.coralogix.in:443/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://api.coralogixsg.com:443/api/v1/logs', 'NULL')))))]",
-    "functionAppName": "[format('StorageQueue-{0}', uniqueString(concat(resourceGroup().id, parameters('StorageQueueConnectString'), parameters('StorageQueueName'))))]",
+    "functionAppName": "[format('StorageQueue-{0}', uniqueString(concat(resourceGroup().id, parameters('StorageAccountName'), parameters('StorageQueueName'))))]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
@@ -157,7 +161,7 @@
             },
             {
               "name": "STORAGE_QUEUE_CONNECT_STRING",
-              "value": "[parameters('StorageQueueConnectString')]"
+              "value": "[Concat('DefaultEndpointsProtocol=https;AccountName=',parameters('StorageAccountName'),';AccountKey=',listKeys(resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('StorageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=core.windows.net')]"
             },
             {
               "name": "STORAGE_QUEUE_NAME",
