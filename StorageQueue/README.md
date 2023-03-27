@@ -13,7 +13,7 @@ The Azure Storage Queue integration allows parsing of queue messages in JSON for
 The Storage Queue integration can be deployed by clicking the link below and signing into your Azure account:
 [Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2FStorageQueue%2FARM%2FStorageQueue.json)
 
-## Guide
+## Fields
 
 **Subscription** - The Azure Subscription into which you wish to deploy the integration (Must be the same as the monitored storage account).
 
