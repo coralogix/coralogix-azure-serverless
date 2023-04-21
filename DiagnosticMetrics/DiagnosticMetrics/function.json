@@ -1,0 +1,16 @@
+{
+  "bindings": [
+    {
+      "name": "eventHubMessages",
+      "type": "eventHubTrigger",
+      "direction": "in",
+      "cardinality": "many",
+      "eventHubName": "%EVENTHUB_INSTANCE_NAME%",
+      "connection": "EVENTHUB_CONNECT_STRING",
+      "consumerGroup": "$Default",
+      "dataType": "string"
+    }
+  ],
+  "scriptFile": "../dist/DiagnosticMetrics/index.js",
+  "disabled": false
+}

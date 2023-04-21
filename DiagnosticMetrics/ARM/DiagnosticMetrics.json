@@ -52,21 +52,21 @@
         "description": "The name of the EventHub Instance."
       }
     },
-    "EventhubSharedAccessKeyName": {
+    "EventhubSharedAccessPolicyName": {
       "type": "string",
       "metadata": {
-        "description": "The name of the EventHub Shared Access Key."
+        "description": "The name of the EventHub Namespace Shared Access Policy."
       }
     }
   },
   "variables": {
-    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://ingress.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US'), 'https://ingress.coralogix.us/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://ingress.eu2.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India'), 'https://ingress.coralogix.in/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://ingress.coralogixsg.com/api/v1/logs', 'NULL')))))]",
-    "functionAppName": "[format('EventHub-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubNamespace'), parameters('EventhubInstanceName'))))]",
+    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://ingress.coralogix.com/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'US'), 'https://ingress.coralogix.us/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://ingress.eu2.coralogix.com/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'India'), 'https://ingress.coralogix.in/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://ingress.coralogixsg.com/azure/events/v1', 'NULL')))))]",
+    "functionAppName": "[format('DiagnosticMetrics-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubNamespace'), parameters('EventhubInstanceName'))))]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/EventHub.zip"
+    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/DiagnosticMetrics.zip"
   },
   "resources": [
     {
@@ -91,6 +91,7 @@
         "family": "Y"
       },
       "properties": {
+        "reserved": true,
         "computeMode": "Dynamic"
       }
     },
@@ -112,10 +113,11 @@
       "apiVersion": "2022-03-01",
       "name": "[variables('functionAppName')]",
       "location": "[variables('location')]",
-      "kind": "functionapp",
+      "kind": "functionapp,linux",
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "siteConfig": {
+          "linuxFxVersion": "Node|18",
           "appSettings": [
             {
               "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
@@ -138,16 +140,12 @@
               "value": "~4"
             },
             {
-              "name": "FUNCTIONS_WORKER_RUNTIME",
-              "value": "node"
-            },
-            {
-              "name": "WEBSITE_NODE_DEFAULT_VERSION",
-              "value": "~18"
-            },
-            {
               "name": "WEBSITE_RUN_FROM_PACKAGE",
               "value": "[variables('packageUri')]"
+            },
+            {
+              "name": "FUNCTIONS_WORKER_RUNTIME",
+              "value": "node"
             },
             {
               "name": "CORALOGIX_PRIVATE_KEY",
@@ -167,7 +165,7 @@
             },
             {
               "name": "EVENTHUB_CONNECT_STRING",
-              "value": "[concat('Endpoint=sb://', parameters('eventHubNamespace'), '.servicebus.windows.net/;SharedAccessKeyName=', parameters('EventhubSharedAccessKeyName'), ';SharedAccessKey=', listKeys(resourceId(parameters('EventhubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventhubNamespace'), parameters('EventhubSharedAccessKeyName')), '2017-04-01').primaryKey, ';EntityPath=', parameters('EventhubInstanceName'))]"
+              "value": "[concat('Endpoint=sb://', parameters('eventHubNamespace'), '.servicebus.windows.net/;SharedAccessKeyName=', parameters('EventhubSharedAccessPolicyName'), ';SharedAccessKey=', listKeys(resourceId(parameters('EventhubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventhubNamespace'), parameters('EventhubSharedAccessPolicyName')), '2017-04-01').primaryKey, ';EntityPath=', parameters('EventhubInstanceName'))]"
             },
             {
               "name": "EVENTHUB_INSTANCE_NAME",
