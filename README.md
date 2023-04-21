@@ -6,6 +6,7 @@ We provide several trigger strategies, please select one and follow the inner RE
 - [EventHub](/EventHub)
 - [BlobViaEventGrid](/BlobViaEventGrid)
 - [StorageQueue](/StorageQueue)
+- [DiagnosticMetrics](/DiagnosticMetrics)
 
 ---
 info@coralogix.com
