@@ -32,3 +32,5 @@ The Storage Queue integration can be deployed by clicking the link below and sig
 **Storage Account Resource Group** - The resource group name of the storage account containing the Storage Queue to be monitored.
 
 **Storage Queue Name** - The name of the Storage Queue to be monitored.
+
+**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.

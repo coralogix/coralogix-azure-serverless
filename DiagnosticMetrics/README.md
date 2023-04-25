@@ -43,3 +43,5 @@ The Diagnostic Metrics integration can also be deployed using our Terraform modu
 **EventHub Instance Name** - The name of the EventHub Instance to be monitored.
 
 **Eventhub Shared Access Policy Name** - The name of a Shared Access Policy of the Eventhub Namespace with Listen claims.
+
+**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.

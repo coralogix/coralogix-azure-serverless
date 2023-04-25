@@ -34,3 +34,5 @@ The EventHub integration can be deployed by clicking the link below and signing 
 **EventHub Namespace** - The name of the EventHub Namespace.
 
 **EventHub Instance Name** - The name of the EventHub Instance to be monitored.
+
+**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.

@@ -51,6 +51,17 @@
       "metadata": {
         "description": "The name of the storage queue."
       }
+    },
+    "FunctionAppServicePlanType": {
+      "type": "string",
+      "defaultValue": "Consumption",
+      "allowedValues": [
+        "Consumption",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "The type of the Function App Service Plan. Choose Premium if you need vNet Support."
+      }
     }
   },
   "variables": {
@@ -61,6 +72,7 @@
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
     "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/StorageQueue.zip"
+    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
     {
@@ -79,14 +91,10 @@
       "name": "[variables('hostingPlanName')]",
       "location": "[variables('location')]",
       "sku": {
-        "name": "Y1",
-        "tier": "Dynamic",
-        "size": "Y1",
-        "family": "Y"
+        "name": "[variables('sku')]",
+        "tier": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Dynamic', 'ElasticPremium')]"
       },
-      "properties": {
-        "computeMode": "Dynamic"
-      }
+      "properties": {}
     },
     {
       "type": "Microsoft.Insights/components",

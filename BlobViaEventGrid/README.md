@@ -38,3 +38,5 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 **Event Grid System Topic Name** - The name of a pre-existing Event Grid System Topic for the storage account containing the blob container, or leave as 'new' to create one.
 
 **Newline Pattern** - The newline pattern expected within the blob storage documents
+
+**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.

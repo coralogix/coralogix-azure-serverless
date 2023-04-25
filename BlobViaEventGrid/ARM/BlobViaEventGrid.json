@@ -65,6 +65,17 @@
       "metadata": {
         "description": "The pattern that separates the lines in the blob."
       }
+    },
+    "FunctionAppServicePlanType": {
+      "type": "string",
+      "defaultValue": "Consumption",
+      "allowedValues": [
+        "Consumption",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "The type of the Function App Service Plan. Choose Premium if you need vNet Support."
+      }
     }
   },
   "variables": {
@@ -77,7 +88,8 @@
     "functionStorageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
     "needEventGrid": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), 'true', 'false')]",
     "eventGridTopicName": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), format('{0}-eg', parameters('storageAccountName')), parameters('EventGridSystemTopicName'))]",
-    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobViaEventGrid.zip"
+    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobViaEventGrid.zip",
+    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
     {
@@ -96,14 +108,10 @@
       "name": "[variables('hostingPlanName')]",
       "location": "[variables('functionAppLocation')]",
       "sku": {
-        "name": "Y1",
-        "tier": "Dynamic",
-        "size": "Y1",
-        "family": "Y"
+        "name": "[variables('sku')]",
+        "tier": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Dynamic', 'ElasticPremium')]"
       },
-      "properties": {
-        "computeMode": "Dynamic"
-      }
+      "properties": {}
     },
     {
       "type": "Microsoft.Insights/components",
