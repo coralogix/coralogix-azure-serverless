@@ -266,7 +266,7 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites/extensions', variables('functionAppName'), 'zipdeploy')]"
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
     }
   ]
