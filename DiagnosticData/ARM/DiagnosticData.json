@@ -72,12 +72,12 @@
   },
   "variables": {
     "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://ingress.coralogix.com/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'US'), 'https://ingress.coralogix.us/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://ingress.eu2.coralogix.com/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'India'), 'https://ingress.coralogix.in/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://ingress.coralogixsg.com/azure/events/v1', 'NULL')))))]",
-    "functionAppName": "[format('DiagnosticMetrics-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubNamespace'), parameters('EventhubInstanceName'))))]",
+    "functionAppName": "[format('DiagnosticData-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubNamespace'), parameters('EventhubInstanceName'))))]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/DiagnosticMetrics.zip",
+    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/DiagnosticData.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [

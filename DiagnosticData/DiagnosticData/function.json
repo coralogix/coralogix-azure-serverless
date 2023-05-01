@@ -11,6 +11,6 @@
       "dataType": "string"
     }
   ],
-  "scriptFile": "../dist/DiagnosticMetrics/index.js",
+  "scriptFile": "../dist/DiagnosticData/index.js",
   "disabled": false
 }

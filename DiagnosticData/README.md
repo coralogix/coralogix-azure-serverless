@@ -1,10 +1,8 @@
-# Azure Diagnostic Metrics Function for Coralogix
+# Azure Diagnostic Data Function for Coralogix
 
-Coralogix provides a seamless integration with ``Azure`` cloud so you can send your logs from anywhere and parse them according to your needs.
+Coralogix provides a seamless integration with ``Azure`` cloud so you can send your Logs and Metrics from Azure Resources and parse them according to your needs.
 
-The Azure Diagnostic Metrics integration allows processing of Metrics submitted to an EventHub using the resource "Diagnostic Settings" configuration.
-
-It presently handles only the "allMetrics" metrics format. Support for additional metrics types are being added.
+The Azure Diagnostic Data integration allows processing of Logs and Metrics submitted to an EventHub using Resources' "Diagnostic Settings" configuration.
 
 ## Prerequisites
 
@@ -14,12 +12,12 @@ It presently handles only the "allMetrics" metrics format. Support for additiona
 
 ## Azure Resource Manager Template Deployment
 
-The Diagnostic Metrics integration can be deployed by clicking the link below and signing into your Azure account:
-[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2FDiagnosticMetrics%2FARM%2FDiagnosticMetrics.json)
+The Diagnostic Data integration can be deployed by clicking the link below and signing into your Azure account:
+[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Fmaster%2FDiagnosticData%2FARM%2FDiagnosticData.json)
 
 ## Terraform Deployment
 
-The Diagnostic Metrics integration can also be deployed using our Terraform module found here:
+The Diagnostic Data integration can also be deployed using our Terraform module found here:
 [Terraform Module](https://registry.terraform.io/modules/coralogix/azure/coralogix/latest)
 
 ## Fields
