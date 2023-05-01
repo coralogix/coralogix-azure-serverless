@@ -66,6 +66,20 @@
         "description": "The pattern that separates the lines in the blob."
       }
     },
+    "PrefixFilter": {
+      "type": "string",
+      "defaultValue": "NoFilter",
+      "metadata": {
+        "description": "The prefix filter to apply to the blob container. Use 'NoFilter' to not filter by prefix. Wildcards are not allowed. Use the following format '/subfolder1/subfolder2/'."
+      }
+    },
+    "SuffixFilter": {
+      "type": "string",
+      "defaultValue": "NoFilter",
+      "metadata": {
+        "description": "The suffix filter to apply to the blob container. Use 'NoFilter' to not filter by suffix. Wildcards are not allowed. Use the following format '.log'."
+      }
+    },
     "FunctionAppServicePlanType": {
       "type": "string",
       "defaultValue": "Consumption",
@@ -89,8 +103,8 @@
     "needEventGrid": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), 'true', 'false')]",
     "eventGridTopicName": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), format('{0}-eg', parameters('storageAccountName')), parameters('EventGridSystemTopicName'))]",
     "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobViaEventGrid.zip",
-    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
-  },
+    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]",
+    "PrefixFilter": "[if(equals(parameters('PrefixFilter'), 'NoFilter'), '', concat('/blobServices/default/containers/', parameters('BlobContainerName'), '/blobs', parameters('PrefixFilter')))]"  },
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
@@ -249,8 +263,10 @@
                       "includedEventTypes": [
                           "Microsoft.Storage.BlobCreated"
                       ],
-                      "enableAdvancedFilteringOnArrays": true
-                  },
+                      "enableAdvancedFilteringOnArrays": true,
+                      "subjectBeginsWith": "[if(equals(variables('PrefixFilter'), 'NoFilter'), '', variables('PrefixFilter'))]",
+                      "subjectEndsWith": "[if(equals(parameters('SuffixFilter'), 'NoFilter'), '', parameters('SuffixFilter'))]"
+                      },
                   "labels": [
                       "functions-blobviaeventgrid"
                   ],

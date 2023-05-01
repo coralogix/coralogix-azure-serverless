@@ -40,4 +40,8 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 
 **Newline Pattern** - The newline pattern expected within the blob storage documents
 
+**Prefix Filter** - The prefix filter to apply to the blob container. Use 'NoFilter' to not filter by prefix. Wildcards are not allowed. Use the following format ``/subfolder1/subfolder2/``.
+
+**Suffix Filter** - The suffix filter to apply to the blob container. Use 'NoFilter' to not filter by suffix. Wildcards are not allowed. Use the following format ``.log``.
+
 **Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
