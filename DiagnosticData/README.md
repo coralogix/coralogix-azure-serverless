@@ -13,7 +13,7 @@ The Azure Diagnostic Data integration allows processing of Logs and Metrics subm
 ## Azure Resource Manager Template Deployment
 
 The Diagnostic Data integration can be deployed by clicking the link below and signing into your Azure account:
-[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Fmaster%2FDiagnosticData%2FARM%2FDiagnosticData.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Fmaster%2FDiagnosticData%2FARM%2FDiagnosticData.json)
 
 ## Terraform Deployment
 
