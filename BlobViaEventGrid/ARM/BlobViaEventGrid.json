@@ -16,6 +16,13 @@
         "description": "The region of the Coralogix account."
       }
     },
+    "CustomURL": {
+      "type": "string",
+      "defaultValue": "https://<CustomURL>/api/v1/logs",
+      "metadata": {
+        "description": "Your Custom URL for the Coralogix account"
+      }
+    },
     "CoralogixPrivateKey": {
       "type": "string",
       "metadata": {
@@ -93,7 +100,7 @@
     }
   },
   "variables": {
-    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://ingress.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US'), 'https://ingress.coralogix.us/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://ingress.eu2.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India'), 'https://ingress.coralogix.in/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://ingress.coralogixsg.com/api/v1/logs', 'NULL')))))]",
+    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://ingress.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US'), 'https://ingress.coralogix.us/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://ingress.eu2.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India'), 'https://ingress.coralogix.in/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://ingress.coralogixsg.com/api/v1/logs', 'NULL'))))))]",
     "functionAppName": "[format('BlobStorage-{0}', uniqueString(concat(resourceGroup().id, parameters('StorageAccountName'), parameters('BlobContainerName'))))]",
     "functionAppResourceGroupName": "[resourceGroup().name]",
     "functionAppLocation": "[resourceGroup().location]",

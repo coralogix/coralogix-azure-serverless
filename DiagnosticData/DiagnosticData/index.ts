@@ -20,7 +20,7 @@ import { AzureFunction, Context } from "@azure/functions";
 const eventHubTrigger: AzureFunction = async function (context: Context, eventHubMessages: any): Promise<void> {
     context.log(`JavaScript eventhub trigger function called for message array ${eventHubMessages}`);
 
-    const url = process.env.CORALOGIX_URL || 'https://ingress.coralogix.com/api/v1/logs'
+    const url = process.env.CORALOGIX_URL || 'https://ingress.coralogix.com/azure/events/v1'
     const key = process.env.CORALOGIX_PRIVATE_KEY || "INVALID_KEY"
     const applicationName = process.env.CORALOGIX_APP_NAME || "NO_APPLICATION"
     const subsystemName = process.env.CORALOGIX_SUB_SYSTEM || "NO_SUBSYSTEM"
