@@ -10,7 +10,8 @@
         "US",
         "Europe2",
         "India",
-        "Singapore"
+        "Singapore",
+        "Custom"
       ],
       "metadata": {
         "description": "The region of the Coralogix account."
@@ -20,7 +21,7 @@
       "type": "string",
       "defaultValue": "https://<CustomURL>/azure/events/v1",
       "metadata": {
-        "description": "Your Custom URL for the Coralogix account"
+        "description": "Your Custom URL for the Coralogix account. Ignore unless you have a custom URL."
       }
     },
     "CoralogixPrivateKey": {
