@@ -25,13 +25,13 @@
     "url": "https://coralogix.com"
   },
   "engines": {
-    "node": "16.x"
+    "node": "18.x"
   },
   "contributors": [
     {
       "name": "Michael Briggs",
       "email": "michael.briggs@coralogix.com",
-      "url": "https://www.linkedin.com/in/michael-briggs-58369b67/"
+      "url": "https://www.linkedin.com/in/michael-a-briggs/"
     }
   ],
   "keywords": [
