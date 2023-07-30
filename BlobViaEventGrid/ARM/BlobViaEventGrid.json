@@ -6,11 +6,12 @@
       "type": "string",
       "defaultValue": "Europe",
       "allowedValues": [
-        "Europe",
-        "US",
-        "Europe2",
-        "India",
-        "Singapore",
+        "Europe(eu-west-1)",
+        "US(us-east-2)",
+        "US2(us-west-2)",
+        "Europe2(eu-north-1)",
+        "India(ap-south-1)",
+        "Singapore(ap-southeast-1)",
         "Custom"
       ],
       "metadata": {
@@ -101,7 +102,7 @@
     }
   },
   "variables": {
-    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe'), 'https://ingress.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US'), 'https://ingress.coralogix.us/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'https://ingress.eu2.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India'), 'https://ingress.coralogix.in/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'https://ingress.coralogixsg.com/api/v1/logs', 'NULL'))))))]",
+    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe(eu-west-1)'), 'https://ingress.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US(us-east-2)'), 'https://ingress.coralogix.us/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US2(us-west-2)'), 'https://ingress.cx498.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2(eu-north-1)'), 'https://ingress.eu2.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India(ap-south-1)'), 'https://ingress.coralogix.in/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore(ap-southeast-1)'), 'https://ingress.coralogixsg.com/api/v1/logs', 'NULL')))))))]",
     "functionAppName": "[format('BlobStorage-{0}', uniqueString(concat(resourceGroup().id, parameters('StorageAccountName'), parameters('BlobContainerName'))))]",
     "functionAppResourceGroupName": "[resourceGroup().name]",
     "functionAppLocation": "[resourceGroup().location]",
