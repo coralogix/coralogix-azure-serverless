@@ -1,7 +1,7 @@
 {
   "name": "coralogix-azure-serverless",
   "title": "Azure Functions for integration with Coralogix",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Azure Functions Set for integration with Coralogix",
   "homepage": "https://coralogix.com",
   "license": "Apache-2.0",

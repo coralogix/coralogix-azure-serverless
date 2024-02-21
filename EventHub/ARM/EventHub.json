@@ -4,7 +4,7 @@
   "parameters": {
     "CoralogixRegion": {
       "type": "string",
-      "defaultValue": "Europe",
+      "defaultValue": "Europe(eu-west-1)",
       "allowedValues": [
         "Europe(eu-west-1)",
         "US(us-east-2)",
@@ -114,17 +114,34 @@
       }
     },
     {
-      "type": "Microsoft.Insights/components",
-      "apiVersion": "2020-02-02",
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2020-08-01",
       "name": "[variables('applicationInsightsName')]",
       "location": "[variables('location')]",
-      "tags": {
-        "[format('hidden-link:{0}', resourceId('Microsoft.Web/sites', variables('applicationInsightsName')))]": "Resource"
-      },
       "properties": {
-        "Application_Type": "web"
+          "sku": {
+              "name": "PerGB2018"
+          },
+          "retentionInDays": "90"
       },
-      "kind": "web"
+      "resources": [
+        {
+          "type": "Microsoft.Insights/components",
+          "apiVersion": "2020-02-02",
+          "name": "[variables('applicationInsightsName')]",
+          "location": "[variables('location')]",
+          "properties": {
+            "ApplicationId": "[variables('applicationInsightsName')]",
+            "Application_Type": "web",
+            "Flow_Type": "Bluefield",
+            "Request_Source": "rest",
+            "WorkspaceResourceId": "[resourceId(resourceGroup().name, 'Microsoft.OperationalInsights/workspaces', variables('applicationInsightsName'))]"
+          },
+          "dependsOn": [
+            "[resourceId(resourceGroup().name, 'Microsoft.OperationalInsights/workspaces', variables('applicationInsightsName'))]"
+          ]
+        }
+      ]
     },
     {
       "type": "Microsoft.Web/sites",
