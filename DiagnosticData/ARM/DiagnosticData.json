@@ -4,7 +4,7 @@
   "parameters": {
     "CoralogixRegion": {
       "type": "string",
-      "defaultValue": "Europe",
+      "defaultValue": "Europe(eu-west-1)",
       "allowedValues": [
         "Europe(eu-west-1)",
         "US(us-east-2)",
