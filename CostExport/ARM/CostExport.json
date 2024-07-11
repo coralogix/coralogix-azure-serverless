@@ -1,0 +1,234 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "functionAppName": {
+      "type": "string",
+      "defaultValue": "[format('coralogixcostsexport-{0}', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "The name of the Azure Function app."
+      }
+    },
+    "storageAccountType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_GRS",
+        "Standard_RAGRS"
+      ],
+      "metadata": {
+        "description": "Storage Account type."
+      }
+    },
+    "coralogix_domain": {
+      "type": "string",
+      "defaultValue": "coralogix.com",
+      "allowedValues": [
+        "coralogix.com",
+        "eu2.coralogix.com",
+        "coralogix.us",
+        "cx498.coralogix.com",
+        "coralogix.in",
+        "coralogixsg.com"
+      ],
+      "metadata": {
+        "description": "Coralogix domain."
+      }
+    },
+    "coralogix_key": {
+      "type": "string",
+      "metadata": {
+        "description": "Coralogix private key."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "appInsightsLocation": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for Application Insights."
+      }
+    },
+    "functionWorkerRuntime": {
+      "type": "string",
+      "defaultValue": "python",
+      "allowedValues": [
+        "python"
+      ],
+      "metadata": {
+        "description": "The language worker runtime to load in the function app."
+      }
+    },
+    "linuxFxVersion": {
+      "type": "string",
+      "defaultValue": "Python|3.11",
+      "allowedValues": [
+        "Python|3.11"
+      ],
+      "metadata": {
+        "description": "Required for Linux app to represent runtime stack in the format of 'runtime|runtimeVersion'. For example: 'python|3.9'."
+      }
+    },
+    "packageUri": {
+      "type": "string",
+      "defaultValue": null,
+      "metadata": {
+        "description": "The zip content URL."
+      }
+    }
+  },
+  "variables": {
+    "hostingPlanName": "[parameters('functionAppName')]",
+    "applicationInsightsName": "[parameters('functionAppName')]",
+    "storageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
+    "roleAssignmentName": "[guid(resourceGroup().id, 'CostManagementContributor')]",
+    "costManagementContributorRoleDefinitionId": "/subscriptions/7d91656d-73e8-4f2e-a3df-4d17ad2c3ef7/providers/Microsoft.Authorization/roleDefinitions/434105ed-43f6-45c7-a02f-909b2ba83430"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2022-05-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('storageAccountType')]"
+      },
+      "kind": "Storage"
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2022-03-01",
+      "name": "[variables('hostingPlanName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Y1",
+        "tier": "Dynamic",
+        "size": "Y1",
+        "family": "Y"
+      },
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[variables('applicationInsightsName')]",
+      "location": "[parameters('appInsightsLocation')]",
+      "tags": {
+        "[format('hidden-link:{0}', resourceId('Microsoft.Web/sites', parameters('functionAppName')))]": "Resource"
+      },
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web"
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2022-03-01",
+      "name": "[parameters('functionAppName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ],
+      "kind": "functionapp,linux",
+      "properties": {
+        "reserved": true,
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "siteConfig": {
+          "linuxFxVersion": "[parameters('linuxFxVersion')]",
+          "appSettings": [
+            {
+              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('functionAppName')), '2020-02-02').InstrumentationKey]"
+            },
+            {
+              "name": "SUBSCRIPTION_ID",
+              "value": "[subscription().subscriptionId]"
+            },
+            {
+              "name": "CORALOGIX_DOMAIN",
+              "value": "[parameters('coralogix_domain')]"
+            },
+            {
+              "name": "CORALOGIX_PRIVATE_KEY",
+              "value": "[parameters('coralogix_key')]"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2022-05-01').keys[0].value)]"
+            },
+            {
+              "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2022-05-01').keys[0].value)]"
+            },
+            {
+              "name": "WEBSITE_CONTENTSHARE",
+              "value": "[toLower(parameters('functionAppName'))]"
+            },
+            {
+              "name": "FUNCTIONS_EXTENSION_VERSION",
+              "value": "~4"
+            },
+            {
+              "name": "FUNCTIONS_WORKER_RUNTIME",
+              "value": "[parameters('functionWorkerRuntime')]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2021-04-01-preview",
+      "name": "[variables('roleAssignmentName')]",
+      "properties": {
+        "roleDefinitionId": "[variables('costManagementContributorRoleDefinitionId')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2022-03-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal",
+        "scope": "[resourceGroup().id]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "zipDeploy",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]",
+        "[variables('roleAssignmentName')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.Web/sites/extensions",
+              "apiVersion": "2022-03-01",
+              "name": "[concat(parameters('functionAppName'), '/zipdeploy')]",
+              "properties": {
+                "packageUri": "[parameters('packageUri')]"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
