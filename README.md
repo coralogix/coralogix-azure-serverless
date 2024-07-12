@@ -7,6 +7,7 @@ We provide several trigger strategies, please select one and follow the inner RE
 - [BlobViaEventGrid](/BlobViaEventGrid)
 - [StorageQueue](/StorageQueue)
 - [DiagnosticData](/DiagnosticData)
+- [CostExport](/CostExport)
 
 ---
 info@coralogix.com
