@@ -61,11 +61,16 @@
         "description": "The name of the Blob container."
       }
     },
-    "EventGridSystemTopicName": {
+    "EventHubNamespace": {
       "type": "string",
-      "defaultValue": "new",
       "metadata": {
-        "description": "The name of an existing Event Grid System Topic for the storage account containing the blob container, or leave as 'new' to create one."
+        "description": "The name of the Event Hub namespace"
+      }
+    },
+    "EventHubName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Event Hub"
       }
     },
     "NewlinePattern": {
@@ -109,11 +114,7 @@
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "functionStorageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
-    "needEventGrid": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), 'true', 'false')]",
-    "eventGridTopicName": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), format('{0}-eg', parameters('storageAccountName')), parameters('EventGridSystemTopicName'))]",
-    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobToOtel.zip",
-    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]",
-    "PrefixFilter": "[if(equals(parameters('PrefixFilter'), 'NoFilter'), '', concat('/blobServices/default/containers/', parameters('BlobContainerName'), '/blobs', parameters('PrefixFilter')))]"
+    "eventHubConnectionString": "[listkeys(resourceId('Microsoft.EventHub/namespaces/eventhubs/authorizationRules', parameters('EventHubNamespace'), parameters('EventHubName'), 'RootManageSharedAccessKey'), '2021-11-01').primaryConnectionString]"
   },
   "resources": [
     {
@@ -231,6 +232,14 @@
             {
               "name": "NEWLINE_PATTERN",
               "value": "[parameters('NewlinePattern')]"
+            },
+            {
+              "name": "EVENT_HUB_CONNECTION_STRING",
+              "value": "[variables('eventHubConnectionString')]"
+            },
+            {
+              "name": "EVENT_HUB_NAME",
+              "value": "[parameters('EventHubName')]"
             }
           ]
         }
@@ -239,73 +248,6 @@
         "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]",
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName'))]"
-      ]
-    },
-    {
-      "name": "SubscriptionDeployment",
-      "resourceGroup": "[parameters('StorageAccountResourceGroup')]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2021-04-01",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "outer"
-        },
-        "mode": "Incremental",
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "resources": [
-            {
-              "type": "Microsoft.EventGrid/systemTopics",
-              "condition": "[equals(variables('needEventGrid'), 'true')]",
-              "apiVersion": "2021-12-01",
-              "name": "[variables('eventGridTopicName')]",
-              "location": "[resourceGroup().location]",
-              "properties": {
-                "source": "[resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
-                "topicType": "Microsoft.Storage.StorageAccounts"
-              }
-            },
-            {
-              "type": "Microsoft.EventGrid/systemTopics/eventSubscriptions",
-              "apiVersion": "2022-06-15",
-              "name": "[format('{0}/{1}-{2}', variables('eventGridTopicName'), variables('functionAppName'), uniqueString(concat(variables('functionAppName'), variables('functionAppResourceGroupName'))))]",
-              "dependsOn": [
-                "[resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.EventGrid/systemTopics', variables('eventGridTopicName'))]"
-              ],
-              "properties": {
-                "destination": {
-                  "properties": {
-                    "resourceId": "[concat(resourceId(variables('functionAppResourceGroupName'), 'Microsoft.Web/sites', variables('functionAppName')), '/functions/BlobToOtel')]",
-                    "maxEventsPerBatch": 1,
-                    "preferredBatchSizeInKilobytes": 64
-                  },
-                  "endpointType": "AzureFunction"
-                },
-                "filter": {
-                  "includedEventTypes": [
-                    "Microsoft.Storage.BlobCreated"
-                  ],
-                  "enableAdvancedFilteringOnArrays": true,
-                  "subjectBeginsWith": "[if(equals(variables('PrefixFilter'), 'NoFilter'), '', variables('PrefixFilter'))]",
-                  "subjectEndsWith": "[if(equals(parameters('SuffixFilter'), 'NoFilter'), '', parameters('SuffixFilter'))]"
-                },
-                "labels": [
-                  "functions-BlobToOtel"
-                ],
-                "eventDeliverySchema": "EventGridSchema",
-                "retryPolicy": {
-                  "maxDeliveryAttempts": 30,
-                  "eventTimeToLiveInMinutes": 1440
-                }
-              }
-            }
-          ],
-          "outputs": {}
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
     }
   ]
