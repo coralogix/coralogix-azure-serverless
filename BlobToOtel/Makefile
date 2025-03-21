@@ -2,7 +2,7 @@
 
 export AZURE_REGION ?= westeurope
 export CORALOGIX_APP_NAME ?= Azure
-export CORALOGIX_SUB_SYSTEM ?= "BlobViaEventGrid"
+export CORALOGIX_SUB_SYSTEM ?= "BlobToOtel"
 export NEWLINE_PATTERN ?= (?:\r\n|\r|\n)
 
 #  Cluster	                API Endpoint

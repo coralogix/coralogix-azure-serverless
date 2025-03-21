@@ -111,9 +111,10 @@
     "functionStorageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
     "needEventGrid": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), 'true', 'false')]",
     "eventGridTopicName": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), format('{0}-eg', parameters('storageAccountName')), parameters('EventGridSystemTopicName'))]",
-    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobViaEventGrid.zip",
+    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobToOtel.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]",
-    "PrefixFilter": "[if(equals(parameters('PrefixFilter'), 'NoFilter'), '', concat('/blobServices/default/containers/', parameters('BlobContainerName'), '/blobs', parameters('PrefixFilter')))]"  },
+    "PrefixFilter": "[if(equals(parameters('PrefixFilter'), 'NoFilter'), '', concat('/blobServices/default/containers/', parameters('BlobContainerName'), '/blobs', parameters('PrefixFilter')))]"
+  },
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
@@ -144,10 +145,10 @@
       "name": "[variables('applicationInsightsName')]",
       "location": "[variables('location')]",
       "properties": {
-          "sku": {
-              "name": "PerGB2018"
-          },
-          "retentionInDays": "90"
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": "90"
       },
       "resources": [
         {
@@ -270,33 +271,33 @@
               "apiVersion": "2022-06-15",
               "name": "[format('{0}/{1}-{2}', variables('eventGridTopicName'), variables('functionAppName'), uniqueString(concat(variables('functionAppName'), variables('functionAppResourceGroupName'))))]",
               "dependsOn": [
-                  "[resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.EventGrid/systemTopics', variables('eventGridTopicName'))]"
+                "[resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.EventGrid/systemTopics', variables('eventGridTopicName'))]"
               ],
               "properties": {
-                  "destination": {
-                      "properties": {
-                          "resourceId": "[concat(resourceId(variables('functionAppResourceGroupName'), 'Microsoft.Web/sites', variables('functionAppName')), '/functions/BlobViaEventGrid')]",
-                          "maxEventsPerBatch": 1,
-                          "preferredBatchSizeInKilobytes": 64
-                      },
-                      "endpointType": "AzureFunction"
+                "destination": {
+                  "properties": {
+                    "resourceId": "[concat(resourceId(variables('functionAppResourceGroupName'), 'Microsoft.Web/sites', variables('functionAppName')), '/functions/BlobToOtel')]",
+                    "maxEventsPerBatch": 1,
+                    "preferredBatchSizeInKilobytes": 64
                   },
-                  "filter": {
-                      "includedEventTypes": [
-                          "Microsoft.Storage.BlobCreated"
-                      ],
-                      "enableAdvancedFilteringOnArrays": true,
-                      "subjectBeginsWith": "[if(equals(variables('PrefixFilter'), 'NoFilter'), '', variables('PrefixFilter'))]",
-                      "subjectEndsWith": "[if(equals(parameters('SuffixFilter'), 'NoFilter'), '', parameters('SuffixFilter'))]"
-                      },
-                  "labels": [
-                      "functions-blobviaeventgrid"
+                  "endpointType": "AzureFunction"
+                },
+                "filter": {
+                  "includedEventTypes": [
+                    "Microsoft.Storage.BlobCreated"
                   ],
-                  "eventDeliverySchema": "EventGridSchema",
-                  "retryPolicy": {
-                      "maxDeliveryAttempts": 30,
-                      "eventTimeToLiveInMinutes": 1440
-                  }
+                  "enableAdvancedFilteringOnArrays": true,
+                  "subjectBeginsWith": "[if(equals(variables('PrefixFilter'), 'NoFilter'), '', variables('PrefixFilter'))]",
+                  "subjectEndsWith": "[if(equals(parameters('SuffixFilter'), 'NoFilter'), '', parameters('SuffixFilter'))]"
+                },
+                "labels": [
+                  "functions-BlobToOtel"
+                ],
+                "eventDeliverySchema": "EventGridSchema",
+                "retryPolicy": {
+                  "maxDeliveryAttempts": 30,
+                  "eventTimeToLiveInMinutes": 1440
+                }
               }
             }
           ],

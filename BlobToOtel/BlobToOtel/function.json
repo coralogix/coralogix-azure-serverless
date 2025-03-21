@@ -15,5 +15,5 @@
       "datatype": "binary"
     }
   ],
-  "scriptFile": "../dist/BlobViaEventGrid/index.js"
+  "scriptFile": "../dist/BlobToOtel/index.js"
 }
