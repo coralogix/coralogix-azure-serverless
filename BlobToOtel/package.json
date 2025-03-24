@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
-    "lint": "eslint . --ext .ts",
+    "lint": "eslint . --ext .ts --config eslint.config.mjs",
     "build": "npm run lint && tsc",
     "build:production": "npm run prestart && npm prune --production",
     "watch": "tsc --w",
@@ -22,7 +22,7 @@
     "url": "https://coralogix.com"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "contributors": [
     {
@@ -57,8 +57,7 @@
     "url": "https://github.com/coralogix/coralogix-azure-serverless/issues"
   },
   "devDependencies": {
-    "@azure/functions": "^3.5.1",
-    "@types/node": "^18.15.11",
+    "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": ">=5.48.2",
     "@typescript-eslint/parser": ">=5.48.2",
     "eslint": ">=8.32.0",
@@ -66,11 +65,13 @@
     "typescript": ">=4.9.4"
   },
   "dependencies": {
-    "@azure/storage-blob": "^12.13.0"
+    "@azure/functions": "^3.5.1",
+    "@azure/identity": "^4.8.0",
+    "@azure/storage-blob": "^12.27.0"
   },
   "files": [
     "LICENSE",
     "README.md"
   ],
-  "type": "module"
+  "type": "commonjs"
 }

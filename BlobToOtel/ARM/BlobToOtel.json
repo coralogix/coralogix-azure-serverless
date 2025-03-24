@@ -234,7 +234,7 @@
               "value": "[parameters('NewlinePattern')]"
             },
             {
-              "name": "EVENT_HUB_CONNECTION_STRING",
+              "name": "EVENT_HUB_NAMESPACE_CONNECTION_STRING",
               "value": "[variables('eventHubConnectionString')]"
             },
             {

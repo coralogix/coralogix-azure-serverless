@@ -6,11 +6,16 @@
   },
   "retry": {
     "strategy": "exponentialBackoff",
-    "maxRetryCount": 5,
+    "maxRetryCount": 0,
     "minimumInterval": "00:00:10",
     "maximumInterval": "00:10:00"
   },
   "extensions": {
+    "eventHubs": {
+      "maxBatchSize": 64,
+      "prefetchCount": 256,
+      "batchCheckpointFrequency": 1
+    },
     "blobs": {
       "maxDegreeOfParallelism": 5
     }
