@@ -43,7 +43,7 @@ const logger = logsAPI.logs.getLogger('azure-blob-logs');
 
 // Set global variables
 
-const newlinePattern: RegExp = process.env.NEWLINE_PATTERN ? RegExp(process.env.NEWLINE_PATTERN) : /(?:\r\n|\r|\n)/g;
+const newlinePattern: RegExp = process.env.NEWLINE_PATTERN ? new RegExp(process.env.NEWLINE_PATTERN.replace(/\\n/g, '\n').replace(/\\r/g, '\r')) : /(?:\r\n|\r|\n)/g;
 const prefixFilter = process.env.PREFIX_FILTER;
 const suffixFilter = process.env.SUFFIX_FILTER;
 const prefixCheck = prefixFilter && prefixFilter !== 'NoFilter';
@@ -108,7 +108,8 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
                 }
             }
 
-            context.log("Finished processing of:", blobPath);
+            context.log(`Processed ${lines.length} lines from ${blobPath}`);
+
         }
     }
     await loggerProvider.forceFlush();

@@ -42,7 +42,11 @@
     },
     "NewlinePattern": {
       "type": "string",
-      "defaultValue": "(?:\\r\\n|\\r|\\n)",
+      "defaultValue": "(?:\r\n|\r|\n)",
+      "allowedValues": [
+        "(?:\r\n|\r|\n)",
+        "(?:\\r\\n|\\r|\\n)"
+      ],
       "metadata": {
         "description": "The pattern that separates the lines in the blob."
       }
