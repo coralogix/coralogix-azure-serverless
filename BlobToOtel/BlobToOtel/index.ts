@@ -4,7 +4,7 @@ import { AzureFunction, Context } from "@azure/functions";
 import { BlobServiceClient } from "@azure/storage-blob";
 
 import * as logsAPI from '@opentelemetry/api-logs';
-import { LoggerProvider, SimpleLogRecordProcessor } from '@opentelemetry/sdk-logs';
+import { LoggerProvider, BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
@@ -35,7 +35,10 @@ const otlpExporter = new OTLPLogExporter({
 });
 
 loggerProvider.addLogRecordProcessor(
-    new SimpleLogRecordProcessor(otlpExporter)
+    new BatchLogRecordProcessor(otlpExporter, {
+        maxExportBatchSize: 512,
+        scheduledDelayMillis: 1000,
+    })
 );
 
 logsAPI.logs.setGlobalLoggerProvider(loggerProvider);
@@ -50,6 +53,8 @@ const prefixCheck = prefixFilter && prefixFilter !== 'NoFilter';
 const suffixCheck = suffixFilter && suffixFilter !== 'NoFilter';
 
 const eventHubTrigger: AzureFunction = async function (context: Context, eventHubMessages: any[]): Promise<void> {
+    let hasErrors = false;
+
     // Process each message from the Event Hub
     for (const message of eventHubMessages) {
         // Parse the message if it's a string
@@ -90,10 +95,14 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
 
             // Split blob content into lines and emit each line as a log record
             const lines = blobData.toString().split(newlinePattern);
+            let processedLines = 0;
+            let failedLines = 0;
+
             for (const line of lines) {
-                if (line.trim()) { // Only process non-empty lines
+                if (!line.trim()) continue; // Skip empty lines
+
+                try {
                     logger.emit({
-                        // TODO: dynamically parse the log level from the line
                         severityNumber: logsAPI.SeverityNumber.INFO,
                         severityText: 'INFO',
                         body: line,
@@ -105,14 +114,31 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
                             'blob.size': event.data.contentLength
                         }
                     });
+                    processedLines++;
+                } catch (lineError) {
+                    failedLines++;
+                    hasErrors = true;
+                    context.log.error(`Error processing line from ${blobPath}: ${lineError}`);
                 }
             }
 
-            context.log(`Processed ${lines.length} lines from ${blobPath}`);
-
+            context.log(`Processed ${processedLines} lines, failed ${failedLines} lines from ${blobPath}`);
         }
     }
-    await loggerProvider.forceFlush();
+
+    // After processing all messages, ensure proper shutdown
+    try {
+        await loggerProvider.forceFlush();
+        await loggerProvider.shutdown();
+        context.log('Successfully processed and exported all logs');
+    } catch (shutdownError) {
+        context.log.error('Error during logger shutdown:', shutdownError);
+        throw shutdownError; // This is critical, so we should still throw
+    }
+
+    if (hasErrors) {
+        context.log.warn('Function completed with some errors');
+    }
 };
 
 export { eventHubTrigger as default };
