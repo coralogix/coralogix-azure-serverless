@@ -89,7 +89,9 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
                         attributes: {
                             'log.type': 'BlobLogRecord',
                             'blob.container': containerName,
-                            'blob.path': blobPath
+                            'blob.path': blobPath,
+                            'blob.storage.account': event.topic.split('/').pop(),
+                            'blob.size': event.data.contentLength
                         }
                     });
                 }
