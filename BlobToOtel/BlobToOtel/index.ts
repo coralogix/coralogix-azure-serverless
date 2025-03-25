@@ -1,6 +1,8 @@
+import { gunzipSync } from "zlib";
+
 import { AzureFunction, Context } from "@azure/functions";
 import { BlobServiceClient } from "@azure/storage-blob";
-import { gunzipSync } from "zlib";
+
 import * as logsAPI from '@opentelemetry/api-logs';
 import { LoggerProvider, SimpleLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
