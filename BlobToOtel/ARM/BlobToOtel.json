@@ -2,63 +2,49 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "CoralogixRegion": {
+    "OtelEndpoint": {
       "type": "string",
-      "defaultValue": "Europe(eu-west-1)",
+      "metadata": {
+        "description": "Your OTLP endpoint URL (example: https://my-api-endpoint:443)."
+      }
+    },
+    "CoralogixDirectMode": {
+      "type": "string",
+      "defaultValue": "false",
       "allowedValues": [
-        "Europe(eu-west-1)",
-        "US(us-east-2)",
-        "US2(us-west-2)",
-        "Europe2(eu-north-1)",
-        "India(ap-south-1)",
-        "Singapore(ap-southeast-1)",
-        "Custom"
+        "true",
+        "false"
       ],
       "metadata": {
-        "description": "The region of the Coralogix account."
+        "description": "Whether to use Coralogix as an OTLP endpoint."
       }
     },
-    "CustomURL": {
+    "CoralogixApiKey": {
       "type": "string",
-      "defaultValue": "https://<CustomURL>/api/v1/logs",
+      "defaultValue": "",
       "metadata": {
-        "description": "Your Custom URL for the Coralogix account. Ignore unless you have a custom URL."
-      }
-    },
-    "CoralogixPrivateKey": {
-      "type": "string",
-      "metadata": {
-        "description": "The private key of the Coralogix account."
+        "description": "Your Coralogix Send Your Data - API Key. Used in case of using Coralogix as an OTLP endpoint."
       }
     },
     "CoralogixApplication": {
       "type": "string",
+      "defaultValue": "azure",
       "metadata": {
         "description": "The name of the Application in Coralogix."
       }
     },
     "CoralogixSubsystem": {
       "type": "string",
+      "defaultValue": "blob-storage-logs",
       "metadata": {
         "description": "The name of the Subsystem in Coralogix."
       }
     },
-    "StorageAccountName": {
+    "NewlinePattern": {
       "type": "string",
+      "defaultValue": "(?:\\r\\n|\\r|\\n)",
       "metadata": {
-        "description": "The name of the storage account containing the Blob container. Must be of type StorageV2 (general purpose v2)"
-      }
-    },
-    "StorageAccountResourceGroup": {
-      "type": "string",
-      "metadata": {
-        "description": "The resource group name of the storage account containing the Blob container."
-      }
-    },
-    "BlobContainerName": {
-      "type": "string",
-      "metadata": {
-        "description": "The name of the Blob container."
+        "description": "The pattern that separates the lines in the blob."
       }
     },
     "EventHubNamespace": {
@@ -73,11 +59,17 @@
         "description": "The name of the Event Hub"
       }
     },
-    "NewlinePattern": {
+    "StorageAccountName": {
       "type": "string",
-      "defaultValue": "(?:\\r\\n|\\r|\\n)",
       "metadata": {
-        "description": "The pattern that separates the lines in the blob."
+        "description": "The name of the storage account containing the Blob container. Must be of type StorageV2 (general purpose v2)"
+      }
+    },
+    "StorageAccountResourceGroup": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().name]",
+      "metadata": {
+        "description": "The resource group name of the storage account containing the Blob container (default: function app's resource group)."
       }
     },
     "PrefixFilter": {
@@ -107,14 +99,16 @@
     }
   },
   "variables": {
-    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe(eu-west-1)'), 'https://ingress.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US(us-east-2)'), 'https://ingress.coralogix.us/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US2(us-west-2)'), 'https://ingress.cx498.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2(eu-north-1)'), 'https://ingress.eu2.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India(ap-south-1)'), 'https://ingress.coralogix.in/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore(ap-southeast-1)'), 'https://ingress.coralogixsg.com/api/v1/logs', 'NULL')))))))]",
-    "functionAppName": "[format('BlobStorage-{0}', uniqueString(concat(resourceGroup().id, parameters('StorageAccountName'), parameters('BlobContainerName'))))]",
-    "functionAppResourceGroupName": "[resourceGroup().name]",
+    "functionAppName": "[format('BlobToOtel-{0}', parameters('StorageAccountName'))]",
     "location": "[resourceGroup().location]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
-    "functionStorageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
-    "eventHubConnectionString": "[listkeys(resourceId('Microsoft.EventHub/namespaces/eventhubs/authorizationRules', parameters('EventHubNamespace'), parameters('EventHubName'), 'RootManageSharedAccessKey'), '2021-11-01').primaryConnectionString]"
+    "functionStorageAccountName": "[format('func{0}', uniqueString(resourceGroup().id))]",
+    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]",
+    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobToOtel.zip",
+    "eventHubConnectionString": "[listkeys(resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('EventHubNamespace'), 'RootManageSharedAccessKey'), '2021-11-01').primaryConnectionString]",
+    "monitoredStorageConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('StorageAccountName'),';AccountKey=',listKeys(resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('StorageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=core.windows.net')]",
+    "functionStorageConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';EndpointSuffix=',environment().suffixes.storage,';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]"
   },
   "resources": [
     {
@@ -182,16 +176,60 @@
           "linuxFxVersion": "Node|20",
           "appSettings": [
             {
+              "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+              "value": "[parameters('OtelEndpoint')]"
+            },
+            {
+              "name": "CORALOGIX_DIRECT_MODE",
+              "value": "[parameters('CoralogixDirectMode')]"
+            },
+            {
+              "name": "CORALOGIX_API_KEY",
+              "value": "[parameters('CoralogixApiKey')]"
+            },
+            {
+              "name": "CORALOGIX_APPLICATION",
+              "value": "[parameters('CoralogixApplication')]"
+            },
+            {
+              "name": "CORALOGIX_SUBSYSTEM",
+              "value": "[parameters('CoralogixSubsystem')]"
+            },
+            {
+              "name": "EVENT_HUB_NAME",
+              "value": "[parameters('EventHubName')]"
+            },
+            {
+              "name": "NEWLINE_PATTERN",
+              "value": "[parameters('NewlinePattern')]"
+            },
+            {
+              "name": "PREFIX_FILTER",
+              "value": "[parameters('PrefixFilter')]"
+            },
+            {
+              "name": "SUFFIX_FILTER",
+              "value": "[parameters('SuffixFilter')]"
+            },
+            {
+              "name": "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING",
+              "value": "[variables('monitoredStorageConnectionString')]"
+            },
+            {
+              "name": "EVENT_HUB_NAMESPACE_CONNECTION_STRING",
+              "value": "[variables('eventHubConnectionString')]"
+            },
+            {
               "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
               "value": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').InstrumentationKey]"
             },
             {
               "name": "AzureWebJobsStorage",
-              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('functionStorageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]"
+              "value": "[variables('functionStorageConnectionString')]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('functionStorageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]"
+              "value": "[variables('functionStorageConnectionString')]"
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
@@ -208,38 +246,6 @@
             {
               "name": "WEBSITE_RUN_FROM_PACKAGE",
               "value": "[variables('packageUri')]"
-            },
-            {
-              "name": "CORALOGIX_PRIVATE_KEY",
-              "value": "[parameters('CoralogixPrivateKey')]"
-            },
-            {
-              "name": "CORALOGIX_APP_NAME",
-              "value": "[parameters('CoralogixApplication')]"
-            },
-            {
-              "name": "CORALOGIX_SUB_SYSTEM",
-              "value": "[parameters('CoralogixSubsystem')]"
-            },
-            {
-              "Name": "CORALOGIX_URL",
-              "Value": "[variables('CoralogixURL')]"
-            },
-            {
-              "name": "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING",
-              "value": "[Concat('DefaultEndpointsProtocol=https;AccountName=',parameters('StorageAccountName'),';AccountKey=',listKeys(resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('StorageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=core.windows.net')]"
-            },
-            {
-              "name": "NEWLINE_PATTERN",
-              "value": "[parameters('NewlinePattern')]"
-            },
-            {
-              "name": "EVENT_HUB_NAMESPACE_CONNECTION_STRING",
-              "value": "[variables('eventHubConnectionString')]"
-            },
-            {
-              "name": "EVENT_HUB_NAME",
-              "value": "[parameters('EventHubName')]"
             }
           ]
         }

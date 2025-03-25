@@ -12,8 +12,8 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 // Create a resource with your cx attributes
 const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: 'blob-to-otel',
-    'cx.application.name': 'cds-1933',
-    'cx.subsystem.name': 'function'
+    'cx.application.name': process.env.CORALOGIX_APPLICATION || "NO_APPLICATION",
+    'cx.subsystem.name': process.env.CORALOGIX_SUBSYSTEM || "NO_SUBSYSTEM"
 });
 
 // Initialize the Logger provider with resource
@@ -22,8 +22,13 @@ const loggerProvider = new LoggerProvider({
 });
 
 // Configure OTLP exporter
+const isDirectMode = process.env.CORALOGIX_DIRECT_MODE?.toLowerCase() === 'true';
+if (isDirectMode && !process.env.CORALOGIX_API_KEY) {
+    throw new Error('CORALOGIX_API_KEY is required when CORALOGIX_DIRECT_MODE is true');
+}
+
 const otlpExporter = new OTLPLogExporter({
-    ...(process.env.CORALOGIX_API_KEY && {
+    ...(isDirectMode && {
         headers: {
             'Authorization': `Bearer ${process.env.CORALOGIX_API_KEY}`
         }
@@ -37,6 +42,8 @@ loggerProvider.addLogRecordProcessor(
 // Set global logger provider and get logger instance
 logsAPI.logs.setGlobalLoggerProvider(loggerProvider);
 const logger = logsAPI.logs.getLogger('azure-blob-logs');
+
+const newlinePattern: RegExp = process.env.NEWLINE_PATTERN ? RegExp(process.env.NEWLINE_PATTERN) : /(?:\r\n|\r|\n)/g;
 
 const eventHubTrigger: AzureFunction = async function (context: Context, eventHubMessages: any[]): Promise<void> {
     // Process each message from the Event Hub
@@ -71,7 +78,7 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
             }
 
             // Split blob content into lines and emit each line as a log record
-            const lines = blobData.toString().split(/\r?\n/);
+            const lines = blobData.toString().split(newlinePattern);
             for (const line of lines) {
                 if (line.trim()) { // Only process non-empty lines
                     context.log("line:", line);

@@ -1,14 +1,18 @@
-# Azure BlobStorage via EventGrid Trigger Function for Coralogix
+# Blob To Otel
 
 Coralogix provides a seamless integration with ``Azure`` cloud so you can send your logs from anywhere and parse them according to your needs.
 
-The Azure BlobStorage via EventGrid integration allows parsing of Azure Blobs, triggered by an EventGrid subscription notification.
+`Blob-to-Otel` function sends logs from Azure Blob Storage to Otel Endpoint, using the EventHub trigger.
+
+As an OTLP endpoint, you can configure either otel-collector endpoint or [Coralogix Opentelemetry endpoint](https://coralogix.com/docs/integrations/coralogix-endpoints/#opentelemetry) to send logs directly to the platform.
 
 ## Prerequisites
 
 * An Azure account with an active subscription.
 
-* [Optional] - Pre-existing Event Grid System Topic aligned with Storagev2/General Purpose V2 storage topic type
+* A storage account with event notifications configured with EventHub as a destination.
+
+* An Otel collector endpoint (available for the function app to reach) or Coralogix Opentelemetry endpoint.
 
 ## Azure Resource Manager Template Deployment
 
@@ -16,32 +20,36 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Fmaster%2FBlobToOtel%2FARM%2FBlobToOtel.json)
 
+[![Deploy to Azure – Test Link](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Ffeat-cds-1933-otel-shipper%2FBlobToOtel%2FARM%2FBlobToOtel.json)
+
 ## Fields
 
-**Subscription** - The Azure Subscription into which you wish to deploy the integration (Must be the same as the monitored storage account).
+### Required
 
-**Resource Group** - The Resource Group into which you wish to deploy the integration.
+**Otel Endpoint** - The OTLP endpoint URL (example: https://my-api-endpoint:443).
 
-**Coralogix Region** - The region of the Coralogix account.
+**Event Hub Namespace** - The name of the Event Hub namespace.
 
-**Coralogix Private Key** – Can be found in your Coralogix account under Settings -> Send your logs. It is located in the upper left corner.
+**Event Hub Name** - The name of the Event Hub to be used as a trigger for the function app.
 
-**Coralogix Application** – A mandatory metadata field that is sent with each log and helps to classify it.
+**Storage Account Name** - The name of the storage account containing the logs to be monitored.
 
-**Coralogix Subsystem** – A mandatory metadata field that is sent with each log and helps to classify it.
+### Optional
 
-**Storage Account Name** - The name of the storage account containing the Blob container. Must be of type StorageV2 (general purpose v2).
+**Storage Account Resource Group** - The resource group name of the storage account containing the Blob container to be monitored. Default: function app's resource group. Must be set if the storage account is not in the same resource group as the function app.
 
-**Storage Account Resource Group** - The resource group name of the storage account containing the Blob container to be monitored.
+**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
 
-**Blob Container Name** - The name of the Blob Container to be monitored.
+**Coralogix Direct Mode** - Whether to use Coralogix as an OTLP endpoint (default: false).
 
-**Event Grid System Topic Name** - The name of a pre-existing Event Grid System Topic for the storage account containing the blob container, or leave as 'new' to create one.
+**Coralogix API Key** - Your Coralogix Send Your Data - API Key. Used in case of using Coralogix as an OTLP endpoint.
+
+**Coralogix Application** - The name of the Application in Coralogix.
+
+**Coralogix Subsystem** - The name of the Subsystem in Coralogix.
 
 **Newline Pattern** - The newline pattern expected within the blob storage documents
 
-**Prefix Filter** - The prefix filter to apply to the blob container. Use 'NoFilter' to not filter by prefix. Wildcards are not allowed. Use the following format ``/subfolder1/subfolder2/``.
+**Prefix Filter** - The prefix filter to apply to the blob container. Use 'NoFilter' to not filter by prefix. Wildcards are not allowed. Use the following format `/subfolder1/subfolder2/`.
 
-**Suffix Filter** - The suffix filter to apply to the blob container. Use 'NoFilter' to not filter by suffix. Wildcards are not allowed. Use the following format ``.log``.
-
-**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
+**Suffix Filter** - The suffix filter to apply to the blob container. Use 'NoFilter' to not filter by suffix. Wildcards are not allowed. Use the following format `.log`.
