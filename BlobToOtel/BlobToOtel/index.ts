@@ -98,8 +98,8 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
             const lines = blobData.toString().split(newlinePattern);
             for (const line of lines) {
                 if (line.trim()) { // Only process non-empty lines
-                    context.log("line:", line);
                     logger.emit({
+                        // TODO: dynamically parse the log level from the line
                         severityNumber: logsAPI.SeverityNumber.INFO,
                         severityText: 'INFO',
                         body: line,
