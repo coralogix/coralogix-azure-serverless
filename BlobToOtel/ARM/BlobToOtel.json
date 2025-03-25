@@ -76,7 +76,7 @@
       "type": "string",
       "defaultValue": "NoFilter",
       "metadata": {
-        "description": "The prefix filter to apply to the blob container. Use 'NoFilter' to not filter by prefix. Wildcards are not allowed. Use the following format '/subfolder1/subfolder2/'."
+        "description": "The prefix filter to apply to the blob container. Use 'NoFilter' to not filter by prefix. Wildcards are not allowed. Use the following format 'subfolder1/subfolder2/'."
       }
     },
     "SuffixFilter": {

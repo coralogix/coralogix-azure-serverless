@@ -45,6 +45,13 @@ const logger = logsAPI.logs.getLogger('azure-blob-logs');
 
 const newlinePattern: RegExp = process.env.NEWLINE_PATTERN ? RegExp(process.env.NEWLINE_PATTERN) : /(?:\r\n|\r|\n)/g;
 
+const prefixFilter = process.env.PREFIX_FILTER;
+const suffixFilter = process.env.SUFFIX_FILTER;
+
+// Evaluate filter conditions once
+const prefixCheck = prefixFilter && prefixFilter !== 'NoFilter';
+const suffixCheck = suffixFilter && suffixFilter !== 'NoFilter';
+
 const eventHubTrigger: AzureFunction = async function (context: Context, eventHubMessages: any[]): Promise<void> {
     // Process each message from the Event Hub
     for (const message of eventHubMessages) {
@@ -60,6 +67,16 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
             const pathSegments = urlParts.pathname.split('/');
             const containerName = pathSegments[1]; // First segment after the leading slash
             const blobPath = pathSegments.slice(2).join('/'); // Everything after the container name
+
+            if (prefixCheck && !blobPath.startsWith(prefixFilter)) {
+                context.log(`Skipping ${blobPath} - does not match prefix filter ${prefixFilter}`);
+                continue;
+            }
+
+            if (suffixCheck && !blobPath.endsWith(suffixFilter)) {
+                context.log(`Skipping ${blobPath} - does not match suffix filter ${suffixFilter}`);
+                continue;
+            }
 
             context.log("Container:", containerName);
             context.log("Blob path:", blobPath);
