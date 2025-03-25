@@ -67,7 +67,12 @@
   "dependencies": {
     "@azure/functions": "^3.5.1",
     "@azure/identity": "^4.8.0",
-    "@azure/storage-blob": "^12.27.0"
+    "@azure/storage-blob": "^12.27.0",
+    "@opentelemetry/api-logs": "^0.200.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.200.0",
+    "@opentelemetry/resources": "^2.0.0",
+    "@opentelemetry/sdk-logs": "^0.200.0",
+    "@opentelemetry/semantic-conventions": "^1.30.0"
   },
   "files": [
     "LICENSE",
