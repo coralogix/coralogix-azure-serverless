@@ -9,19 +9,18 @@ import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 
-// Create a resource with your cx attributes
+// Init OTLP exporter
+
 const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: 'blob-to-otel',
     'cx.application.name': process.env.CORALOGIX_APPLICATION || "NO_APPLICATION",
     'cx.subsystem.name': process.env.CORALOGIX_SUBSYSTEM || "NO_SUBSYSTEM"
 });
 
-// Initialize the Logger provider with resource
 const loggerProvider = new LoggerProvider({
     resource: resource
 });
 
-// Configure OTLP exporter
 const isDirectMode = process.env.CORALOGIX_DIRECT_MODE?.toLowerCase() === 'true';
 if (isDirectMode && !process.env.CORALOGIX_API_KEY) {
     throw new Error('CORALOGIX_API_KEY is required when CORALOGIX_DIRECT_MODE is true');
@@ -39,16 +38,14 @@ loggerProvider.addLogRecordProcessor(
     new SimpleLogRecordProcessor(otlpExporter)
 );
 
-// Set global logger provider and get logger instance
 logsAPI.logs.setGlobalLoggerProvider(loggerProvider);
 const logger = logsAPI.logs.getLogger('azure-blob-logs');
 
-const newlinePattern: RegExp = process.env.NEWLINE_PATTERN ? RegExp(process.env.NEWLINE_PATTERN) : /(?:\r\n|\r|\n)/g;
+// Set global variables
 
+const newlinePattern: RegExp = process.env.NEWLINE_PATTERN ? RegExp(process.env.NEWLINE_PATTERN) : /(?:\r\n|\r|\n)/g;
 const prefixFilter = process.env.PREFIX_FILTER;
 const suffixFilter = process.env.SUFFIX_FILTER;
-
-// Evaluate filter conditions once
 const prefixCheck = prefixFilter && prefixFilter !== 'NoFilter';
 const suffixCheck = suffixFilter && suffixFilter !== 'NoFilter';
 
@@ -60,7 +57,6 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
 
         // Handle each event in the array
         for (const event of parsedEvents) {
-            context.log(event);
             const blobURL = event.data.url;
             // Parse both container and blob path from the URL
             const urlParts = new URL(blobURL);
@@ -84,12 +80,10 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
             // Use the storage account connection string directly
             const storageConnectionString = process.env.BLOB_STORAGE_ACCOUNT_CONNECTION_STRING;
             const blobServiceClient = BlobServiceClient.fromConnectionString(storageConnectionString);
-
             const containerClient = blobServiceClient.getContainerClient(containerName);
             const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
 
             let blobData = await blockBlobClient.downloadToBuffer();
-
             if (blobPath.endsWith(".gz")) {
                 blobData = gunzipSync(blobData);
             }
@@ -117,7 +111,6 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
             context.log("Finished processing of:", blobPath);
         }
     }
-    // After all processing is done, flush the logs
     await loggerProvider.forceFlush();
 };
 
