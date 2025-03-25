@@ -21,10 +21,11 @@ const loggerProvider = new LoggerProvider({
 
 // Configure OTLP exporter
 const otlpExporter = new OTLPLogExporter({
-    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
-    headers: {
-        'Authorization': `Bearer ${process.env.OTEL_EXPORTER_OTLP_API_KEY}`
-    }
+    ...(process.env.CORALOGIX_API_KEY && {
+        headers: {
+            'Authorization': `Bearer ${process.env.CORALOGIX_API_KEY}`
+        }
+    })
 });
 
 loggerProvider.addLogRecordProcessor(
@@ -88,6 +89,8 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
             context.log("Finished processing of:", blobPath);
         }
     }
+    // After all processing is done, flush the logs
+    await loggerProvider.forceFlush();
 };
 
 export { eventHubTrigger as default };
