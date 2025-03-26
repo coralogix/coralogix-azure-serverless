@@ -16,7 +16,7 @@ As an OTLP endpoint, you can configure either otel-collector endpoint or [Coralo
 
 ## Azure Resource Manager Template Deployment
 
-The BlobStorage Via Eventgrid trigger integration can be deployed by clicking the link below and signing into your Azure account:
+The BlobToOtel function can be deployed by clicking the link below and signing into your Azure account:
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Fmaster%2FBlobToOtel%2FARM%2FBlobToOtel.json)
 
