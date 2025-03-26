@@ -8,6 +8,7 @@ on:
       - "DiagnosticData/*"
       - "EventHub/*"
       - "StorageQueue/*"
+      - "BlobToOtel/*"
 
 jobs:
   get-label:
@@ -39,7 +40,7 @@ jobs:
         read -ra changed_files_array <<< "$changed_files_string"
         chmod +x scripts/changelog_check.sh
         for changed_file in "${changed_files_array[@]}"; do
-          if [[ "$changed_file" == "BlobViaEventGrid/"* ]] || [[ "$changed_file" == "DiagnosticData/"* ]] || [[ "$changed_file" == "EventHub/"* ]] || [[ "$changed_file" == "StorageQueue/"* ]]; then
+          if [[ "$changed_file" == "BlobViaEventGrid/"* ]] || [[ "$changed_file" == "DiagnosticData/"* ]] || [[ "$changed_file" == "EventHub/"* ]] || [[ "$changed_file" == "StorageQueue/"* ]] || [[ "$changed_file" == "BlobToOtel/"* ]]; then
             scripts/changelog_check.sh  $(echo "$changed_file)" | cut -d "/" -f1)
           fi
         done

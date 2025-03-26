@@ -29,7 +29,7 @@ jobs:
         run: |
           export PACKAGES=$(git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha || 'origin/master' }} ${{ github.sha }} ./*/ | cut -f1 -d/ | sort | uniq | jq -rcnR '[inputs]')
           if ${{ github.event_name == 'workflow_dispatch' }}; then
-            export PACKAGES='["BlobViaEventGrid","EventHub","StorageQueue"]'
+            export PACKAGES='["BlobViaEventGrid","EventHub","StorageQueue","BlobToOtel"]'
           fi
           echo "$PACKAGES"
           echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
