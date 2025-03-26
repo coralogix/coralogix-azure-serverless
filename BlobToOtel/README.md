@@ -32,13 +32,13 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 
 **Event Hub Name** - The name of the Event Hub to be used as a trigger for the function app.
 
+**Event Hub Resource Group** - The resource group name of the Event Hub namespace.
+
 **Storage Account Name** - The name of the storage account containing the logs to be monitored.
 
+**Storage Account Resource Group** - The resource group name of the storage account containing the Blob container to be monitored.
+
 ### Optional
-
-**Storage Account Resource Group** - The resource group name of the storage account containing the Blob container to be monitored. Default: function app's resource group. Must be set if the storage account is not in the same resource group as the function app.
-
-**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
 
 **Coralogix Direct Mode** - Whether to use Coralogix as an OTLP endpoint (default: false).
 
@@ -54,9 +54,13 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 
 **Suffix Filter** - The suffix filter to apply to the blob container. Use 'NoFilter' to not filter by suffix. Wildcards are not allowed. Use the following format `.log`.
 
+**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
+
 **Virtual Network Name** - The name of the Virtual Network to integrate with (leave empty if VNet integration is not needed).
 
 **Subnet Name** - The name of the subnet to integrate with (leave empty if VNet integration is not needed).
+
+**Virtual Network Resource Group** - The resource group name of the Virtual Network (leave empty if VNet integration is not needed).
 
 ## vNet Integration
 

@@ -42,11 +42,7 @@
     },
     "NewlinePattern": {
       "type": "string",
-      "defaultValue": "(?:\r\n|\r|\n)",
-      "allowedValues": [
-        "(?:\r\n|\r|\n)",
-        "(?:\\r\\n|\\r|\\n)"
-      ],
+      "defaultValue": "(?:\\r\\n|\\r|\\n)",
       "metadata": {
         "description": "The pattern that separates the lines in the blob."
       }
@@ -63,6 +59,12 @@
         "description": "The name of the Event Hub"
       }
     },
+    "EventHubResourceGroup": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource group name of the Event Hub namespace."
+      }
+    },
     "StorageAccountName": {
       "type": "string",
       "metadata": {
@@ -71,9 +73,8 @@
     },
     "StorageAccountResourceGroup": {
       "type": "string",
-      "defaultValue": "[resourceGroup().name]",
       "metadata": {
-        "description": "The resource group name of the storage account containing the Blob container (default: function app's resource group)."
+        "description": "The resource group name of the storage account containing the Blob container."
       }
     },
     "PrefixFilter": {
@@ -114,6 +115,13 @@
       "metadata": {
         "description": "Name of the subnet for function app integration (leave empty if VNet integration is not needed)"
       }
+    },
+    "VirtualNetworkResourceGroup": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The resource group name of the Virtual Network (required if VNet integration is needed)"
+      }
     }
   },
   "variables": {
@@ -124,9 +132,6 @@
     "functionStorageAccountName": "[format('func{0}', uniqueString(resourceGroup().id))]",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]",
     "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobToOtel.zip",
-    "eventHubConnectionString": "[listkeys(resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('EventHubNamespace'), 'RootManageSharedAccessKey'), '2021-11-01').primaryConnectionString]",
-    "monitoredStorageConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('StorageAccountName'),';AccountKey=',listKeys(resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('StorageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=core.windows.net')]",
-    "functionStorageConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';EndpointSuffix=',environment().suffixes.storage,';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]",
     "vnetIntegrationEnabled": "[and(not(empty(parameters('VirtualNetworkName'))), not(empty(parameters('SubnetName'))))]"
   },
   "resources": [
@@ -232,23 +237,19 @@
             },
             {
               "name": "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING",
-              "value": "[variables('monitoredStorageConnectionString')]"
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('StorageAccountName'),';AccountKey=',listKeys(resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('StorageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=core.windows.net')]"
             },
             {
               "name": "EVENT_HUB_NAMESPACE_CONNECTION_STRING",
-              "value": "[variables('eventHubConnectionString')]"
-            },
-            {
-              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-              "value": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').InstrumentationKey]"
+              "value": "[listkeys(resourceId(parameters('EventHubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventHubNamespace'), 'RootManageSharedAccessKey'), '2021-11-01').primaryConnectionString]"
             },
             {
               "name": "AzureWebJobsStorage",
-              "value": "[variables('functionStorageConnectionString')]"
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';EndpointSuffix=',environment().suffixes.storage,';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[variables('functionStorageConnectionString')]"
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';EndpointSuffix=',environment().suffixes.storage,';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]"
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
@@ -280,7 +281,7 @@
       "apiVersion": "2022-03-01",
       "name": "[format('{0}/virtualNetwork', variables('functionAppName'))]",
       "properties": {
-        "subnetResourceId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('VirtualNetworkName'), parameters('SubnetName'))]",
+        "subnetResourceId": "[resourceId(parameters('VirtualNetworkResourceGroup'), 'Microsoft.Network/virtualNetworks/subnets', parameters('VirtualNetworkName'), parameters('SubnetName'))]",
         "swiftSupported": true
       },
       "condition": "[variables('vnetIntegrationEnabled')]",
