@@ -1,6 +1,6 @@
 import { gunzipSync } from "zlib";
 
-import { AzureFunction, Context } from "@azure/functions";
+import { InvocationContext } from "@azure/functions";
 import { BlobServiceClient } from "@azure/storage-blob";
 
 import * as logsAPI from '@opentelemetry/api-logs';
@@ -52,7 +52,7 @@ const suffixFilter = process.env.SUFFIX_FILTER;
 const prefixCheck = prefixFilter && prefixFilter !== 'NoFilter';
 const suffixCheck = suffixFilter && suffixFilter !== 'NoFilter';
 
-const eventHubTrigger: AzureFunction = async function (context: Context, eventHubMessages: any[]): Promise<void> {
+const eventHubTrigger = async function (context: InvocationContext, eventHubMessages: any[]): Promise<void> {
     let hasErrors = false;
 
     // Process each message from the Event Hub
@@ -118,7 +118,7 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
                 } catch (lineError) {
                     failedLines++;
                     hasErrors = true;
-                    context.log.error(`Error processing line from ${blobPath}: ${lineError}`);
+                    context.log(`Error processing line from ${blobPath}: ${lineError}`);
                 }
             }
 
@@ -126,18 +126,17 @@ const eventHubTrigger: AzureFunction = async function (context: Context, eventHu
         }
     }
 
-    // After processing all messages, ensure proper shutdown
     try {
         await loggerProvider.forceFlush();
         await loggerProvider.shutdown();
         context.log('Successfully processed and exported all logs');
     } catch (shutdownError) {
-        context.log.error('Error during logger shutdown:', shutdownError);
-        throw shutdownError; // This is critical, so we should still throw
+        context.log('Error during logger shutdown:', shutdownError);
+        throw shutdownError;
     }
 
     if (hasErrors) {
-        context.log.warn('Function completed with some errors');
+        context.log('Function completed with some errors');
     }
 };
 
