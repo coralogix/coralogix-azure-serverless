@@ -1,25 +1,19 @@
 # Configurable exports
 
 export AZURE_REGION ?= westeurope
-export CORALOGIX_APP_NAME ?= Azure
-export CORALOGIX_SUB_SYSTEM ?= "BlobToOtel"
+export CORALOGIX_APPLICATION ?= Azure
+export CORALOGIX_SUBSYSTEM ?= "BlobToOtel"
 export NEWLINE_PATTERN ?= (?:\r\n|\r|\n)
-
-#  Cluster	                API Endpoint
-#  .com	                    https://api.coralogix.com:443/api/v1/logs
-#  .us	                    https://api.coralogix.us:443/api/v1/logs
-#  .in	                    https://api.app.coralogix.in:443/api/v1/logs
-#  .app.eu2.coralogix.com	https://api.eu2.coralogix.com:443/api/v1/logs
-#  .app.coralogixsg.com	    https://api.coralogixsg.com:443/api/v1/logs
-
-export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs"
+export CORALOGIX_DIRECT_MODE ?= false
+export PREFIX_FILTER ?= NoFilter
+export SUFFIX_FILTER ?= NoFilter
+export FUNCTION_APP_SERVICE_PLAN_TYPE ?= Consumption
 
 # Fixed exports
 
 export AZURE_RESOURCE_GROUP ?= CrlgxRG$(UUID)
 export AZURE_FUNCTION_NAME ?= blobfunc$(UUID)
 export AZURE_FUNCTION_STORAGE_ACCOUNT ?= storage$(UUID)
-
 
 functools:
 	@echo "Will now install: azure-functions-core-tools v4 "
@@ -52,36 +46,41 @@ install:
 	@echo "Will now create the function with the following parameters"
 	@echo "Function Name: $(AZURE_FUNCTION_NAME)"
 	@echo "Resource Group: $(AZURE_RESOURCE_GROUP)"
-	@echo "Consumption Plan Location: $(AZURE_REGION)"
-	@echo "Runtime: node Version: 16"
+	@echo "Plan Type: $(FUNCTION_APP_SERVICE_PLAN_TYPE)"
+	@echo "Location: $(AZURE_REGION)"
+	@echo "Runtime: node Version: 20"
 	@echo "Functions Version: 4"
 	@echo "Storage-account $(AZURE_FUNCTION_STORAGE_ACCOUNT)"
 	az functionapp create \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
-		--consumption-plan-location $(AZURE_REGION) \
+		--plan-type $(FUNCTION_APP_SERVICE_PLAN_TYPE) \
 		--runtime node \
-		--runtime-version 16 \
+		--runtime-version 20 \
 		--functions-version 4 \
 		--storage-account $(AZURE_FUNCTION_STORAGE_ACCOUNT)
 
 configure:
 	@echo "Configuring the Function Environment"
-	@echo "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)"
-	@echo "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)"
-	@echo "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)"
+	@echo "OTEL_ENDPOINT=$(OTEL_ENDPOINT)"
+	@echo "CORALOGIX_DIRECT_MODE=$(CORALOGIX_DIRECT_MODE)"
+	@echo "CORALOGIX_API_KEY=$(CORALOGIX_API_KEY)"
+	@echo "CORALOGIX_APPLICATION=$(CORALOGIX_APPLICATION)"
+	@echo "CORALOGIX_SUBSYSTEM=$(CORALOGIX_SUBSYSTEM)"
 	@echo "NEWLINE_PATTERN=$(NEWLINE_PATTERN)"
-	@echo "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING=$(BLOB_STORAGE_ACCOUNT_CONNECTION_STRING)"
-	@echo "CORALOGIX_URL=$(CORALOGIX_URL)"
+	@echo "PREFIX_FILTER=$(PREFIX_FILTER)"
+	@echo "SUFFIX_FILTER=$(SUFFIX_FILTER)"
 	az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
-		--settings "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)" \
-		"CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)" \
-		"CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" \
+		--settings "OTEL_ENDPOINT=$(OTEL_ENDPOINT)" \
+		"CORALOGIX_DIRECT_MODE=$(CORALOGIX_DIRECT_MODE)" \
+		"CORALOGIX_API_KEY=$(CORALOGIX_API_KEY)" \
+		"CORALOGIX_APPLICATION=$(CORALOGIX_APPLICATION)" \
+		"CORALOGIX_SUBSYSTEM=$(CORALOGIX_SUBSYSTEM)" \
 		"NEWLINE_PATTERN=$(NEWLINE_PATTERN)" \
-		"BLOB_STORAGE_ACCOUNT_CONNECTION_STRING=$(BLOB_STORAGE_ACCOUNT_CONNECTION_STRING)" \
-		"CORALOGIX_URL=$(CORALOGIX_URL)"
+		"PREFIX_FILTER=$(PREFIX_FILTER)" \
+		"SUFFIX_FILTER=$(SUFFIX_FILTER)"
 
 publish: build
 	@echo "Will now publish the function we created"
