@@ -20,8 +20,6 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Fmaster%2FBlobToOtel%2FARM%2FBlobToOtel.json)
 
-[![Deploy to Azure – Test Link](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Ffeat-cds-1933-otel-shipper%2FBlobToOtel%2FARM%2FBlobToOtel.json)
-
 ## Fields
 
 ### Required
