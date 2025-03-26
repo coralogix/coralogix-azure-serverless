@@ -1,9 +1,9 @@
 bin
 obj
 csx
-.vs
-edge
 .vscode
+edge
+
 Publish
 *.user
 *.suo

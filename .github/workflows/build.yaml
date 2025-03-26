@@ -29,7 +29,7 @@ jobs:
         run: |
           export PACKAGES=$(git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha || 'origin/master' }} ${{ github.sha }} ./*/ | cut -f1 -d/ | sort | uniq | jq -rcnR '[inputs]')
           if ${{ github.event_name == 'workflow_dispatch' }}; then
-            export PACKAGES='["BlobViaEventGrid","EventHub","StorageQueue"]'
+            export PACKAGES='["BlobViaEventGrid","EventHub","StorageQueue","BlobToOtel"]'
           fi
           echo "$PACKAGES"
           echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
@@ -50,13 +50,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: 18
+          node-version: 20
       
-      - name: install AWS cli
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y awscli
-
       - name: Install functools
         run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
 
