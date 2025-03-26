@@ -100,6 +100,20 @@
       "metadata": {
         "description": "The type of the Function App Service Plan. Choose Premium if you need vNet Support."
       }
+    },
+    "VirtualNetworkName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of the Virtual Network (leave empty if VNet integration is not needed)"
+      }
+    },
+    "SubnetName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of the subnet for function app integration (leave empty if VNet integration is not needed)"
+      }
     }
   },
   "variables": {
@@ -112,7 +126,8 @@
     "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobToOtel.zip",
     "eventHubConnectionString": "[listkeys(resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('EventHubNamespace'), 'RootManageSharedAccessKey'), '2021-11-01').primaryConnectionString]",
     "monitoredStorageConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('StorageAccountName'),';AccountKey=',listKeys(resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('StorageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=core.windows.net')]",
-    "functionStorageConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';EndpointSuffix=',environment().suffixes.storage,';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]"
+    "functionStorageConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';EndpointSuffix=',environment().suffixes.storage,';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]",
+    "vnetIntegrationEnabled": "[and(not(empty(parameters('VirtualNetworkName'))), not(empty(parameters('SubnetName'))))]"
   },
   "resources": [
     {
@@ -258,6 +273,19 @@
         "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]",
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/sites/networkConfig",
+      "apiVersion": "2022-03-01",
+      "name": "[format('{0}/virtualNetwork', variables('functionAppName'))]",
+      "properties": {
+        "subnetResourceId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('VirtualNetworkName'), parameters('SubnetName'))]",
+        "swiftSupported": true
+      },
+      "condition": "[variables('vnetIntegrationEnabled')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
     }
   ]

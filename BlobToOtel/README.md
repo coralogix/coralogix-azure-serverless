@@ -53,3 +53,22 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 **Prefix Filter** - The prefix filter to apply to the blob container. Use 'NoFilter' to not filter by prefix. Wildcards are not allowed. Use the following format `/subfolder1/subfolder2/`.
 
 **Suffix Filter** - The suffix filter to apply to the blob container. Use 'NoFilter' to not filter by suffix. Wildcards are not allowed. Use the following format `.log`.
+
+**Virtual Network Name** - The name of the Virtual Network to integrate with (leave empty if VNet integration is not needed).
+
+**Subnet Name** - The name of the subnet to integrate with (leave empty if VNet integration is not needed).
+
+## vNet Integration
+
+* The function app will be deployed to a Premium plan and will be integrated with the specified vNet.
+* The subnet must be delegated to `Microsoft.Web/serverFarms`. Here is an example of how to delegate a subnet:
+
+```bash
+az network vnet subnet update --name <subnet-name> --vnet-name <vnet-name> --resource-group <resource-group-name> --delegations Microsoft.Web/serverFarms
+```
+
+UI workflow:
+
+```
+Virtual Network > Subnets > [Your Subnet] > Subnet delegation > Microsoft.Web/serverFarms > Save
+```
