@@ -155,7 +155,8 @@
         "tier": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Dynamic', 'ElasticPremium')]"
       },
       "properties": {
-        "reserved": true
+        "reserved": true,
+        "maximumElasticWorkerCount": 1
       }
     },
     {
