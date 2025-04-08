@@ -60,6 +60,18 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
         // Parse the message if it's a string
         const parsedEvents = typeof message === 'string' ? JSON.parse(message) : message;
 
+        // Validate that parsedEvents is an array and has at least one element
+        if (!Array.isArray(parsedEvents) || parsedEvents.length === 0) {
+            context.log('Skipping message - not a valid array of events');
+            return;
+        }
+
+        // Validate that the first element has an eventType and is a BlobCreated event
+        if (!parsedEvents[0].eventType || parsedEvents[0].eventType !== "Microsoft.Storage.BlobCreated") {
+            context.log('Skipping message - event type is not BlobCreated');
+            return;
+        }
+
         // Handle each event in the array
         for (const event of parsedEvents) {
             const blobURL = event.data.url;
