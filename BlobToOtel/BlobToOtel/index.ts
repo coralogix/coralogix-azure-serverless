@@ -38,6 +38,7 @@ loggerProvider.addLogRecordProcessor(
     new BatchLogRecordProcessor(otlpExporter, {
         maxExportBatchSize: 512,
         scheduledDelayMillis: 1000,
+        exportTimeoutMillis: 30000,
     })
 );
 
@@ -53,102 +54,98 @@ const prefixCheck = prefixFilter && prefixFilter !== 'NoFilter';
 const suffixCheck = suffixFilter && suffixFilter !== 'NoFilter';
 
 const eventHubTrigger = async function (context: InvocationContext, eventHubMessages: any[]): Promise<void> {
-    let hasErrors = false;
-
-    // Process each message from the Event Hub
-    for (const message of eventHubMessages) {
-        // Parse the message if it's a string
-        const parsedEvents = typeof message === 'string' ? JSON.parse(message) : message;
-
-        // Validate that parsedEvents is an array and has at least one element
-        if (!Array.isArray(parsedEvents) || parsedEvents.length === 0) {
-            context.log('Skipping message - not a valid array of events');
-            return;
-        }
-
-        // Validate that the first element has an eventType and is a BlobCreated event
-        if (!parsedEvents[0].eventType || parsedEvents[0].eventType !== "Microsoft.Storage.BlobCreated") {
-            context.log('Skipping message - event type is not BlobCreated');
-            return;
-        }
-
-        // Handle each event in the array
-        for (const event of parsedEvents) {
-            const blobURL = event.data.url;
-            // Parse both container and blob path from the URL
-            const urlParts = new URL(blobURL);
-            const pathSegments = urlParts.pathname.split('/');
-            const containerName = pathSegments[1]; // First segment after the leading slash
-            const blobPath = pathSegments.slice(2).join('/'); // Everything after the container name
-
-            if (prefixCheck && !blobPath.startsWith(prefixFilter)) {
-                context.log(`Skipping ${blobPath} - does not match prefix filter ${prefixFilter}`);
-                continue;
-            }
-
-            if (suffixCheck && !blobPath.endsWith(suffixFilter)) {
-                context.log(`Skipping ${blobPath} - does not match suffix filter ${suffixFilter}`);
-                continue;
-            }
-
-            context.log("Container:", containerName);
-            context.log("Blob path:", blobPath);
-
-            // Use the storage account connection string directly
-            const storageConnectionString = process.env.BLOB_STORAGE_ACCOUNT_CONNECTION_STRING;
-            const blobServiceClient = BlobServiceClient.fromConnectionString(storageConnectionString);
-            const containerClient = blobServiceClient.getContainerClient(containerName);
-            const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
-
-            let blobData = await blockBlobClient.downloadToBuffer();
-            if (blobPath.endsWith(".gz")) {
-                blobData = gunzipSync(blobData);
-            }
-
-            // Split blob content into lines and emit each line as a log record
-            const lines = blobData.toString().split(newlinePattern);
-            let processedLines = 0;
-            let failedLines = 0;
-
-            for (const line of lines) {
-                if (!line.trim()) continue; // Skip empty lines
-
-                try {
-                    logger.emit({
-                        severityNumber: logsAPI.SeverityNumber.INFO,
-                        severityText: 'INFO',
-                        body: line,
-                        attributes: {
-                            'log.type': 'BlobLogRecord',
-                            'blob.container': containerName,
-                            'blob.path': blobPath,
-                            'blob.storage.account': event.topic.split('/').pop(),
-                            'blob.size': event.data.contentLength
-                        }
-                    });
-                    processedLines++;
-                } catch (lineError) {
-                    failedLines++;
-                    hasErrors = true;
-                    context.log(`Error processing line from ${blobPath}: ${lineError}`);
-                }
-            }
-
-            context.log(`Processed ${processedLines} lines, failed ${failedLines} lines from ${blobPath}`);
-        }
-    }
-
     try {
-        await loggerProvider.forceFlush();
-        await loggerProvider.shutdown();
-        context.log('Successfully processed and exported all logs');
-    } catch (shutdownError) {
-        context.log('Error during logger shutdown:', shutdownError);
-        throw shutdownError;
-    }
+        let hasErrors = false;
 
-    if (hasErrors) {
-        context.log('Function completed with some errors');
+        for (const message of eventHubMessages) {
+            const parsedEvents = typeof message === 'string' ? JSON.parse(message) : message;
+
+            if (!Array.isArray(parsedEvents)) {
+                context.log('Skipping - this event has an invalid format:', message);
+                continue;
+            }
+
+            for (const event of parsedEvents) {
+                const blobURL = event.data.url;
+                // Parse both container and blob path from the URL
+                const urlParts = new URL(blobURL);
+                const pathSegments = urlParts.pathname.split('/');
+                const containerName = pathSegments[1]; // First segment after the leading slash
+                const blobPath = pathSegments.slice(2).join('/'); // Everything after the container name
+
+                if (prefixCheck && !blobPath.startsWith(prefixFilter)) {
+                    context.log(`Skipping ${blobPath} - does not match prefix filter ${prefixFilter}`);
+                    continue;
+                }
+
+                if (suffixCheck && !blobPath.endsWith(suffixFilter)) {
+                    context.log(`Skipping ${blobPath} - does not match suffix filter ${suffixFilter}`);
+                    continue;
+                }
+
+                context.log("Container:", containerName);
+                context.log("Blob path:", blobPath);
+
+                // Use the storage account connection string directly
+                const storageConnectionString = process.env.BLOB_STORAGE_ACCOUNT_CONNECTION_STRING;
+                const blobServiceClient = BlobServiceClient.fromConnectionString(storageConnectionString);
+                const containerClient = blobServiceClient.getContainerClient(containerName);
+                const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
+
+                let blobData = await blockBlobClient.downloadToBuffer();
+                if (blobPath.endsWith(".gz")) {
+                    blobData = gunzipSync(blobData);
+                }
+
+                // Split blob content into lines and emit each line as a log record
+                const lines = blobData.toString().split(newlinePattern);
+                let processedLines = 0;
+                let failedLines = 0;
+
+                for (const line of lines) {
+                    if (!line.trim()) continue; // Skip empty lines
+
+                    try {
+                        logger.emit({
+                            severityNumber: logsAPI.SeverityNumber.INFO,
+                            severityText: 'INFO',
+                            body: line,
+                            attributes: {
+                                'log.type': 'BlobLogRecord',
+                                'blob.container': containerName,
+                                'blob.path': blobPath,
+                                'blob.storage.account': event.topic.split('/').pop(),
+                                'blob.size': event.data.contentLength
+                            }
+                        });
+                        processedLines++;
+                    } catch (lineError) {
+                        failedLines++;
+                        hasErrors = true;
+                        context.log(`Error processing line from ${blobPath}: ${lineError}`);
+                    }
+                }
+
+                context.log(`Processed ${processedLines} lines, failed ${failedLines} lines from ${blobPath}`);
+            }
+        }
+
+        // Add delay before force flush to allow batch to accumulate
+        context.log('Waiting for batch accumulation...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        context.log('Starting force flush...');
+        await loggerProvider.forceFlush();
+        context.log('Force flush completed');
+
+        context.log('Successfully processed and exported all logs');
+
+        if (hasErrors) {
+            context.log('Function completed with some errors');
+        }
+    } catch (error) {
+        context.log('Error processing messages:', error);
+        return;
     }
 };
 
