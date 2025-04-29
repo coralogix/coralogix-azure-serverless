@@ -62,7 +62,8 @@
     "@opentelemetry/exporter-logs-otlp-grpc": "^0.200.0",
     "@opentelemetry/resources": "^2.0.0",
     "@opentelemetry/sdk-logs": "^0.200.0",
-    "@opentelemetry/semantic-conventions": "^1.30.0"
+    "@opentelemetry/semantic-conventions": "^1.30.0",
+    "avro-js": "^1.12.0"
   },
   "files": [
     "LICENSE",

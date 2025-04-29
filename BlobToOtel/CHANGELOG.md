@@ -5,6 +5,9 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.1.1 / 29 Apr 2025
+[Feat] Decode AVRO files
+
 ### 2.1.0 / 08 Apr 2025
 [Fix] Use `@opentelemetry/exporter-logs-otlp-grpc` lib instead of `@opentelemetry/exporter-logs-otlp-http`
 [Fix] Wait for batch accumulation
