@@ -22,7 +22,7 @@
     "url": "https://coralogix.com"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "contributors": [
     {
@@ -58,7 +58,7 @@
   },
   "devDependencies": {
     "@azure/functions": "^3.5.1",
-    "@types/node": "^18.15.11",
+    "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": ">=5.48.2",
     "@typescript-eslint/parser": ">=5.48.2",
     "eslint": ">=8.32.0",

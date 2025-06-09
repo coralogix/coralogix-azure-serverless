@@ -177,7 +177,7 @@
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "siteConfig": {
-          "linuxFxVersion": "Node|18",
+          "linuxFxVersion": "Node|20",
           "appSettings": [
             {
               "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
