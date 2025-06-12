@@ -1,16 +1,19 @@
-module.exports = {
-	ignorePatterns: ["node_modules", "dist"],
-	root: true,
-	parser: "@typescript-eslint/parser",
-	plugins: [
-	  "@typescript-eslint"
-	],
-	extends: [
-	  "eslint:recommended",
-	  "plugin:@typescript-eslint/eslint-recommended",
-	  "plugin:@typescript-eslint/recommended"
-	],
-	rules: {
-	  "@typescript-eslint/no-explicit-any": "off"
+import tsEslint from "@typescript-eslint/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
+
+export default [
+	{
+		ignores: ["node_modules", "dist"],
+		files: ["**/*.ts", "**/*.tsx"],
+		languageOptions: {
+			parser: tsParser,
+		},
+		plugins: {
+			"@typescript-eslint": tsEslint
+		},
+		rules: {
+			...tsEslint.configs.recommended.rules,
+			"@typescript-eslint/no-explicit-any": "off"
+		}
 	}
-};
+];
