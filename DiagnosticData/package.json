@@ -8,7 +8,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "eslint ./**/*.ts",
+    "lint": "eslint ./**/*.ts --config eslint.config.mjs",
     "build": "npm run lint && tsc",
     "build:production": "npm run prestart && npm prune --production",
     "watch": "tsc --w",
