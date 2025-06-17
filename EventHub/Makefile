@@ -52,7 +52,7 @@ install:
 	@echo "Function Name: $(AZURE_FUNCTION_NAME)"
 	@echo "Resource Group: $(AZURE_RESOURCE_GROUP)"
 	@echo "Consumption Plan Location: $(AZURE_REGION)"
-	@echo "Runtime: node Version: 18"
+	@echo "Runtime: node Version: 20"
 	@echo "Functions Version: 4"
 	@echo "Storage-account $(AZURE_FUNCTION_STORAGE_ACCOUNT)"
 	@az functionapp create \
@@ -60,7 +60,7 @@ install:
 		--resource-group $(AZURE_RESOURCE_GROUP) \
 		--consumption-plan-location $(AZURE_REGION) \
 		--runtime node \
-		--runtime-version 18 \
+		--runtime-version 20 \
 		--functions-version 4 \
 		--storage-account $(AZURE_FUNCTION_STORAGE_ACCOUNT)
 

@@ -2,12 +2,13 @@
   "name": "coralogix-azure-serverless",
   "title": "Azure Functions for integration with Coralogix",
   "version": "2.0.1",
+  "type": "module",
   "description": "Azure Functions Set for integration with Coralogix",
   "homepage": "https://coralogix.com",
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
-    "lint": "eslint . --ext .ts",
+    "lint": "eslint . --ext .ts --config eslint.config.mjs",
     "build": "npm run lint && tsc",
     "build:production": "npm run prestart && npm prune --production",
     "watch": "tsc --w",
@@ -25,7 +26,7 @@
     "url": "https://coralogix.com"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=20"
   },
   "contributors": [
     {
@@ -50,7 +51,7 @@
   },
   "devDependencies": {
     "@azure/functions": "^3.5.1",
-    "@types/node": "^18.15.11",
+    "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": ">=5.48.2",
     "@typescript-eslint/parser": ">=5.48.2",
     "eslint": ">=8.32.0",
@@ -58,7 +59,7 @@
     "typescript": ">=4.9.4"
   },
   "dependencies": {
-    "coralogix-logger": "1.1.28"
+    "coralogix-logger": "^1.1.30"
   },
   "files": [
     "LICENSE",

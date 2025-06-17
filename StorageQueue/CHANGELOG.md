@@ -10,3 +10,6 @@
 
 ### 2.0.1 / 22 Feb 2023
 [BUG] Update ARM template for incorrect "default value"
+
+### 2.0.2 / 25 Apr 2025
+[Update] Bump Node.js runtime to version 20
