@@ -7,6 +7,10 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
     const blobURL = context.bindingData.data.url;
     const blobName = blobURL.slice(blobURL.lastIndexOf("/")+1);
     context.log("Processing:", blobName);
+    context.log("Blob URL:", blobURL);
+    
+    // Debug: log the event grid event structure
+    context.log("EventGrid event data:", JSON.stringify(eventGridEvent, null, 2));
 
     CoralogixLogger.configure(new LoggerConfig({
         privateKey: process.env.CORALOGIX_PRIVATE_KEY,
@@ -16,15 +20,47 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
 
     const newlinePattern: RegExp = process.env.NEWLINE_PATTERN ? RegExp(process.env.NEWLINE_PATTERN) : /(?:\r\n|\r|\n)/g;
     const logger: CoralogixLogger = new CoralogixLogger("blob");
+    
     try {
         let blobData = myBlob;
 
         if (blobName.endsWith(".gz")) {
-            blobData = gunzipSync(blobData);
+            try {
+                blobData = gunzipSync(blobData);
+                context.log("Successfully decompressed gzipped blob");
+            } catch (gzipError) {
+                const errorMsg = `Failed to decompress gzipped blob ${blobName}: ${gzipError}`;
+                context.log.error(errorMsg);
+                logger.addLog(new Log({
+                    severity: Severity.error,
+                    text: errorMsg,
+                    threadId: blobName
+                }));
+                return;
+            }
         }
 
-        blobData.toString().split(newlinePattern).forEach((record: string) => {
-            if (record) {
+        // Additional check after potential gunzip
+        if (blobData == null || blobData === undefined) {
+            const errorMsg = `blobData is ${blobData} after processing for blob: ${blobName}`;
+            context.log.error(errorMsg);
+            
+            logger.addLog(new Log({
+                severity: Severity.error,
+                text: errorMsg,
+                threadId: blobName
+            }));
+            return;
+        }
+
+        const blobText = blobData.toString();
+        context.log("Blob text length:", blobText.length);
+        
+        const records = blobText.split(newlinePattern);
+        context.log("Number of records found:", records.length);
+        
+        records.forEach((record: string) => {
+            if (record && record.trim()) {
                 logger.addLog(new Log({
                     severity: Severity.info,
                     text: record,
@@ -32,8 +68,9 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
                 }));
             }
         });
+        
     } catch (error) {
-        context.log.error(`Error during proccessing of ${blobName}: ${error}`);
+        context.log.error(`Error during processing of ${blobName}: ${error}`);
         try {
             logger.addLog(new Log({
                 severity: Severity.error,
@@ -43,8 +80,8 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
         } catch (coralogix_error) {
             context.log.error("Error during sending exception to Coralogix:", coralogix_error);
         }
-
     }
+    
     context.log("Finished processing of:", blobName);
     CoralogixLogger.flush();
 };
