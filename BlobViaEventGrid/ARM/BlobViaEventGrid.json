@@ -99,6 +99,17 @@
       "metadata": {
         "description": "The type of the Function App Service Plan. Choose Premium if you need vNet Support."
       }
+    },
+    "DebugMode": {
+      "type": "string",
+      "defaultValue": "false",
+      "allowedValues": [
+        "true",
+        "false"
+      ],
+      "metadata": {
+        "description": "Enable debug mode for detailed logging of blob processing including encoding detection and data analysis."
+      }
     }
   },
   "variables": {
@@ -230,6 +241,10 @@
             {
               "name": "NEWLINE_PATTERN",
               "value": "[parameters('NewlinePattern')]"
+            },
+            {
+              "name": "DEBUG_MODE",
+              "value": "[parameters('DebugMode')]"
             }
           ]
         }

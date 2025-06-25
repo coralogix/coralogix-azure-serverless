@@ -45,3 +45,5 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 **Suffix Filter** - The suffix filter to apply to the blob container. Use 'NoFilter' to not filter by suffix. Wildcards are not allowed. Use the following format ``.log``.
 
 **Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
+
+**Debug Mode** - The debug mode to apply to the function app. Set to 'true' to enable debug mode.
