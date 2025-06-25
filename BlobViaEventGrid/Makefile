@@ -20,9 +20,10 @@ export AZURE_FUNCTION_NAME ?= blobfunc$(UUID)
 export AZURE_FUNCTION_STORAGE_ACCOUNT ?= storage$(UUID)
 
 # Storage account settings (following ARM template pattern)
-export STORAGE_ACCOUNT_NAME ?= redeploystorage
+export STORAGE_ACCOUNT_NAME ?= storage$(UUID)
 export STORAGE_ACCOUNT_RESOURCE_GROUP ?= $(AZURE_RESOURCE_GROUP)
 export CORALOGIX_PRIVATE_KEY ?= "<CORALOGIX_PRIVATE_KEY>"
+export DEBUG_MODE ?= "false"
 
 
 functools:
@@ -80,6 +81,7 @@ configure:
 	@echo "NEWLINE_PATTERN=$(NEWLINE_PATTERN)"
 	@echo "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING=$(BLOB_STORAGE_ACCOUNT_CONNECTION_STRING)"
 	@echo "CORALOGIX_URL=$(CORALOGIX_URL)"
+	@echo "DEBUG_MODE=$(DEBUG_MODE)"
 	az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
@@ -88,7 +90,8 @@ configure:
 		"CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" \
 		"NEWLINE_PATTERN=$(NEWLINE_PATTERN)" \
 		"BLOB_STORAGE_ACCOUNT_CONNECTION_STRING=$(BLOB_STORAGE_ACCOUNT_CONNECTION_STRING)" \
-		"CORALOGIX_URL=$(CORALOGIX_URL)"
+		"CORALOGIX_URL=$(CORALOGIX_URL)" \
+		"DEBUG_MODE=$(DEBUG_MODE)"
 
 publish: build
 	@echo "Will now publish the function we created"
