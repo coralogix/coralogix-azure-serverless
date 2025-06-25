@@ -1,24 +1,29 @@
 # Configurable exports
 
-export AZURE_REGION ?= westeurope
+export AZURE_REGION ?= southeastasia
 export CORALOGIX_APP_NAME ?= Azure
 export CORALOGIX_SUB_SYSTEM ?= "BlobViaEventGrid"
 export NEWLINE_PATTERN ?= (?:\r\n|\r|\n)
 
 #  Cluster	                API Endpoint
-#  .com	                    https://api.coralogix.com:443/api/v1/logs
-#  .us	                    https://api.coralogix.us:443/api/v1/logs
-#  .in	                    https://api.app.coralogix.in:443/api/v1/logs
-#  .app.eu2.coralogix.com	https://api.eu2.coralogix.com:443/api/v1/logs
-#  .app.coralogixsg.com	    https://api.coralogixsg.com:443/api/v1/logs
+#  .com	                    https://ingress.coralogix.com:443/api/v1/logs
+#  .us	                    https://ingress.coralogix.us:443/api/v1/logs
+#  .in	                    https://ingress.app.coralogix.in:443/api/v1/logs
+#  .app.eu2.coralogix.com	https://ingress.eu2.coralogix.com:443/api/v1/logs
+#  .app.coralogixsg.com	    https://ingress.coralogixsg.com:443/api/v1/logs
 
-export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs"
+export CORALOGIX_URL ?= "https://ingress.coralogixsg.com/api/v1/logs"
 
 # Fixed exports
-
 export AZURE_RESOURCE_GROUP ?= CrlgxRG$(UUID)
 export AZURE_FUNCTION_NAME ?= blobfunc$(UUID)
 export AZURE_FUNCTION_STORAGE_ACCOUNT ?= storage$(UUID)
+
+# Storage account settings (following ARM template pattern)
+export STORAGE_ACCOUNT_NAME ?= storage$(UUID)
+export STORAGE_ACCOUNT_RESOURCE_GROUP ?= $(AZURE_RESOURCE_GROUP)
+export CORALOGIX_PRIVATE_KEY ?= "<CORALOGIX_PRIVATE_KEY>"
+export DEBUG_MODE ?= "false"
 
 
 functools:
@@ -67,12 +72,16 @@ install:
 
 configure:
 	@echo "Configuring the Function Environment"
+	@echo "Getting storage account key for $(STORAGE_ACCOUNT_NAME) in resource group $(STORAGE_ACCOUNT_RESOURCE_GROUP)"
+	$(eval STORAGE_ACCOUNT_KEY := $(shell az storage account keys list --account-name $(STORAGE_ACCOUNT_NAME) --resource-group $(STORAGE_ACCOUNT_RESOURCE_GROUP) --query '[0].value' --output tsv))
+	$(eval BLOB_STORAGE_ACCOUNT_CONNECTION_STRING := DefaultEndpointsProtocol=https;AccountName=$(STORAGE_ACCOUNT_NAME);AccountKey=$(STORAGE_ACCOUNT_KEY);EndpointSuffix=core.windows.net)
 	@echo "CORALOGIX_PRIVATE_KEY=$(CORALOGIX_PRIVATE_KEY)"
 	@echo "CORALOGIX_APP_NAME=$(CORALOGIX_APP_NAME)"
 	@echo "CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)"
 	@echo "NEWLINE_PATTERN=$(NEWLINE_PATTERN)"
 	@echo "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING=$(BLOB_STORAGE_ACCOUNT_CONNECTION_STRING)"
 	@echo "CORALOGIX_URL=$(CORALOGIX_URL)"
+	@echo "DEBUG_MODE=$(DEBUG_MODE)"
 	az functionapp config appsettings set \
 		--name $(AZURE_FUNCTION_NAME) \
 		--resource-group $(AZURE_RESOURCE_GROUP) \
@@ -81,7 +90,8 @@ configure:
 		"CORALOGIX_SUB_SYSTEM=$(CORALOGIX_SUB_SYSTEM)" \
 		"NEWLINE_PATTERN=$(NEWLINE_PATTERN)" \
 		"BLOB_STORAGE_ACCOUNT_CONNECTION_STRING=$(BLOB_STORAGE_ACCOUNT_CONNECTION_STRING)" \
-		"CORALOGIX_URL=$(CORALOGIX_URL)"
+		"CORALOGIX_URL=$(CORALOGIX_URL)" \
+		"DEBUG_MODE=$(DEBUG_MODE)"
 
 publish: build
 	@echo "Will now publish the function we created"

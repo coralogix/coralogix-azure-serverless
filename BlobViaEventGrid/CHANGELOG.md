@@ -14,3 +14,7 @@
 
 ### 2.0.2 / 25 Apr 2025
 [Update] Bump Node.js runtime to version 20
+
+### 2.0.3 / 25 Jun 2025
+[Update] Add debug mode to the function app
+[Update] Add checks for character encoding
