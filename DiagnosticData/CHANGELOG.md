@@ -13,3 +13,6 @@
 
 ### 2.0.2 / 25 Apr 2025
 [Update] Bump Node.js runtime to version 20
+
+### 2.0.3 / 6 Aug 2025
+[Update] Fix module compatibility
