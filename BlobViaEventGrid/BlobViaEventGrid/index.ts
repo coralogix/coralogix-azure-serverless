@@ -57,6 +57,23 @@ function debugLog(context: Context, message: string, data?: any): void {
     }
 }
 
+// Helper function to create enhanced log text with blob metadata (when enabled)
+// Set ENABLE_BLOB_METADATA=true to include blob name and path in logs
+function createLogText(message: string, blobName?: string, blobURL?: string): string {
+    const enableBlobMetadata = process.env.ENABLE_BLOB_METADATA === "true";
+    
+    if (enableBlobMetadata && blobName && blobURL) {
+        return JSON.stringify({
+            message: message,
+            blob_name: blobName,
+            blob_url: blobURL,
+        });
+    }
+    
+    // Return plain message when metadata is disabled (default) or parameters missing
+    return message;
+}
+
 const eventGridTrigger: AzureFunction = async function (context: Context, eventGridEvent: any, myBlob: any): Promise<void> {
     
     const blobURL = context.bindingData.data.url;
@@ -89,7 +106,7 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
             
             logger.addLog(new Log({
                 severity: Severity.error,
-                text: errorMsg,
+                text: createLogText(errorMsg, blobName, blobURL),
                 threadId: blobName
             }));
             return;
@@ -149,7 +166,7 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
                 context.log.error(errorMsg);
                 logger.addLog(new Log({
                     severity: Severity.error,
-                    text: errorMsg,
+                    text: createLogText(errorMsg, blobName, blobURL),
                     threadId: blobName
                 }));
                 return;
@@ -179,7 +196,7 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
             context.log.error(errorMsg);
             logger.addLog(new Log({
                 severity: Severity.error,
-                text: errorMsg,
+                text: createLogText(errorMsg, blobName, blobURL),
                 threadId: blobName
             }));
             return;
@@ -205,7 +222,7 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
             if (record && record.trim()) {
                 logger.addLog(new Log({
                     severity: Severity.info,
-                    text: record,
+                    text: createLogText(record, blobName, blobURL),
                     threadId: blobName
                 }));
                 processedCount++;
@@ -221,7 +238,7 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
         try {
             logger.addLog(new Log({
                 severity: Severity.error,
-                text: "Azure blob log collector failed during process of log file:" + error,
+                text: createLogText("Azure blob log collector failed during process of log file:" + error, blobName, blobURL),
                 threadId: blobName
             }));
         } catch (coralogix_error) {
