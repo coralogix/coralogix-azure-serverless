@@ -18,3 +18,6 @@
 ### 2.0.3 / 25 Jun 2025
 [Update] Add debug mode to the function app
 [Update] Add checks for character encoding
+
+### 2.0.4 / 01 Sep 2025
+[Update] Add blob name and blob path metadata to log entries when enabled via ENABLE_BLOB_METADATA env variable
