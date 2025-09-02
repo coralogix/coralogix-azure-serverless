@@ -47,3 +47,5 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 **Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
 
 **Debug Mode** - The debug mode to apply to the function app. Set to 'true' to enable debug mode.
+
+**Enable Log Metadata** - Whether to enable logging metadata including the blob name and path.
