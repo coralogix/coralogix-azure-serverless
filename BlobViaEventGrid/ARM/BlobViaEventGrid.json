@@ -110,6 +110,17 @@
       "metadata": {
         "description": "Enable debug mode for detailed logging of blob processing including encoding detection and data analysis."
       }
+    },
+    "EnableBlobMetadata": {
+      "type": "string",
+      "defaultValue": "false",
+      "allowedValues": [
+        "true",
+        "false"
+      ],
+      "metadata": {
+        "description": "Whether to enable logging metadata including the blob name and path."
+      }
     }
   },
   "variables": {
