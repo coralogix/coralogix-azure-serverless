@@ -89,14 +89,25 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
     // Debug: log the event grid event structure
     debugLog(context, "EventGrid event data:", JSON.stringify(eventGridEvent, null, 2));
 
-    CoralogixLogger.configure(new LoggerConfig({
+    const loggerConfig = new LoggerConfig({
         privateKey: process.env.CORALOGIX_PRIVATE_KEY,
         applicationName: process.env.CORALOGIX_APP_NAME || "NO_APPLICATION",
-        subsystemName: process.env.CORALOGIX_SUB_SYSTEM || "NO_SUBSYSTEM"
-    }));
+        subsystemName: process.env.CORALOGIX_SUB_SYSTEM || "NO_SUBSYSTEM",
+        debug: process.env.DEBUG_MODE === "true"
+    });
+    
+    if (!process.env.CORALOGIX_BUFFER_SIZE) {
+        process.env.CORALOGIX_BUFFER_SIZE = "25165824"; // 24MB buffer (doubled from default 12MB)
+    }
+    
+    CoralogixLogger.configure(loggerConfig);
 
     const newlinePattern: RegExp = process.env.NEWLINE_PATTERN ? RegExp(process.env.NEWLINE_PATTERN) : /(?:\r\n|\r|\n)/g;
     const logger: CoralogixLogger = new CoralogixLogger("blob");
+    
+    let processedCount = 0; // Track processed records for logging
+    let totalRecords = 0; // Track total records found
+    let finalProcessedCount = 0; // Final count that won't be affected by logger state
     
     try {
         // Check if myBlob is defined
@@ -205,31 +216,61 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
         debugLog(context, "Blob text length:", blobText.length);
         
         const records = blobText.split(newlinePattern);
-        debugLog(context, "Number of records found:", records.length);
+        totalRecords = records.length;
         
-        // Debug: Show sample records
-        if (isDebugMode && records.length > 0) {
-            debugLog(context, `Sample records (first 3):`);
-            for (let i = 0; i < Math.min(3, records.length); i++) {
-                if (records[i] && records[i].trim()) {
-                    debugLog(context, `  Record ${i + 1}: "${records[i].substring(0, 100)}${records[i].length > 100 ? '...' : ''}"`);
+        const batchSize = 1000;
+        
+        for (let i = 0; i < totalRecords; i += batchSize) {
+            const batch = records.slice(i, i + batchSize);
+            const batchStart = i + 1;
+            const batchEnd = Math.min(i + batchSize, totalRecords);
+            
+            context.log(`Processing batch ${Math.floor(i/batchSize) + 1}: records ${batchStart}-${batchEnd}`);
+            
+            let batchProcessed = 0;
+            batch.forEach((record: string, batchIndex: number) => {
+                if (record && record.trim()) {
+                    try {
+                        logger.addLog(new Log({
+                            severity: Severity.info,
+                            text: createLogText(record, blobName, blobURL),
+                            threadId: blobName
+                        }));
+                        processedCount++;
+                        batchProcessed++;
+                    } catch (logError) {
+                        context.log.error(`Error adding log at position ${i + batchIndex + 1}: ${logError}`);
+                    }
+                }
+            });
+            
+            context.log(`Batch ${Math.floor(i/batchSize) + 1} completed: ${batchProcessed} logs added`);
+            
+            if (i + batchSize < totalRecords) {
+                // Small delay to allow batching to work efficiently
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
+                // Force a flush every few batches to ensure logs are sent
+                if ((i / batchSize + 1) % 5 === 0) {
+                    const countBeforeFlush = processedCount;
+                    context.log(`Forcing intermediate flush after batch ${Math.floor(i/batchSize) + 1} (processedCount: ${processedCount})`);
+                    try {
+                        await logger.waitForFlush();
+                        context.log(`Intermediate flush completed for batch ${Math.floor(i/batchSize) + 1} (processedCount: ${processedCount}, was: ${countBeforeFlush})`);
+                        
+                        if (processedCount !== countBeforeFlush) {
+                            context.log.warn(`WARNING: processedCount changed during intermediate flush from ${countBeforeFlush} to ${processedCount}`);
+                        }
+                    } catch (flushError) {
+                        context.log.warn(`Intermediate flush failed for batch ${Math.floor(i/batchSize) + 1}: ${flushError}`);
+                    }
                 }
             }
         }
         
-        let processedCount = 0;
-        records.forEach((record: string) => {
-            if (record && record.trim()) {
-                logger.addLog(new Log({
-                    severity: Severity.info,
-                    text: createLogText(record, blobName, blobURL),
-                    threadId: blobName
-                }));
-                processedCount++;
-            }
-        });
+        finalProcessedCount = processedCount;
         
-        debugLog(context, `Processed ${processedCount} non-empty records`);
+        context.log(`Processing summary: ${processedCount} out of ${totalRecords} records processed`);
         
     } catch (error) {
         context.log.error(`Error during processing of ${blobName}: ${error}`);
@@ -247,7 +288,49 @@ const eventGridTrigger: AzureFunction = async function (context: Context, eventG
     }
     
     context.log("Finished processing of:", blobName);
-    CoralogixLogger.flush();
+    
+    context.log(`Starting flush process for ${finalProcessedCount} logs...`);
+    const flushStartTime = Date.now();
+    
+    let flushAttempts = 0;
+    const maxFlushAttempts = 3;
+    
+    while (flushAttempts < maxFlushAttempts) {
+        try {
+            flushAttempts++;
+            context.log(`Flush attempt ${flushAttempts}/${maxFlushAttempts}...`);
+            
+            await logger.waitForFlush();
+            const flushDuration = Date.now() - flushStartTime;
+            context.log(`All ${finalProcessedCount} logs successfully sent to Coralogix in ${flushDuration}ms (attempt ${flushAttempts})`);
+            break;
+            
+        } catch (flushError) {
+            const flushDuration = Date.now() - flushStartTime;
+            context.log.error(`Flush attempt ${flushAttempts} failed for ${blobName} after ${flushDuration}ms: ${flushError}`);
+            
+            if (flushAttempts < maxFlushAttempts) {
+                // Wait before retry with exponential backoff
+                const retryDelay = Math.min(1000 * Math.pow(2, flushAttempts - 1), 5000);
+                context.log(`Waiting ${retryDelay}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+            } else {
+                context.log.error(`All flush attempts failed for ${blobName}. Final error: ${flushError}`);
+                
+                try {
+                    logger.addLog(new Log({
+                        severity: Severity.error,
+                        text: createLogText(`All flush attempts failed after ${flushDuration}ms: ${flushError}`, blobName, blobURL),
+                        threadId: blobName
+                    }));
+                    await logger.waitForFlush();
+                    context.log("Error log successfully sent to Coralogix");
+                } catch (finalError) {
+                    context.log.error("Failed to send final error log to Coralogix:", finalError);
+                }
+            }
+        }
+    }
 };
 
 export default eventGridTrigger;

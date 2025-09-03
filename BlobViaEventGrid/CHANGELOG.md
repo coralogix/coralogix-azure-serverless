@@ -21,3 +21,6 @@
 
 ### 2.0.4 / 01 Sep 2025
 [Update] Add blob name and blob path metadata to log entries when enabled via ENABLE_BLOB_METADATA env variable
+
+### 2.0.5 / 01 Sep 2025
+[BUG] Improve batch and flush mechanisms to avoid missing log records
