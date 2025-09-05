@@ -63,9 +63,9 @@
     },
     "EventGridSystemTopicName": {
       "type": "string",
-      "defaultValue": "new",
+      "defaultValue": "cxEventGridTopic",
       "metadata": {
-        "description": "The name of an existing Event Grid System Topic for the storage account containing the blob container, or leave as 'new' to create one."
+        "description": "Set to 'cxEventGridTopic' to create a new Event Grid System Topic, or provide the name of an existing one."
       }
     },
     "NewlinePattern": {
@@ -131,8 +131,8 @@
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "functionStorageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
-    "needEventGrid": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), 'true', 'false')]",
-    "eventGridTopicName": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), format('{0}-eg', parameters('storageAccountName')), parameters('EventGridSystemTopicName'))]",
+    "needEventGrid": "[if(equals(parameters('EventGridSystemTopicName'), 'cxEventGridTopic'), 'true', 'false')]",
+    "eventGridTopicName": "[if(equals(parameters('EventGridSystemTopicName'), 'cxEventGridTopic'), format('{0}-eg', parameters('storageAccountName')), parameters('EventGridSystemTopicName'))]",
     "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobViaEventGrid.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]",
     "PrefixFilter": "[if(equals(parameters('PrefixFilter'), 'NoFilter'), '', concat('/blobServices/default/containers/', parameters('BlobContainerName'), '/blobs', parameters('PrefixFilter')))]"  },
