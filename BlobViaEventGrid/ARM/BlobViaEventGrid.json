@@ -65,7 +65,7 @@
       "type": "string",
       "defaultValue": "cxEventGridTopic",
       "metadata": {
-        "description": "Set to 'cxEventGridTopic' to create a new Event Grid System Topic, or provide the name of an existing one."
+        "description": "The name of an existing Event Grid System Topic for the storage account containing the blob container, or leave as 'cxEventGridTopic' to create one."
       }
     },
     "NewlinePattern": {
