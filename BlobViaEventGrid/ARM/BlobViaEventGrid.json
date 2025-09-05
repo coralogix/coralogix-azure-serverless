@@ -256,6 +256,10 @@
             {
               "name": "DEBUG_MODE",
               "value": "[parameters('DebugMode')]"
+            },
+            {
+              "name": "ENABLE_BLOB_METADATA",
+              "value": "[parameters('EnableBlobMetadata')]"
             }
           ]
         }
