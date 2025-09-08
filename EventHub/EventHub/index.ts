@@ -23,7 +23,7 @@ const eventHubTrigger: AzureFunction = async function (context: Context, events:
     if ((!Array.isArray(events)) || (events.length === 0)) {
         return;
       }
-    //Setting up the Coralogix Logger
+    // Setting up the Coralogix Logger
     const config = new LoggerConfig({
         privateKey: process.env.CORALOGIX_PRIVATE_KEY,
         applicationName: process.env.CORALOGIX_APP_NAME || "NO_APPLICATION",
@@ -33,7 +33,7 @@ const eventHubTrigger: AzureFunction = async function (context: Context, events:
     const logger: CoralogixLogger = new CoralogixLogger("evhub");
     const threadId: string = context.executionContext.functionName;
 
-    //Parsing the event bulk, assuming we work with "many" as the cardinality attribute
+    // Parsing the event bulk, assuming we work with "many" as the cardinality attribute
     events.forEach((message, index) => {
         context.log(`Processed message: ${JSON.stringify(message)}`);
         context.log(`EnqueuedTimeUtc = ${context.bindingData.enqueuedTimeUtcArray[index]}`);
@@ -54,7 +54,7 @@ const eventHubTrigger: AzureFunction = async function (context: Context, events:
 
     });
 
-    //Making sure the logger buffer is clean
+    // Making sure the logger buffer is clean
     CoralogixLogger.flush();
 };
 
@@ -66,7 +66,7 @@ const writeLog = function(text: any, thread: any, logger: CoralogixLogger): void
     logger.addLog(new Log({
         severity: Severity.info,
         text: body,
-        threadId: text
+        threadId: thread
     }));
 };
 
