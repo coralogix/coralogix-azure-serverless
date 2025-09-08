@@ -10,3 +10,6 @@
 
 ### 2.0.1 / 25 Apr 2025
 [Update] Bump Node.js runtime to version 20
+
+### 2.0.2 / 08 Sep 2025
+[UPDATE] Modify threadID to use thread parameter instead of text

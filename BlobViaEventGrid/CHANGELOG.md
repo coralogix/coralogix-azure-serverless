@@ -24,3 +24,6 @@
 
 ### 2.0.5 / 01 Sep 2025
 [BUG] Improve batch and flush mechanisms to avoid missing log records
+
+### 2.0.6 / 08 Sep 2025
+[UPDATE] add missing parameter to BlobViaEventGrid template
