@@ -9,7 +9,7 @@ import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-grpc';
 
-// Init OTLP exporter
+// Init OTLP exporter 
 
 const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: 'blob-to-otel',

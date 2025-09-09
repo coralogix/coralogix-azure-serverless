@@ -1,44 +1,63 @@
 name: Release
 
 on:
-  push:
-    branches-ignore: [master]
   pull_request:
-    types: [closed]
+  push:
     branches: [master]
   workflow_dispatch:
-
-env:
-  AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-
+    inputs:
+      package:
+        description: 'Specify the package to release'
+        required: true
+        default: 'none'
+        type: choice
+        options:
+        - "BlobViaEventGrid"
+        - "DiagnosticData"
+        - "EventHub"
+        - "StorageQueue"
+        - "BlobToOtel"
 jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
     outputs:
-      packages: ${{ steps.get-changed-packages.outputs.packages }}
+      packages: ${{ steps.changed.outputs.packages }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          persist-credentials: false
           fetch-depth: 0
 
-      - name: Get Changed Packages
-        id: get-changed-packages
+      - name: Get Changed Directories
+        id: changed-dirs
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c
+        with:
+          files_ignore: |
+            **/*.md
+            .github/**
+          dir_names: true
+          dir_names_max_depth: 1
+          matrix: true
+    
+      - name: Get Packages
+        id: changed
         run: |
-          export PACKAGES=$(git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha || 'origin/master' }} ${{ github.sha }} ./*/ | cut -f1 -d/ | sort | uniq | jq -rcnR '[inputs]')
           if ${{ github.event_name == 'workflow_dispatch' }}; then
-            export PACKAGES='["BlobViaEventGrid","EventHub","StorageQueue","BlobToOtel"]'
+            echo 'packages=["${{ inputs.package }}"]' >> $GITHUB_OUTPUT
+          else
+            packages=${{ steps.changed-dirs.outputs.all_changed_files }}
+            echo "packages=$packages" >> $GITHUB_OUTPUT
           fi
-          echo "$PACKAGES"
-          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+
+      - name: Print Packages
+        run: |
+          echo "${{ steps.changed.outputs.packages }}"
+
   build:
     name: Build
     if: needs.check.outputs.packages != '[]'
     runs-on: ubuntu-latest
-    env:
-      AWS_SERVERLESS_BUCKET: ${{ secrets.AWS_PUBLIC_BUCKET }}
     needs: [check]
     strategy:
       matrix:
@@ -74,7 +93,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.CS_DEVOPS_S3_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.CS_DEVOPS_S3_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Upload to S3
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
@@ -82,4 +101,4 @@ jobs:
         run: |
           aws s3 cp \
             ${{ matrix.package }}.zip \
-            s3://${{ env.AWS_SERVERLESS_BUCKET }}/azure-functions-repo/${{ matrix.package }}.zip
+            s3://${{ secrets.AWS_PUBLIC_BUCKET }}/azure-functions-repo/${{ matrix.package }}.zip

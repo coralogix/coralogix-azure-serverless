@@ -133,7 +133,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
     let finalProcessedCount = 0; // Final count that won't be affected by logger state
     
     try {
-        // Check if myBlob is defined
+        // Check if myBlob is defined 
         if (myBlob == null || myBlob === undefined) {
             const errorMsg = `myBlob is ${myBlob} for blob: ${blobName}. This could indicate a binding issue with the blob input.`;
             context.error(errorMsg);
