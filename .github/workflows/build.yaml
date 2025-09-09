@@ -22,7 +22,7 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     outputs:
-      packages: ${{ steps.changed.outputs.packages }}
+      packages: ${{ steps.packages.outputs.json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,21 +38,21 @@ jobs:
             .github/**
           dir_names: true
           dir_names_max_depth: 1
-          matrix: true
+          json: true
+          escape_json: false
     
-      - name: Get Packages
-        id: changed
+      - name: Build packages JSON
+        id: packages
+        shell: bash
         run: |
-          if ${{ github.event_name == 'workflow_dispatch' }}; then
-            echo 'packages=["${{ inputs.package }}"]' >> $GITHUB_OUTPUT
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "json=[\"${{ inputs.package }}\"]" >> "$GITHUB_OUTPUT"
           else
-            packages=${{ steps.changed-dirs.outputs.all_changed_files }}
-            echo "packages=$packages" >> $GITHUB_OUTPUT
+            echo "json=${{ steps.changed-dirs.outputs.all_changed_files }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Print Packages
-        run: |
-          echo "${{ steps.changed.outputs.packages }}"
+      - name: Show JSON
+        run: echo '${{ steps.packages.outputs.json }}'
 
   build:
     name: Build
