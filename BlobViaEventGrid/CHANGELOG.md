@@ -5,6 +5,9 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.1.0 / 09 Sep 2025
+[Update] Rewrite the logic from `coralogix-logger` to `@opentelemetry/exporter-logs-otlp-http` in order to solve the problem with a last batch getting dissappeared
+
 ### 2.0.6 / 08 Sep 2025
 [UPDATE] add missing parameter to BlobViaEventGrid template
 
