@@ -10,13 +10,13 @@ on:
       - "StorageQueue/*"
       - "BlobToOtel/*"
 
-permissions:
-  contents: read
 jobs:   
+  permissions:
+    contents: read
   check-changelog-updates:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip changelog') }}
     runs-on: ubuntu-latest
-    name: Check changelog update
+    name: Check Changelog Update
     steps:
     - uses: actions/checkout@v4
       with:
@@ -28,7 +28,7 @@ jobs:
         files: |
           **/CHANGELOG.md
 
-    - name: Check changelog file 
+    - name: Fail if no changelog update
       run: |
         if [[ "${{ steps.changed-files.outputs.all_changed_files }}" = "" ]]; then
           echo "Please add a changelog entry in CHANGELOG.md or add 'skip changelog' label to your PR if this change does not require an entry".

@@ -1,4 +1,4 @@
-name: Release
+name: Build & Release
 
 on:
   pull_request:
@@ -53,7 +53,6 @@ jobs:
           fi
 
   build:
-    name: Build
     if: needs.check.outputs.packages != '[]'
     runs-on: ubuntu-latest
     needs: [check]
@@ -81,12 +80,12 @@ jobs:
         run: npm run build:production
 
       - name: Package
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         run: zip -r ${{ matrix.package }}.zip . -x ".*"
 
       - name: Setup AWS credentials
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.CS_DEVOPS_S3_AWS_ACCESS_KEY_ID }}
@@ -94,7 +93,7 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Upload to S3
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         run: |
           aws s3 cp \
