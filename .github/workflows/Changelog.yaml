@@ -10,6 +10,8 @@ on:
       - "StorageQueue/*"
       - "BlobToOtel/*"
 
+permissions:
+  contents: read
 jobs:   
   check-changelog-updates:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip changelog') }}
