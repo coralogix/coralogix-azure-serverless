@@ -11,18 +11,9 @@ on:
       - "BlobToOtel/*"
 
 jobs:   
-  get-label:
-    runs-on: ubuntu-latest
-    name: get label
-    outputs:
-      labels: "${{ steps.pr-labels.outputs.labels }}"
-    steps:
-      - name: Print labels
-        run: echo ${{ github.event.label.name }}
   check-changelog-updates:
-    if: "!contains(github.event.pull_request.labels.*.name, 'skip changelog')"
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip changelog') }}
     runs-on: ubuntu-latest
-    needs: get-label
     name: Check changelog update
     steps:
     - uses: actions/checkout@v4

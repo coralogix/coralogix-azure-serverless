@@ -36,6 +36,8 @@ jobs:
           files_ignore: |
             **/*.md
             .github/**
+            .gitignore
+            AUTHORS.md
           dir_names: true
           dir_names_max_depth: 1
           json: true
