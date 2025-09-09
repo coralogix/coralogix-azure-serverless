@@ -20,12 +20,12 @@ jobs:
       - name: Print labels
         run: echo ${{ github.event.label.name }}
   check-changelog-updates:
-    if: ${{ github.event.label.name != 'skip changelog' }}
+    if: "!contains(github.event.pull_request.labels.*.name, 'skip changelog')"
     runs-on: ubuntu-latest
     needs: get-label
     name: Check changelog update
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: Get changed files
