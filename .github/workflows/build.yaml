@@ -1,54 +1,70 @@
-name: Release
+name: Build & Release
 
 on:
-  push:
-    branches-ignore: [master]
   pull_request:
-    types: [closed]
+  push:
     branches: [master]
   workflow_dispatch:
-
-env:
-  AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-
+    inputs:
+      package:
+        description: 'Specify the package to release'
+        required: true
+        default: 'none'
+        type: choice
+        options:
+        - "BlobViaEventGrid"
+        - "DiagnosticData"
+        - "EventHub"
+        - "StorageQueue"
+        - "BlobToOtel"
 jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
     outputs:
-      packages: ${{ steps.get-changed-packages.outputs.packages }}
+      packages: ${{ steps.packages.outputs.json }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          persist-credentials: false
           fetch-depth: 0
 
-      - name: Get Changed Packages
-        id: get-changed-packages
+      - name: Get Changed Directories
+        id: changed-dirs
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c
+        with:
+          files_ignore: |
+            **/*.md
+            .github/**
+            .gitignore
+            AUTHORS.md
+          dir_names: true
+          dir_names_max_depth: 1
+          json: true
+    
+      - name: Build packages JSON
+        id: packages
+        shell: bash
         run: |
-          export PACKAGES=$(git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha || 'origin/master' }} ${{ github.sha }} ./*/ | cut -f1 -d/ | sort | uniq | jq -rcnR '[inputs]')
-          if ${{ github.event_name == 'workflow_dispatch' }}; then
-            export PACKAGES='["BlobViaEventGrid","EventHub","StorageQueue","BlobToOtel"]'
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "json=[\"${{ inputs.package }}\"]" >> "$GITHUB_OUTPUT"
+          else
+            echo "json=${{ steps.changed-dirs.outputs.all_changed_files }}" >> "$GITHUB_OUTPUT"
           fi
-          echo "$PACKAGES"
-          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+
   build:
-    name: Build
     if: needs.check.outputs.packages != '[]'
     runs-on: ubuntu-latest
-    env:
-      AWS_SERVERLESS_BUCKET: ${{ secrets.AWS_PUBLIC_BUCKET }}
     needs: [check]
     strategy:
       matrix:
         package: ${{ fromJSON(needs.check.outputs.packages) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v5
         with:
           node-version: 20
       
@@ -64,22 +80,22 @@ jobs:
         run: npm run build:production
 
       - name: Package
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         run: zip -r ${{ matrix.package }}.zip . -x ".*"
 
       - name: Setup AWS credentials
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.CS_DEVOPS_S3_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.CS_DEVOPS_S3_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Upload to S3
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         run: |
           aws s3 cp \
             ${{ matrix.package }}.zip \
-            s3://${{ env.AWS_SERVERLESS_BUCKET }}/azure-functions-repo/${{ matrix.package }}.zip
+            s3://${{ secrets.AWS_PUBLIC_BUCKET }}/azure-functions-repo/${{ matrix.package }}.zip
