@@ -142,12 +142,6 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                 severityNumber: logsAPI.SeverityNumber.ERROR,
                 severityText: 'ERROR',
                 body: createLogText(errorMsg, blobName, blobURL),
-                attributes: {
-                    'log.type': 'BlobError',
-                    'blob.name': blobName,
-                    'blob.url': blobURL,
-                    'error.type': 'binding_issue'
-                }
             });
             return;
         }
@@ -208,12 +202,6 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                     severityNumber: logsAPI.SeverityNumber.ERROR,
                     severityText: 'ERROR',
                     body: createLogText(errorMsg, blobName, blobURL),
-                    attributes: {
-                        'log.type': 'BlobError',
-                        'blob.name': blobName,
-                        'blob.url': blobURL,
-                        'error.type': 'decompression_failed'
-                    }
                 });
                 return;
             }
@@ -244,12 +232,6 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                 severityNumber: logsAPI.SeverityNumber.ERROR,
                 severityText: 'ERROR',
                 body: createLogText(errorMsg, blobName, blobURL),
-                attributes: {
-                    'log.type': 'BlobError',
-                    'blob.name': blobName,
-                    'blob.url': blobURL,
-                    'error.type': 'string_conversion_failed'
-                }
             });
             return;
         }
@@ -280,15 +262,6 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                             severityNumber: logsAPI.SeverityNumber.INFO,
                             severityText: 'INFO',
                             body: createLogText(record, blobName, blobURL),
-                            attributes: {
-                                'log.type': 'BlobLogRecord',
-                                'blob.name': blobName,
-                                'blob.url': blobURL,
-                                'blob.storage.account': eventGridEvent.topic?.split('/').pop() || 'unknown',
-                                'blob.size': eventGridEvent.data?.contentLength || 0,
-                                'record.index': i + j + 1,
-                                'total.records': totalRecords
-                            }
                         });
                         processedCount++;
                     } catch (logError) {
@@ -319,12 +292,6 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                 severityNumber: logsAPI.SeverityNumber.ERROR,
                 severityText: 'ERROR',
                 body: createLogText("Azure blob log collector failed during process of log file:" + error, blobName, blobURL),
-                attributes: {
-                    'log.type': 'BlobError',
-                    'blob.name': blobName,
-                    'blob.url': blobURL,
-                    'error.type': 'processing_failed'
-                }
             });
         } catch (coralogix_error) {
             context.error("Error during sending exception to Coralogix:", coralogix_error);
@@ -354,12 +321,6 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                 severityNumber: logsAPI.SeverityNumber.ERROR,
                 severityText: 'ERROR',
                 body: createLogText(`Final flush failed after ${flushDuration}ms: ${flushError}`, blobName, blobURL),
-                attributes: {
-                    'log.type': 'BlobError',
-                    'blob.name': blobName,
-                    'blob.url': blobURL,
-                    'error.type': 'flush_failed'
-                }
             });
             await loggerProvider.forceFlush();
             context.log("Error log successfully sent to Coralogix");
