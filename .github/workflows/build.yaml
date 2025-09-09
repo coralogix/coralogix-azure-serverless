@@ -39,7 +39,6 @@ jobs:
           dir_names: true
           dir_names_max_depth: 1
           json: true
-          escape_json: false
     
       - name: Build packages JSON
         id: packages
@@ -52,7 +51,7 @@ jobs:
           fi
 
       - name: Show JSON
-        run: echo '${{ steps.packages.outputs.json }}'
+        run: echo ${{ steps.packages.outputs.json }}
 
   build:
     name: Build
