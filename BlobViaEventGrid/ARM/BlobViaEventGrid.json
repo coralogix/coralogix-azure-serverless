@@ -124,7 +124,7 @@
     }
   },
   "variables": {
-    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe(eu-west-1)'), 'https://ingress.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US(us-east-2)'), 'https://ingress.coralogix.us/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US2(us-west-2)'), 'https://ingress.cx498.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2(eu-north-1)'), 'https://ingress.eu2.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India(ap-south-1)'), 'https://ingress.coralogix.in/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore(ap-southeast-1)'), 'https://ingress.coralogixsg.com/api/v1/logs', 'NULL')))))))]",
+    "OtelEndpoint": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe(eu-west-1)'), 'https://ingress.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US(us-east-2)'), 'https://ingress.coralogix.us:443', if(equals(parameters('CoralogixRegion'), 'US2(us-west-2)'), 'https://ingress.cx498.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'Europe2(eu-north-1)'), 'https://ingress.eu2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'India(ap-south-1)'), 'https://ingress.coralogix.in:443', if(equals(parameters('CoralogixRegion'), 'Singapore(ap-southeast-1)'), 'https://ingress.coralogixsg.com:443', 'https://ingress.eu2.coralogix.com:443')))))))]",
     "functionAppName": "[format('BlobStorage-{0}', uniqueString(concat(resourceGroup().id, parameters('StorageAccountName'), parameters('BlobContainerName'))))]",
     "functionAppResourceGroupName": "[resourceGroup().name]",
     "location": "[resourceGroup().location]",
@@ -135,7 +135,8 @@
     "eventGridTopicName": "[if(equals(parameters('EventGridSystemTopicName'), 'new'), format('{0}-eg', parameters('storageAccountName')), parameters('EventGridSystemTopicName'))]",
     "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobViaEventGrid.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]",
-    "PrefixFilter": "[if(equals(parameters('PrefixFilter'), 'NoFilter'), '', concat('/blobServices/default/containers/', parameters('BlobContainerName'), '/blobs', parameters('PrefixFilter')))]"  },
+    "PrefixFilter": "[if(equals(parameters('PrefixFilter'), 'NoFilter'), '', concat('/blobServices/default/containers/', parameters('BlobContainerName'), '/blobs', parameters('PrefixFilter')))]"
+  },
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
@@ -242,8 +243,8 @@
               "value": "[parameters('CoralogixSubsystem')]"
             },
             {
-              "Name": "CORALOGIX_URL",
-              "Value": "[variables('CoralogixURL')]"
+              "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+              "value": "[variables('OtelEndpoint')]"
             },
             {
               "name": "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING",
@@ -256,6 +257,10 @@
             {
               "name": "DEBUG_MODE",
               "value": "[parameters('DebugMode')]"
+            },
+            {
+              "name": "ENABLE_BLOB_METADATA",
+              "value": "[parameters('EnableBlobMetadata')]"
             }
           ]
         }
