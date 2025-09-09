@@ -50,9 +50,6 @@ jobs:
             echo "json=${{ steps.changed-dirs.outputs.all_changed_files }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Show JSON
-        run: echo ${{ steps.packages.outputs.json }}
-
   build:
     name: Build
     if: needs.check.outputs.packages != '[]'
@@ -63,10 +60,10 @@ jobs:
         package: ${{ fromJSON(needs.check.outputs.packages) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v5
         with:
           node-version: 20
       
