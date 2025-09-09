@@ -50,4 +50,4 @@ The BlobStorage Via Eventgrid trigger integration can be deployed by clicking th
 
 **Enable Log Metadata** - Whether to enable logging metadata including the blob name and path.
 
-# test
+# test# Test change
