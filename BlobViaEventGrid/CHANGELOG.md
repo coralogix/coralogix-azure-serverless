@@ -30,4 +30,3 @@
 
 ### 2.0.0 / 21 Feb 2023
 [Update/Breaking] Replacing "Classic" Application Insights with Workspace-Based Application Insights.
-## [1.0.1] - Test entry

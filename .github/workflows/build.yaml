@@ -1,4 +1,4 @@
-name: Build & Release
+name: Release
 
 on:
   pull_request:
@@ -53,6 +53,7 @@ jobs:
           fi
 
   build:
+    name: Build
     if: needs.check.outputs.packages != '[]'
     runs-on: ubuntu-latest
     needs: [check]
