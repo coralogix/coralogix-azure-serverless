@@ -14,7 +14,7 @@ permissions:
   contents: read
 jobs:   
   check-changelog-updates:
-    # If the PR has the 'skip changelog' label, skip the changelog check
+    # if the PR has the 'skip changelog' label, skip the changelog check 
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip changelog') }}
     runs-on: ubuntu-latest
     name: Check Changelog Update
