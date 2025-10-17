@@ -67,6 +67,13 @@
         "description": "The name of the EventHub Shared Access Key."
       }
     },
+    "EventhubConsumerGroup": {
+      "type": "string",
+      "defaultValue": "$Default",
+      "metadata": {
+        "description": "The name of the EventHub Consumer Group."
+      }
+    },
     "FunctionAppServicePlanType": {
       "type": "string",
       "defaultValue": "Consumption",
@@ -80,7 +87,7 @@
     }
   },
   "variables": {
-    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe'), 'ingress.eu1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US'), 'ingress.us1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US2'), 'ingress.us2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'ingress.eu2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'India'), 'ingress.ap1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'ingress.ap2.coralogix.com:443', 'NULL')))))))]",
+    "CoralogixOtlpEndpoint": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe'), 'ingress.eu1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US'), 'ingress.us1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US2'), 'ingress.us2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'Europe2'), 'ingress.eu2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'India'), 'ingress.ap1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'Singapore'), 'ingress.ap2.coralogix.com:443', 'NULL')))))))]",
     "functionAppName": "[format('EventHub-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubNamespace'), parameters('EventhubInstanceName'))))]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
@@ -196,7 +203,11 @@
             },
             {
               "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
-              "value": "[variables('CoralogixURL')]"
+              "value": "[variables('CoralogixOtlpEndpoint')]"
+            },
+            {
+              "name": "OTEL_EXPORTER_OTLP_HEADERS",
+              "value": "[concat('Authorization=Bearer ', parameters('CoralogixPrivateKey'))]"
             },
             {
               "name": "EVENTHUB_CONNECT_STRING",
@@ -205,6 +216,10 @@
             {
               "name": "EVENTHUB_INSTANCE_NAME",
               "value": "[parameters('EventhubInstanceName')]"
+            },
+            {
+              "name": "EVENTHUB_CONSUMER_GROUP",
+              "value": "[parameters('EventhubConsumerGroup')]"
             }
           ]
         }

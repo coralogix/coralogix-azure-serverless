@@ -27,11 +27,7 @@ const loggerProvider = new LoggerProvider({
     resource: resource
 });
 
-const otlpExporter = new OTLPLogExporter({
-    headers: {
-        'Authorization': `Bearer ${process.env.CORALOGIX_PRIVATE_KEY}`
-    }
-});
+const otlpExporter = new OTLPLogExporter();
 
 loggerProvider.addLogRecordProcessor(
     new BatchLogRecordProcessor(otlpExporter, {
@@ -51,19 +47,21 @@ const logger = logsAPI.logs.getLogger('azure-eventhub-logs');
  */
 const eventHubTrigger = async function (context: InvocationContext, events: any): Promise<void> {
     context.log(`eventHub trigger function named: ${context.functionName}`);
+    context.log(`OTEL_EXPORTER_OTLP_ENDPOINT: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}`);
+    context.log(`CORALOGIX_APPLICATION: ${process.env.CORALOGIX_APPLICATION}`);
+    context.log(`CORALOGIX_SUBSYSTEM: ${process.env.CORALOGIX_SUBSYSTEM}`);
+    context.log(`CORALOGIX_PRIVATE_KEY: ${process.env.CORALOGIX_PRIVATE_KEY ? 'SET' : 'NOT SET'}`);
+    
     if ((!Array.isArray(events)) || (events.length === 0)) {
         return;
       }
     
     const threadId: string = context.functionName;
 
-    // Parsing the event bulk, assuming we work with "many" as the cardinality attribute
+    // Process events
     events.forEach((message) => {
         context.log(`Processed message: ${JSON.stringify(message)}`);
-        // FIXME: bindingData access needs to be updated for Azure Functions v4
-        // context.log(`EnqueuedTimeUtc = ${context.bindingData.enqueuedTimeUtcArray[index]}`);
-        // context.log(`SequenceNumber = ${context.bindingData.sequenceNumberArray[index]}`);
-        // context.log(`Offset = ${context.bindingData.offsetArray[index]}`);
+        
         if ('records' in message) {
             if (Array.isArray(message.records)) {
                 message.records.forEach((inner_record) => {
@@ -106,4 +104,4 @@ const writeLog = function(text: any, thread: any, logger: any): void {
     });
 };
 
-export default eventHubTrigger;
+export { eventHubTrigger as default };
