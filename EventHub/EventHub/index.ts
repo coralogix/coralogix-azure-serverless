@@ -28,7 +28,6 @@ const loggerProvider = new LoggerProvider({
 });
 
 const otlpExporter = new OTLPLogExporter({
-    url: process.env.CORALOGIX_LOGS_ENDPOINT || "ingress.coralogix.com:443",
     headers: {
         'Authorization': `Bearer ${process.env.CORALOGIX_PRIVATE_KEY}`
     }

@@ -195,7 +195,7 @@
               "value": "[parameters('CoralogixSubsystem')]"
             },
             {
-              "name": "CORALOGIX_LOGS_ENDPOINT",
+              "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
               "value": "[variables('CoralogixURL')]"
             },
             {
