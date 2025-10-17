@@ -1,7 +1,7 @@
 {
   "name": "coralogix-azure-serverless",
   "title": "Azure Functions for integration with Coralogix",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "Azure Functions Set for integration with Coralogix",
   "homepage": "https://coralogix.com",
   "license": "Apache-2.0",
@@ -55,16 +55,21 @@
     "url": "https://github.com/coralogix/coralogix-azure-serverless/issues"
   },
   "devDependencies": {
-    "@azure/functions": "^3.5.1",
     "@types/node": "^20.0.0",
-    "@typescript-eslint/eslint-plugin": ">=5.48.2",
-    "@typescript-eslint/parser": ">=5.48.2",
-    "eslint": ">=8.32.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.0",
+    "@typescript-eslint/parser": "^8.31.0",
+    "eslint": "^9.25.1",
     "npm-run-all": ">=4.1.5",
     "typescript": ">=4.9.4"
   },
   "dependencies": {
-    "coralogix-logger": "^1.1.30"
+    "@azure/event-hubs": "^6.0.0",
+    "@azure/functions": "^4.7.0",
+    "@opentelemetry/api-logs": "^0.200.0",
+    "@opentelemetry/exporter-logs-otlp-grpc": "^0.200.0",
+    "@opentelemetry/resources": "^2.0.0",
+    "@opentelemetry/sdk-logs": "^0.200.0",
+    "@opentelemetry/semantic-conventions": "^1.30.0"
   },
   "files": [
     "LICENSE",
