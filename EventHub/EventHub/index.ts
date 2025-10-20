@@ -32,8 +32,8 @@ const otlpExporter = new OTLPLogExporter();
 loggerProvider.addLogRecordProcessor(
     new BatchLogRecordProcessor(otlpExporter, {
         maxExportBatchSize: 512,
-        scheduledDelayMillis: 1000,
-        exportTimeoutMillis: 30000,
+        scheduledDelayMillis: 1000, // 1 second
+        exportTimeoutMillis: 30000, // 30 seconds
     })
 );
 
@@ -46,22 +46,14 @@ const logger = logsAPI.logs.getLogger('azure-eventhub-logs');
  * @param {array} eventHubMessages - event hub messages
  */
 const eventHubTrigger = async function (context: InvocationContext, events: any): Promise<void> {
-    context.log(`eventHub trigger function named: ${context.functionName}`);
-    context.log(`OTEL_EXPORTER_OTLP_ENDPOINT: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}`);
-    context.log(`CORALOGIX_APPLICATION: ${process.env.CORALOGIX_APPLICATION}`);
-    context.log(`CORALOGIX_SUBSYSTEM: ${process.env.CORALOGIX_SUBSYSTEM}`);
-    context.log(`CORALOGIX_PRIVATE_KEY: ${process.env.CORALOGIX_PRIVATE_KEY ? 'SET' : 'NOT SET'}`);
-    
     if ((!Array.isArray(events)) || (events.length === 0)) {
         return;
       }
     
-    const threadId: string = context.functionName;
+    const threadId: string = context.invocationId;
 
     // Process events
     events.forEach((message) => {
-        context.log(`Processed message: ${JSON.stringify(message)}`);
-        
         if ('records' in message) {
             if (Array.isArray(message.records)) {
                 message.records.forEach((inner_record) => {
@@ -78,14 +70,10 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
     });
 
     // Add delay before force flush to allow batch to accumulate
-    context.log('Waiting for batch accumulation...');
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    context.log('Starting force flush...');
+    // Force flush to ensure all logs are exported
     await loggerProvider.forceFlush();
-    context.log('Force flush completed');
-
-    context.log('Successfully processed and exported all logs');
 };
 
 const writeLog = function(text: any, thread: any, logger: any): void {
