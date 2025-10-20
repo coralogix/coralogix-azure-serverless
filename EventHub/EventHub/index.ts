@@ -54,6 +54,8 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
 
     // Process events
     events.forEach((message) => {
+        context.log(`Processed message: ${JSON.stringify(message)}`);
+        
         if ('records' in message) {
             if (Array.isArray(message.records)) {
                 message.records.forEach((inner_record) => {
