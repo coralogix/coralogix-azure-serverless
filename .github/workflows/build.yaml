@@ -79,23 +79,25 @@ jobs:
         working-directory: ./${{ matrix.package }}
         run: npm run build:production
 
-      - name: Package
-        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
-        working-directory: ./${{ matrix.package }}
-        run: zip -r ${{ matrix.package }}.zip . -x ".*"
 
-      - name: Setup AWS credentials
-        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.CS_DEVOPS_S3_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.CS_DEVOPS_S3_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+      # TEMPORARY DISABLED
+      # - name: Package
+      #   if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+      #   working-directory: ./${{ matrix.package }}
+      #   run: zip -r ${{ matrix.package }}.zip . -x ".*"
 
-      - name: Upload to S3
-        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
-        working-directory: ./${{ matrix.package }}
-        run: |
-          aws s3 cp \
-            ${{ matrix.package }}.zip \
-            s3://${{ secrets.AWS_PUBLIC_BUCKET }}/azure-functions-repo/${{ matrix.package }}.zip
+      # - name: Setup AWS credentials
+      #   if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+      #   uses: aws-actions/configure-aws-credentials@v1
+      #   with:
+      #     aws-access-key-id: ${{ secrets.CS_DEVOPS_S3_AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.CS_DEVOPS_S3_AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      # - name: Upload to S3
+      #   if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+      #   working-directory: ./${{ matrix.package }}
+      #   run: |
+      #     aws s3 cp \
+      #       ${{ matrix.package }}.zip \
+      #       s3://${{ secrets.AWS_PUBLIC_BUCKET }}/azure-functions-repo/${{ matrix.package }}.zip
