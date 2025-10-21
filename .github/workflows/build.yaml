@@ -79,10 +79,21 @@ jobs:
         working-directory: ./${{ matrix.package }}
         run: npm run build:production
 
+      - name: Extract version
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+        id: version
+        working-directory: ./${{ matrix.package }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Package version: $VERSION"
+
       - name: Package
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
-        run: zip -r ${{ matrix.package }}.zip . -x ".*"
+        run: |
+          zip -r ${{ matrix.package }}-${{ steps.version.outputs.version }}.zip . -x ".*"
+          zip -r ${{ matrix.package }}.zip . -x ".*"
 
       - name: Setup AWS credentials
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
@@ -96,6 +107,18 @@ jobs:
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         run: |
+          # Upload versioned file
+          aws s3 cp \
+            ${{ matrix.package }}-${{ steps.version.outputs.version }}.zip \
+            s3://${{ secrets.AWS_PUBLIC_BUCKET }}/azure-functions-repo/${{ matrix.package }}/${{ steps.version.outputs.version }}.zip
+          
+          # Upload package file (latest)
           aws s3 cp \
             ${{ matrix.package }}.zip \
-            s3://${{ secrets.AWS_PUBLIC_BUCKET }}/azure-functions-repo/${{ matrix.package }}.zip
+            s3://${{ secrets.AWS_PUBLIC_BUCKET }}/azure-functions-repo/${{ matrix.package }}/${{ matrix.package }}.zip
+          
+          # Tag package file
+          aws s3api put-object-tagging \
+            --bucket ${{ secrets.AWS_PUBLIC_BUCKET }} \
+            --key azure-functions-repo/${{ matrix.package }}/${{ matrix.package }}.zip \
+            --tagging 'TagSet=[{Key=version,Value=${{ steps.version.outputs.version }}},{Key=package,Value=${{ matrix.package }}},{Key=latest,Value=true}]'
