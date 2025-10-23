@@ -1,3 +1,15 @@
+/**
+ * Azure Function for integration of Event Hub with Coralogix
+ *
+ * @file        This file contains function source code
+ * @author      Coralogix Ltd. <info@coralogix.com>
+ * @link        https://coralogix.com/
+ * @copyright   Coralogix Ltd.
+ * @licence     Apache-2.0
+ * @version     1.1.0
+ * @since       1.0.0
+ */
+
 import { InvocationContext } from "@azure/functions";
 import * as logsAPI from '@opentelemetry/api-logs';
 import { LoggerProvider, BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
