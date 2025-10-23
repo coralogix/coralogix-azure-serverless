@@ -4,18 +4,19 @@
   "parameters": {
     "CoralogixRegion": {
       "type": "string",
-      "defaultValue": "Europe(eu-west-1)",
+      "defaultValue": "EU1",
       "allowedValues": [
-        "Europe(eu-west-1)",
-        "US(us-east-2)",
-        "US2(us-west-2)",
-        "Europe2(eu-north-1)",
-        "India(ap-south-1)",
-        "Singapore(ap-southeast-1)",
+        "EU1",
+        "EU2",
+        "US1",
+        "US2",
+        "AP1",
+        "AP2",
+        "AP3",
         "Custom"
       ],
       "metadata": {
-        "description": "The region of the Coralogix account."
+        "description": "The Coralogix region: EU1 (Ireland), EU2 (Stockholm), US1 (Ohio), US2 (Oregon), AP1 (Mumbai), AP2 (Singapore), AP3 (Jakarta)."
       }
     },
     "CustomURL": {
@@ -67,6 +68,13 @@
         "description": "The name of the EventHub Shared Access Key."
       }
     },
+    "EventhubConsumerGroup": {
+      "type": "string",
+      "defaultValue": "$Default",
+      "metadata": {
+        "description": "The name of the EventHub Consumer Group."
+      }
+    },
     "FunctionAppServicePlanType": {
       "type": "string",
       "defaultValue": "Consumption",
@@ -77,11 +85,18 @@
       "metadata": {
         "description": "The type of the Function App Service Plan. Choose Premium if you need vNet Support."
       }
+    },
+    "functionAppName": {
+      "type": "string",
+      "defaultValue": "[concat('coralogix-eventhub-func-', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "Optional: Custom name for the Azure Function to be used in Coralogix logs. Defaults to 'coralogix-eventhub-func-{uniqueId}'."
+      }
     }
   },
   "variables": {
-    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe(eu-west-1)'), 'https://ingress.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US(us-east-2)'), 'https://ingress.coralogix.us/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'US2(us-west-2)'), 'https://ingress.cx498.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Europe2(eu-north-1)'), 'https://ingress.eu2.coralogix.com/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'India(ap-south-1)'), 'https://ingress.coralogix.in/api/v1/logs', if(equals(parameters('CoralogixRegion'), 'Singapore(ap-southeast-1)'), 'https://ingress.coralogixsg.com/api/v1/logs', 'NULL')))))))]",
-    "functionAppName": "[format('EventHub-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubNamespace'), parameters('EventhubInstanceName'))))]",
+    "CoralogixOtlpEndpoint": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'EU1'), 'ingress.eu1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'EU2'), 'ingress.eu2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US1'), 'ingress.us1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US2'), 'ingress.us2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP1'), 'ingress.ap1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP2'), 'ingress.ap2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP3'), 'ingress.ap3.coralogix.com:443', 'NULL'))))))))]",
+    "functionAppName": "[parameters('functionAppName')]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
@@ -187,16 +202,20 @@
               "value": "[parameters('CoralogixPrivateKey')]"
             },
             {
-              "name": "CORALOGIX_APP_NAME",
+              "name": "CORALOGIX_APPLICATION",
               "value": "[parameters('CoralogixApplication')]"
             },
             {
-              "name": "CORALOGIX_SUB_SYSTEM",
+              "name": "CORALOGIX_SUBSYSTEM",
               "value": "[parameters('CoralogixSubsystem')]"
             },
             {
-              "Name": "CORALOGIX_URL",
-              "Value": "[variables('CoralogixURL')]"
+              "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+              "value": "[variables('CoralogixOtlpEndpoint')]"
+            },
+            {
+              "name": "OTEL_EXPORTER_OTLP_HEADERS",
+              "value": "[concat('Authorization=Bearer ', parameters('CoralogixPrivateKey'))]"
             },
             {
               "name": "EVENTHUB_CONNECT_STRING",
@@ -205,6 +224,14 @@
             {
               "name": "EVENTHUB_INSTANCE_NAME",
               "value": "[parameters('EventhubInstanceName')]"
+            },
+            {
+              "name": "EVENTHUB_CONSUMER_GROUP",
+              "value": "[parameters('EventhubConsumerGroup')]"
+            },
+            {
+              "name": "FUNCTION_APP_NAME",
+              "value": "[parameters('functionAppName')]"
             }
           ]
         }
