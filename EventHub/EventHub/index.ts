@@ -10,64 +10,106 @@
  * @since       1.0.0
  */
 
-import { AzureFunction, Context } from "@azure/functions";
-import { Log, Severity, CoralogixLogger, LoggerConfig } from "coralogix-logger";
+import { InvocationContext } from "@azure/functions";
+import * as logsAPI from '@opentelemetry/api-logs';
+import { LoggerProvider, BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
+import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+import { resourceFromAttributes } from '@opentelemetry/resources';
+import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-grpc';
+
+const resource = resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: 'eventhub-to-otel',
+    'cx.application.name': process.env.CORALOGIX_APPLICATION || "NO_APPLICATION",
+    'cx.subsystem.name': process.env.CORALOGIX_SUBSYSTEM || "NO_SUBSYSTEM"
+});
+
+const loggerProvider = new LoggerProvider({
+    resource: resource
+});
+
+const otlpExporter = new OTLPLogExporter();
+
+loggerProvider.addLogRecordProcessor(
+    new BatchLogRecordProcessor(otlpExporter, {
+        maxExportBatchSize: 512,
+        scheduledDelayMillis: 1000, // 1 second
+        exportTimeoutMillis: 30000, // 30 seconds
+    })
+);
+
+logsAPI.logs.setGlobalLoggerProvider(loggerProvider);
+const logger = logsAPI.logs.getLogger('azure-eventhub-logs');
+
+const functionName = process.env.FUNCTION_APP_NAME || 'unknown';
 
 /**
  * @description Function entrypoint
  * @param {object} context - Function context
  * @param {array} eventHubMessages - event hub messages
  */
-const eventHubTrigger: AzureFunction = async function (context: Context, events: any): Promise<void> {
-    context.log(`eventHub trigger function named: ${context.executionContext.functionName}`);
-    if ((!Array.isArray(events)) || (events.length === 0)) {
-        return;
-      }
-    // Setting up the Coralogix Logger
-    const config = new LoggerConfig({
-        privateKey: process.env.CORALOGIX_PRIVATE_KEY,
-        applicationName: process.env.CORALOGIX_APP_NAME || "NO_APPLICATION",
-        subsystemName: process.env.CORALOGIX_SUB_SYSTEM || "NO_SUBSYSTEM"
-    });
-    CoralogixLogger.configure(config);
-    const logger: CoralogixLogger = new CoralogixLogger("evhub");
-    const threadId: string = context.executionContext.functionName;
-
-    // Parsing the event bulk, assuming we work with "many" as the cardinality attribute
-    events.forEach((message, index) => {
-        context.log(`Processed message: ${JSON.stringify(message)}`);
-        context.log(`EnqueuedTimeUtc = ${context.bindingData.enqueuedTimeUtcArray[index]}`);
-        context.log(`SequenceNumber = ${context.bindingData.sequenceNumberArray[index]}`);
-        context.log(`Offset = ${context.bindingData.offsetArray[index]}`);
-        if ('records' in message) {
-            if (Array.isArray(message.records)) {
-                message.records.forEach((inner_record) => {
-                    writeLog(inner_record, threadId, logger);
-                    }
-                )
-            }
-
-        }
-        else {
-            writeLog(message, threadId, logger);
-        }
-
-    });
-
-    // Making sure the logger buffer is clean
-    CoralogixLogger.flush();
-};
-
-const writeLog = function(text: any, thread: any, logger: CoralogixLogger): void {
-    if (text == null) {
+const eventHubTrigger = async function (context: InvocationContext, events: any): Promise<void> {
+    if (!Array.isArray(events) || events.length === 0) {
         return;
     }
-    const body = JSON.stringify(text);
-    logger.addLog(new Log({
-        severity: Severity.info,
-        text: body,
-        threadId: thread
-    }));
+    
+    const threadId = context.invocationId;
+    const metadata = (context as any).bindingData;
+    
+    context.log(`Event hub function processing ${events.length} messages`);
+    
+    // Process events with metadata
+    events.forEach((message, index) => {
+        // Extract Event Hub metadata for this message from bindingData arrays
+        const eventMetadata = {
+            enqueuedTimeUtc: metadata?.enqueuedTimeUtcArray?.[index],
+            sequenceNumber: metadata?.sequenceNumberArray?.[index],
+            offset: metadata?.offsetArray?.[index],
+            partitionKey: metadata?.partitionKeyArray?.[index]
+        };
+        
+        if ('records' in message && Array.isArray(message.records)) {
+            message.records.forEach((inner_record) => {
+                writeLog(inner_record, threadId, index, eventMetadata);
+            });
+        } else {
+            writeLog(message, threadId, index, eventMetadata);
+        }
+    });
+
+    // Add delay before force flush to allow batch to accumulate
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    await loggerProvider.forceFlush();
 };
 
-export default eventHubTrigger;
+const writeLog = function(text: any, threadId: string, messageIndex: number, eventMetadata: any): void {
+    if (!text) return;
+    
+    const attributes: Record<string, any> = {
+        'log.type': 'EventHubLogRecord',
+        'threadId': threadId,
+        'function.name': functionName,
+        'message.index': messageIndex
+    };
+    
+    // Add Event Hub system properties
+    if (eventMetadata.sequenceNumber !== undefined) {
+        attributes['eventhub.sequence_number'] = eventMetadata.sequenceNumber;
+    }
+    if (eventMetadata.offset !== undefined) {
+        attributes['eventhub.offset'] = eventMetadata.offset;
+    }
+    if (eventMetadata.enqueuedTimeUtc !== undefined) {
+        attributes['eventhub.enqueued_time'] = eventMetadata.enqueuedTimeUtc;
+    }
+    if (eventMetadata.partitionKey !== undefined) {
+        attributes['eventhub.partition_key'] = eventMetadata.partitionKey;
+    }
+    
+    logger.emit({
+        severityNumber: logsAPI.SeverityNumber.INFO,
+        body: JSON.stringify(text),
+        attributes: attributes
+    });
+};
+
+export { eventHubTrigger as default };

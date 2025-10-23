@@ -16,13 +16,16 @@ The EventHub integration can be deployed by clicking the link below and signing 
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Fmaster%2FEventHub%2FARM%2FEventHub.json)
 
+
 ## Fields
 
 **Subscription** - The Azure Subscription into which you wish to deploy the integration (Must be the same as the monitored Event Hub Namespace).
 
 **Resource Group** - The Resource Group into which you wish to deploy the integration.
 
-**Coralogix Region** - The region of the Coralogix account.
+**Coralogix Region** - The region of the Coralogix account (EU1, EU2, US1, US2, AP1, AP2, AP3, or Custom). For more details see [Account Settings / Coralogix Domains](https://coralogix.com/docs/user-guides/account-management/account-settings/coralogix-domain/).
+
+**Custom URL** - Your Custom URL for the Coralogix account. Only required if you selected 'Custom' as the Coralogix Region.
 
 **Coralogix Private Key** – Can be found in your Coralogix account under Settings -> Send your logs. It is located in the upper left corner.
 
@@ -36,4 +39,10 @@ The EventHub integration can be deployed by clicking the link below and signing 
 
 **EventHub Instance Name** - The name of the EventHub Instance to be monitored.
 
+**EventHub Shared Access Key Name** - The name of the EventHub Shared Access Key (e.g., RootManageSharedAccessKey).
+
+**EventHub Consumer Group** - The name of the EventHub Consumer Group (defaults to $Default if not specified).
+
 **Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
+
+**Function App Name** (Optional) - Custom name for the Azure Function to be used in Coralogix logs. Defaults to 'coralogix-eventhub-func-{uniqueId}' if not specified.

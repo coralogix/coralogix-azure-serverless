@@ -1,0 +1,246 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "CoralogixRegion": {
+      "type": "string",
+      "defaultValue": "EU1",
+      "allowedValues": [
+        "EU1",
+        "EU2",
+        "US1",
+        "US2",
+        "AP1",
+        "AP2",
+        "AP3",
+        "Custom"
+      ],
+      "metadata": {
+        "description": "The Coralogix region: EU1 (Ireland), EU2 (Stockholm), US1 (Ohio), US2 (Oregon), AP1 (Mumbai), AP2 (Singapore), AP3 (Jakarta)."
+      }
+    },
+    "CustomURL": {
+      "type": "string",
+      "defaultValue": "https://<CustomURL>/api/v1/logs",
+      "metadata": {
+        "description": "Your Custom URL for the Coralogix account. Ignore unless you have a custom URL."
+      }
+    },
+    "CoralogixPrivateKey": {
+      "type": "string",
+      "metadata": {
+        "description": "The private key of the Coralogix account."
+      }
+    },
+    "CoralogixApplication": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Application in Coralogix."
+      }
+    },
+    "CoralogixSubsystem": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Subsystem in Coralogix."
+      }
+    },
+    "EventhubResourceGroup": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Resource Group that contains the EventHub."
+      }
+    },
+    "EventhubNamespace": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the EventHub Namespace."
+      }
+    },
+    "EventhubInstanceName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the EventHub Instance."
+      }
+    },
+    "EventhubSharedAccessKeyName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the EventHub Shared Access Key."
+      }
+    },
+    "EventhubConsumerGroup": {
+      "type": "string",
+      "defaultValue": "$Default",
+      "metadata": {
+        "description": "The name of the EventHub Consumer Group."
+      }
+    },
+    "FunctionAppServicePlanType": {
+      "type": "string",
+      "defaultValue": "Consumption",
+      "allowedValues": [
+        "Consumption",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "The type of the Function App Service Plan. Choose Premium if you need vNet Support."
+      }
+    },
+    "functionAppName": {
+      "type": "string",
+      "defaultValue": "[concat('coralogix-eventhub-func-', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "Optional: Custom name for the Azure Function to be used in Coralogix logs. Defaults to 'coralogix-eventhub-func-{uniqueId}'."
+      }
+    }
+  },
+  "variables": {
+    "CoralogixOtlpEndpoint": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'EU1'), 'ingress.eu1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'EU2'), 'ingress.eu2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US1'), 'ingress.us1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US2'), 'ingress.us2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP1'), 'ingress.ap1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP2'), 'ingress.ap2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP3'), 'ingress.ap3.coralogix.com:443', 'NULL'))))))))]",
+    "functionAppName": "[parameters('functionAppName')]",
+    "hostingPlanName": "[variables('functionAppName')]",
+    "applicationInsightsName": "[variables('functionAppName')]",
+    "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
+    "location": "[resourceGroup().location]",
+    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/EventHub.zip",
+    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2022-05-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "Storage"
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2022-03-01",
+      "name": "[variables('hostingPlanName')]",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "[variables('sku')]",
+        "tier": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Dynamic', 'ElasticPremium')]"
+      },
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2020-08-01",
+      "name": "[variables('applicationInsightsName')]",
+      "location": "[variables('location')]",
+      "properties": {
+          "sku": {
+              "name": "PerGB2018"
+          },
+          "retentionInDays": "90"
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Insights/components",
+          "apiVersion": "2020-02-02",
+          "name": "[variables('applicationInsightsName')]",
+          "location": "[variables('location')]",
+          "properties": {
+            "ApplicationId": "[variables('applicationInsightsName')]",
+            "Application_Type": "web",
+            "Flow_Type": "Bluefield",
+            "Request_Source": "rest",
+            "WorkspaceResourceId": "[resourceId(resourceGroup().name, 'Microsoft.OperationalInsights/workspaces', variables('applicationInsightsName'))]"
+          },
+          "dependsOn": [
+            "[resourceId(resourceGroup().name, 'Microsoft.OperationalInsights/workspaces', variables('applicationInsightsName'))]"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2022-03-01",
+      "name": "[variables('functionAppName')]",
+      "location": "[variables('location')]",
+      "kind": "functionapp,linux",
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "siteConfig": {
+          "linuxFxVersion": "Node|20",
+          "appSettings": [
+            {
+              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "value": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').InstrumentationKey]"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value)]"
+            },
+            {
+              "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value)]"
+            },
+            {
+              "name": "WEBSITE_CONTENTSHARE",
+              "value": "[toLower(variables('functionAppName'))]"
+            },
+            {
+              "name": "FUNCTIONS_EXTENSION_VERSION",
+              "value": "~4"
+            },
+            {
+              "name": "FUNCTIONS_WORKER_RUNTIME",
+              "value": "node"
+            },
+            {
+              "name": "WEBSITE_RUN_FROM_PACKAGE",
+              "value": "[variables('packageUri')]"
+            },
+            {
+              "name": "CORALOGIX_PRIVATE_KEY",
+              "value": "[parameters('CoralogixPrivateKey')]"
+            },
+            {
+              "name": "CORALOGIX_APPLICATION",
+              "value": "[parameters('CoralogixApplication')]"
+            },
+            {
+              "name": "CORALOGIX_SUBSYSTEM",
+              "value": "[parameters('CoralogixSubsystem')]"
+            },
+            {
+              "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+              "value": "[variables('CoralogixOtlpEndpoint')]"
+            },
+            {
+              "name": "OTEL_EXPORTER_OTLP_HEADERS",
+              "value": "[concat('Authorization=Bearer ', parameters('CoralogixPrivateKey'))]"
+            },
+            {
+              "name": "EVENTHUB_CONNECT_STRING",
+              "value": "[concat('Endpoint=sb://', parameters('eventHubNamespace'), '.servicebus.windows.net/;SharedAccessKeyName=', parameters('EventhubSharedAccessKeyName'), ';SharedAccessKey=', listKeys(resourceId(parameters('EventhubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventhubNamespace'), parameters('EventhubSharedAccessKeyName')), '2017-04-01').primaryKey, ';EntityPath=', parameters('EventhubInstanceName'))]"
+            },
+            {
+              "name": "EVENTHUB_INSTANCE_NAME",
+              "value": "[parameters('EventhubInstanceName')]"
+            },
+            {
+              "name": "EVENTHUB_CONSUMER_GROUP",
+              "value": "[parameters('EventhubConsumerGroup')]"
+            },
+            {
+              "name": "FUNCTION_APP_NAME",
+              "value": "[parameters('functionAppName')]"
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    }
+  ]
+}
