@@ -1,0 +1,70 @@
+name: Build & Release EventHub
+
+on:
+  push:
+    branches:
+      - "azure-github-release"
+  workflow_dispatch:
+
+permissions:
+  contents: write 
+  pull-requests: write
+  issues: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: ./EventHub
+        run: npm install
+    
+      - name: Install functools
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      - name: Build
+        working-directory: ./EventHub
+        run: npm run build
+
+      - name: Install func extensions
+        working-directory: ./EventHub
+        run: func extensions install
+
+      - name: Prune to production dependencies
+        working-directory: ./EventHub
+        run: npm prune --production
+      
+      - name: Zip build artifact
+        working-directory: ./EventHub
+        run: |
+          zip -r EventHub-FunctionApp.zip . -x ".*"
+
+      - name: Reinstall devDependencies for semantic-release
+        working-directory: ./EventHub
+        run: npm install --only=dev
+
+      - name: Run semantic-release
+        working-directory: ./EventHub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+    
+      - name: Read version
+        working-directory: ./EventHub
+        id: get_version
+        run: |
+          version=$(cat .release_version)
+          echo "version=$version" >> $GITHUB_OUTPUT
+    
+      - name: Echo Vesion
+        run: echo "Version ${{ steps.get_version.outputs.version }}"
