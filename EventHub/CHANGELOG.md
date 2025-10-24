@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/coralogix/coralogix-azure-serverless/compare/EventHub-v2.1.0...EventHub-v2.2.0) (2025-10-24)
+
+
+### Features
+
+* add github release for eventhub ([54df535](https://github.com/coralogix/coralogix-azure-serverless/commit/54df535f5e7c31e15de2500f2415b850da388330))
+
 # Changelog
 
 ## EventHub
