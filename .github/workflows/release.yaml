@@ -1,9 +1,9 @@
-name: Build & Release EventHub
+name: Build & Release
 
 on:
   push:
     branches:
-      - "azure-github-release"
+      - "master"
   workflow_dispatch:
 
 permissions:
@@ -14,6 +14,11 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - "BlobToOtel"
+          - "EventHub"
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -26,45 +31,45 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        working-directory: ./EventHub
+        working-directory: ./${{ matrix.package }}
         run: npm install
     
       - name: Install functools
         run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
 
       - name: Build
-        working-directory: ./EventHub
+        working-directory: ./${{ matrix.package }}
         run: npm run build
 
       - name: Install func extensions
-        working-directory: ./EventHub
+        working-directory: ./${{ matrix.package }}
         run: func extensions install
 
       - name: Prune to production dependencies
-        working-directory: ./EventHub
+        working-directory: ./${{ matrix.package }}
         run: npm prune --production
       
       - name: Zip build artifact
-        working-directory: ./EventHub
+        working-directory: ./${{ matrix.package }}
         run: |
-          zip -r EventHub-FunctionApp.zip . -x ".*"
+          zip -r ${{ matrix.package }}-FunctionApp.zip . -x ".*"
 
       - name: Reinstall devDependencies for semantic-release
-        working-directory: ./EventHub
+        working-directory: ./${{ matrix.package }}
         run: npm install --only=dev
 
       - name: Run semantic-release
-        working-directory: ./EventHub
+        working-directory: ./${{ matrix.package }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
     
       - name: Read version
-        working-directory: ./EventHub
+        working-directory: ./${{ matrix.package }}
         id: get_version
         run: |
           version=$(cat .release_version)
           echo "version=$version" >> $GITHUB_OUTPUT
     
-      - name: Echo Vesion
-        run: echo "Version ${{ steps.get_version.outputs.version }}"
+      - name: Echo Version
+        run: echo "Version ${{ steps.get_version.outputs.version }} for ${{ matrix.package }}"
