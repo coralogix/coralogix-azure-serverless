@@ -3,7 +3,7 @@ name: Build & Release Packages
 on:
   push:
     branches:
-      - "master"
+      - "azure-github-release"
   workflow_dispatch:
 
 permissions:
