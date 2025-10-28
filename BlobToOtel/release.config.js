@@ -1,6 +1,6 @@
 module.exports = {
     branches: ['azure-github-release'],
-    tagFormat: 'EventHub-v${version}',
+    tagFormat: 'BlobToOtel-v${version}',
     plugins: [
       '@semantic-release/commit-analyzer',
       '@semantic-release/release-notes-generator',
@@ -14,7 +14,7 @@ module.exports = {
       }],
       ['@semantic-release/github', {
         assets: [
-          { path: 'EventHub-FunctionApp.zip', label: 'EventHub FunctionApp Artifact' }
+          { path: 'BlobToOtel-FunctionApp.zip', label: 'BlobToOtel FunctionApp Artifact' }
         ],
         successComment: false,
         failComment: false,
@@ -22,3 +22,4 @@ module.exports = {
       }]
     ]
   };
+
