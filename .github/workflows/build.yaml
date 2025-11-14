@@ -27,10 +27,8 @@ jobs:
       - name: Get Changed Packages
         id: get-changed-packages
         run: |
-          export PACKAGES=$(git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha || 'origin/master' }} ${{ github.sha }} ./*/ | cut -f1 -d/ | sort | uniq | jq -rcnR '[inputs]')
-          if ${{ github.event_name == 'workflow_dispatch' }}; then
-            export PACKAGES='["BlobViaEventGrid","EventHub","StorageQueue","BlobToOtel"]'
-          fi
+          # Only process EventHub for now
+          export PACKAGES='["EventHub"]'
           echo "$PACKAGES"
           echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
   build:
@@ -64,12 +62,12 @@ jobs:
         run: npm run build:production
 
       - name: Package
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         working-directory: ./${{ matrix.package }}
         run: zip -r ${{ matrix.package }}.zip . -x ".*"
 
       - name: Setup AWS credentials
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
+        if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.CS_DEVOPS_S3_AWS_ACCESS_KEY_ID }}
