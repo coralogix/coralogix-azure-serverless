@@ -1,4 +1,4 @@
-# Blob To Otel
+# BlobToOtel
 
 Coralogix provides a seamless integration with ``Azure`` cloud so you can send your logs from anywhere and parse them according to your needs.
 
