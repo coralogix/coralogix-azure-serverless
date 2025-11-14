@@ -12,7 +12,7 @@ As an OTLP endpoint, you can configure either otel-collector endpoint or [Coralo
 
 * A storage account with event notifications configured with EventHub as a destination.
 
-* An Otel collector endpoint (available for the function app to reach) or Coralogix Opentelemetry endpoint.
+* An Otel collector endpoint (available for the function app to reach) or [Coralogix Opentelemetry endpoint](https://coralogix.com/docs/integrations/coralogix-endpoints/#opentelemetry).
 
 ## Azure Resource Manager Template Deployment
 
