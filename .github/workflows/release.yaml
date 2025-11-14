@@ -1,0 +1,76 @@
+name: Build & Release Packages
+
+on:
+  push:
+    branches:
+      - "master"
+  workflow_dispatch:
+
+permissions:
+  contents: write 
+  pull-requests: write
+  issues: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        package:
+          - "EventHub"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: ./${{ matrix.package }}
+        run: npm install
+    
+      - name: Install functools
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      - name: Build
+        working-directory: ./${{ matrix.package }}
+        run: npm run build
+
+      - name: Install func extensions
+        working-directory: ./${{ matrix.package }}
+        run: func extensions install
+
+      - name: Prune to production dependencies
+        working-directory: ./${{ matrix.package }}
+        run: npm prune --production
+      
+      - name: Zip build artifact
+        working-directory: ./${{ matrix.package }}
+        run: |
+          zip -r ${{ matrix.package }}-FunctionApp.zip . -x ".*"
+
+      - name: Reinstall devDependencies for semantic-release
+        working-directory: ./${{ matrix.package }}
+        run: npm install --only=dev
+
+      - name: Run semantic-release
+        working-directory: ./${{ matrix.package }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+    
+      - name: Read version
+        working-directory: ./${{ matrix.package }}
+        id: get_version
+        run: |
+          version=$(cat .release_version)
+          echo "version=$version" >> $GITHUB_OUTPUT
+    
+      - name: Echo Version
+        run: echo "Version ${{ steps.get_version.outputs.version }} for ${{ matrix.package }}"

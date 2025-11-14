@@ -1,10 +1,3 @@
-# Changelog
-
-## EventHub
-<!-- To add a new entry write: -->
-<!-- ### version / full date -->
-<!-- * [Update/Bug fix] message that describes the changes that you apply -->
-
 ### 2.1.0 / 20 Oct 2025
 * [Update] Rewrite function to use OpenTelemetry SDK with OTLP gRPC exporter for sending logs to Coralogix
 * [Update] Updated deprecated Coralogix endpoints to latest ingress URLs

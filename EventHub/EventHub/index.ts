@@ -27,6 +27,7 @@ const loggerProvider = new LoggerProvider({
     resource: resource
 });
 
+// TODO: Add support for direct mode
 const otlpExporter = new OTLPLogExporter();
 
 loggerProvider.addLogRecordProcessor(
