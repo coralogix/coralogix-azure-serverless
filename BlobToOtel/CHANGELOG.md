@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/coralogix/coralogix-azure-serverless/compare/BlobToOtel-v2.1.0...BlobToOtel-v2.1.1) (2025-11-14)
+
+
+### Bug Fixes
+
+* **BlobToOtel:** update readme title formatting ([b988f8f](https://github.com/coralogix/coralogix-azure-serverless/commit/b988f8f4bae410a0cd089d69326ab927f2da9084))
+
 # Changelog
 
 ## BlobToOtel
