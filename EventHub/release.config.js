@@ -1,5 +1,5 @@
 module.exports = {
-    branches: ['master'],
+    branches: ['temp-release*'],
     tagFormat: 'EventHub-v${version}',
     plugins: [
       '@semantic-release/commit-analyzer',
