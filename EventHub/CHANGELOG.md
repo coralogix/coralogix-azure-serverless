@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/coralogix/coralogix-azure-serverless/compare/EventHub-v2.1.0...EventHub-v2.1.1) (2025-11-17)
+
+
+### Bug Fixes
+
+* temp release ([27eb5ee](https://github.com/coralogix/coralogix-azure-serverless/commit/27eb5eebd4638221093f07b2494f3a68dfb5a783))
+
 ### 2.1.0 / 20 Oct 2025
 * [Update] Rewrite function to use OpenTelemetry SDK with OTLP gRPC exporter for sending logs to Coralogix
 * [Update] Updated deprecated Coralogix endpoints to latest ingress URLs
