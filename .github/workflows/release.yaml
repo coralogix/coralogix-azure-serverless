@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - "master"
-  workflow_dispatch:
 
 permissions:
   contents: write 
@@ -43,34 +42,29 @@ jobs:
         run: npm run build
 
       - name: Install func extensions
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         working-directory: ./${{ matrix.package }}
         run: func extensions install
 
       - name: Prune to production dependencies
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         working-directory: ./${{ matrix.package }}
         run: npm prune --production
       
       - name: Zip build artifact
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         working-directory: ./${{ matrix.package }}
         run: |
           zip -r ${{ matrix.package }}-FunctionApp.zip . -x ".*"
 
       - name: Reinstall devDependencies for semantic-release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         working-directory: ./${{ matrix.package }}
         run: npm install --only=dev
 
       - name: Run semantic-release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         working-directory: ./${{ matrix.package }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
-    
-      - name: Read version
-        working-directory: ./${{ matrix.package }}
-        id: get_version
-        run: |
-          version=$(cat .release_version)
-          echo "version=$version" >> $GITHUB_OUTPUT
-    
-      - name: Echo Version
-        run: echo "Version ${{ steps.get_version.outputs.version }} for ${{ matrix.package }}"
