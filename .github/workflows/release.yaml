@@ -63,8 +63,8 @@ jobs:
         working-directory: ./${{ matrix.package }}
         run: npx semantic-release
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
       - name: Read version
         working-directory: ./${{ matrix.package }}
         id: get_version
