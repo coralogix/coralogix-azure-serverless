@@ -27,7 +27,7 @@ The EventHub integration can be deployed by clicking the link below and signing 
 
 **Custom URL** - Your Custom URL for the Coralogix account. Only required if you selected 'Custom' as the Coralogix Region.
 
-**Coralogix Private Key** – Can be found in your Coralogix account under Settings -> Send your logs. It is located in the upper left corner.
+**Coralogix Private Key** – Can be found in your Coralogix account under Settings -> Send your logs.
 
 **Coralogix Application** – A mandatory metadata field that is sent with each log and helps to classify it.
 
