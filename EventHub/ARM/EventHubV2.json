@@ -101,7 +101,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/EventHub.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.0.0/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
