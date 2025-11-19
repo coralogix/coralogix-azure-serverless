@@ -46,5 +46,3 @@ The EventHub integration can be deployed by clicking the link below and signing 
 **Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
 
 **Function App Name** (Optional) - Custom name for the Azure Function to be used in Coralogix logs. Defaults to 'coralogix-eventhub-func-{uniqueId}' if not specified.
-
-Test Release
