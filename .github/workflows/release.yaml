@@ -62,9 +62,7 @@ jobs:
       - name: Run semantic-release
         working-directory: ./${{ matrix.package }}
         run: npx semantic-release
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          
+    
       - name: Read version
         working-directory: ./${{ matrix.package }}
         id: get_version
