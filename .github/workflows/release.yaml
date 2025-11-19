@@ -61,8 +61,6 @@ jobs:
 
       - name: Run semantic-release
         working-directory: ./${{ matrix.package }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
