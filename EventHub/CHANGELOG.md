@@ -1,8 +1,16 @@
-### 2.1.0 / 20 Oct 2025
-* [Update] Rewrite function to use OpenTelemetry SDK with OTLP gRPC exporter for sending logs to Coralogix
-* [Update] Updated deprecated Coralogix endpoints to latest ingress URLs
-* [Update] Added support for custom EventHub consumer groups via `EventhubConsumerGroup` ARM template parameter (defaults to `$Default`)
-* [Update] Bump Node.js runtime to version 22 
+### 3.0.0 / 20 Nov 2024
+[BREAKING CHANGE] Major update with the following changes:
+* Updated Node.js runtime to 22
+* Migrated from REST API to OpenTelemetry (OTLP) protocol for log ingestion
+* Updated Coralogix region endpoints to new OTLP format with port 443
+* Updated region naming convention (Europe → EU1, Europe2 → EU2, India → AP1, Singapore → AP2, US → US1)
+* Added new regions: US2 (Oregon) and AP3 (Jakarta)
+* Added EventHub Consumer Group support via `EventhubConsumerGroup` ARM template parameter (defaults to `$Default`)
+* Added Function App Name customization via `FunctionAppName` ARM template parameter
+* Changed default function name pattern to `coralogix-eventhub-func-{uniqueId}`
+* Updated environment variables to use OTEL format (OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS)
+
+**BREAKING CHANGES:** This is a MAJOR version update. Existing deployments will need to update their region parameters to use the new naming convention (e.g., "Europe" - "EU1"). The function now uses OpenTelemetry endpoints instead of REST API endpoints. 
 
 ### 2.0.2 / 08 Sep 2025
 [UPDATE] Modify threadID to use thread parameter instead of text

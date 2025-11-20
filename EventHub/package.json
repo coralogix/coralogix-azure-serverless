@@ -1,7 +1,7 @@
 {
   "name": "coralogix-azure-serverless",
   "title": "Azure Functions for integration with Coralogix",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Azure Functions Set for integration with Coralogix",
   "homepage": "https://coralogix.com",
   "license": "Apache-2.0",
@@ -37,9 +37,9 @@
       "name": "Michael Briggs",
       "email": "michael.briggs@coralogix.com",
       "url": "https://www.linkedin.com/in/michael-a-briggs/"
-    }, 
+    },
     {
-      "name": "Vjosa Fusha", 
+      "name": "Vjosa Fusha",
       "email": "vjosa.fusha@coralogix.com",
       "url": "https://www.linkedin.com/in/vjosafusha/"
     }
@@ -63,8 +63,8 @@
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^11.1.0",
     "@semantic-release/exec": "^6.0.3",
-    "@semantic-release/github": "^9.2.6",
     "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^9.2.6",
     "@semantic-release/release-notes-generator": "^12.1.0",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^8.31.0",
