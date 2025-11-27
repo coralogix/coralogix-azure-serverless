@@ -84,15 +84,70 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): logsA
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Name-resolution support types & helpers                                   */
+/*  Name-resolution types & config parsing                                    */
 /* -------------------------------------------------------------------------- */
-
 export type NameResolutionContext = {
-  body: unknown;
-  attributes: Record<string, any>;
-  scope: { name?: string; version?: string; schemaUrl?: string };
-  resourceAttributes: Record<string, any>;
-};
+    body: unknown;
+    attributes: Record<string, any>;
+    scope: { name?: string; version?: string; schemaUrl?: string };
+    resourceAttributes: Record<string, any>;
+  };
+  
+  type NameRuleConfig = {
+    sources: string[];       // expressions like "body.category", "body.resourceId"
+    regex?: RegExp;          // optional compiled regex
+    defaultValue?: string;   // optional *default* from config
+  };
+  
+  /**
+   * Parse a rule string like:
+   * "body.category;body.resourceId;/resourceGroups/([^/]+)/;*azure-eventhub*"
+   * into a structured config.
+   */
+  export function parseNameRuleConfig(config: string | undefined): NameRuleConfig {
+    if (!config || !config.trim()) {
+      return { sources: [] };
+    }
+  
+    const tokens = config
+      .split(";")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  
+    const sources: string[] = [];
+    let regex: RegExp | undefined;
+    let defaultValue: string | undefined;
+  
+    for (const token of tokens) {
+      // Regex token: /.../
+      if (token.startsWith("/") && token.endsWith("/") && token.length > 2) {
+        const pattern = token.slice(1, -1);
+        try {
+          regex = new RegExp(pattern);
+        } catch (e) {
+          // Invalid regex: log once and skip it
+          console.warn(`Invalid CORALOGIX_SUBSYSTEM regex: ${token}`, e);
+        }
+        continue;
+      }
+  
+      // Default token: *default*
+      if (token.startsWith("*") && token.endsWith("*") && token.length > 2) {
+        defaultValue = token.slice(1, -1);
+        continue;
+      }
+  
+      // Otherwise it's a source expression
+      sources.push(token);
+    }
+  
+    return { sources, regex, defaultValue };
+  }
+  
+  /**
+   * Pre-parsed subsystem rule config (from env) at module load time.
+   */
+  const SUBSYSTEM_NAME_RULE: NameRuleConfig = parseNameRuleConfig(SUBSYSTEM_NAME);
 
 export function getNestedValue(source: unknown, path: string): string | undefined {
   if (source == null) return undefined;
@@ -174,25 +229,24 @@ export function getNestedValue(source: unknown, path: string): string | undefine
   }
 }
 
-export function applyRegex(value: string | undefined, pattern?: string): string | undefined {
-  if (!value || !pattern) return value;
-
-  try {
-    const re = new RegExp(pattern);
-    const match = re.exec(value);
+/**
+ * Apply a precompiled regex to a value and return the first capture group
+ * or the full match if no capture group exists.
+ */
+export function applyRegex(
+    value: string | undefined,
+    pattern?: RegExp
+  ): string | undefined {
+    if (!value || !pattern) return value;
+  
+    const match = pattern.exec(value);
     if (!match) {
-      // no match - return undefined so fallback chain continues
       return undefined;
     }
-    // prefer first capture group if present
     return match[1] ?? match[0];
-  } catch {
-    // invalid regex - return undefined so fallback chain continues
-    return undefined;
   }
-}
 
-function nestFlatKeys(obj: Record<string, any>): any {
+export function nestFlatKeys(obj: Record<string, any>): any {
   const root: any = {};
 
   for (const [key, value] of Object.entries(obj)) {
@@ -217,23 +271,64 @@ function nestFlatKeys(obj: Record<string, any>): any {
   return root;
 }
 
-function buildEvaluationRoot(ctx: NameResolutionContext): any {
-  const nestedAttributes = nestFlatKeys(ctx.attributes);
-  const nestedResourceAttributes = nestFlatKeys(ctx.resourceAttributes);
-
-  return {
-    body: ctx.body,
-    attributes: nestedAttributes,
-    scope: ctx.scope,
-    resource: {
-      attributes: nestedResourceAttributes,
-    },
-    logRecord: {
+export function buildEvaluationRoot(ctx: NameResolutionContext): any {
+    const nestedAttributes = nestFlatKeys(ctx.attributes);
+    const nestedResourceAttributes = nestFlatKeys(ctx.resourceAttributes);
+  
+    return {
       body: ctx.body,
       attributes: nestedAttributes,
-    },
-  };
-}
+      scope: ctx.scope,
+      resource: {
+        attributes: nestedResourceAttributes,
+      },
+      logRecord: {
+        body: ctx.body,
+        attributes: nestedAttributes,
+      },
+    };
+  }
+
+  /**
+ * Evaluate a parsed NameRuleConfig against a context to produce a name.
+ *
+ * Order:
+ *  1. Evaluate sources in order; take first non-empty result.
+ *  2. If regex exists, apply it to that result.
+ *  3. If regex fails, use rule's defaultValue (if any).
+ *  4. If still empty, fall back to globalDefault.
+ */
+export function resolveNameFromRuleConfig(
+    rule: NameRuleConfig,
+    ctx: NameResolutionContext,
+    globalDefault: string
+  ): string {
+    let chosenValue: string | undefined;
+  
+    for (const source of rule.sources) {
+      const v = getValueFromExpression(source, ctx);
+      if (v !== undefined && v !== "") {
+        chosenValue = v;
+        break;
+      }
+    }
+  
+    // Step 1–3: combine chosen, default, global
+    let result = chosenValue ?? rule.defaultValue ?? globalDefault;
+  
+    // Step 4: apply regex if we have a result and a pattern
+    if (result && rule.regex) {
+      const processed = applyRegex(result, rule.regex);
+      if (processed) {
+        result = processed;
+      } else {
+        // Regex didn't match; fall back to default or global
+        result = rule.defaultValue ?? globalDefault;
+      }
+    }
+  
+    return result;
+  }
 
 export function getValueFromExpression(
   expr: string,
@@ -268,59 +363,6 @@ export function getValueFromExpression(
   return e;
 }
 
-export function resolveNameConfig(
-  config: string | undefined,
-  ctx: NameResolutionContext,
-  globalDefault: string
-): string {
-  if (!config || !config.trim()) return globalDefault;
-
-  const tokens = config
-    .split(";")
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0);
-
-  let chosenValue: string | undefined;
-  let regexPattern: string | undefined;
-  let defaultValue: string | undefined;
-
-  for (const token of tokens) {
-    if (token.startsWith("/") && token.endsWith("/") && token.length > 2) {
-      // regex step
-      regexPattern = token.slice(1, -1);
-      continue;
-    }
-
-    if (token.startsWith("*") && token.endsWith("*") && token.length > 2) {
-      // default value step
-      defaultValue = token.slice(1, -1);
-      continue;
-    }
-
-    // source expression
-    if (!chosenValue) {
-      const v = getValueFromExpression(token, ctx);
-      if (v !== undefined && v !== "") {
-        chosenValue = v;
-      }
-    }
-  }
-
-  let result = chosenValue ?? defaultValue ?? globalDefault;
-
-  if (result && regexPattern) {
-    const processed = applyRegex(result, regexPattern);
-    if (processed) {
-      result = processed;
-    } else {
-      // Regex didn't match, fall back to default or global
-      result = defaultValue ?? globalDefault;
-    }
-  }
-
-  return result;
-}
-
 /* -------------------------------------------------------------------------- */
 /*  Utility helpers                                                           */
 /* -------------------------------------------------------------------------- */
@@ -328,7 +370,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function parseJsonSafely(input: unknown): any | null {
+export function parseJsonSafely(input: unknown): any | null {
   if (typeof input === "string") {
     try {
       return JSON.parse(input);
@@ -401,89 +443,89 @@ const eventHubTrigger = async function (
 /*  Log writing                                                               */
 /* -------------------------------------------------------------------------- */
 const writeLog = function (
-  context: InvocationContext,
-  text: any,
-  threadId: string,
-  messageIndex: number,
-  eventMetadata: any
-): void {
-  if (!text) {
-    return;
-  }
-
-  try {
-    const attributes: Record<string, any> = {
-      "log.type": "EventHubLogRecord",
-      threadId,
-      "function.name": FUNCTION_NAME,
-      "message.index": messageIndex,
-    };
-
-    // Add Event Hub system properties generically
-    if (eventMetadata && typeof eventMetadata === "object") {
-      for (const [key, value] of Object.entries(eventMetadata)) {
-        if (value !== null && value !== undefined) {
-          // Convert camelCase to snake_case for consistency (e.g., enqueuedTimeUtc -> enqueued_time_utc)
-          const attrKey = key.replace(/([A-Z])/g, "_$1").toLowerCase();
-          attributes[`eventhub.${attrKey}`] = value;
+    context: InvocationContext,
+    text: any,
+    threadId: string,
+    messageIndex: number,
+    eventMetadata: any
+  ): void {
+    if (!text) {
+      return;
+    }
+  
+    try {
+      const attributes: Record<string, any> = {
+        "log.type": "EventHubLogRecord",
+        threadId,
+        "function.name": FUNCTION_NAME,
+        "message.index": messageIndex,
+      };
+  
+      // Add Event Hub system properties generically
+      if (eventMetadata && typeof eventMetadata === "object") {
+        for (const [key, value] of Object.entries(eventMetadata)) {
+          if (value !== null && value !== undefined) {
+            const attrKey = key.replace(/([A-Z])/g, "_$1").toLowerCase();
+            attributes[`eventhub.${attrKey}`] = value;
+          }
         }
       }
-    }
-
-    const nameContext: NameResolutionContext = {
-      body: text,
-      attributes,
-      scope: { name: "azure-eventhub-logs" },
-      resourceAttributes: BASE_RESOURCE_ATTRIBUTES,
-    };
-
-    // Generic metadata extraction: attempt to parse body as JSON
-    const bodyObj = parseJsonSafely(text);
-
-    // Parse resourceId for key structured metadata
-    if (bodyObj && typeof bodyObj === "object") {
-      const resourceId = (bodyObj as any).resourceId;
-      if (resourceId && typeof resourceId === "string") {
-        const parts = resourceId.split("/").filter(Boolean);
-
-        // Extract subscription ID
-        const subIdx = parts.findIndex((p: string) => p.toLowerCase() === "subscriptions");
-        if (subIdx !== -1 && parts[subIdx + 1]) {
-          attributes["azure.subscription_id"] = parts[subIdx + 1];
-        }
-
-        // Extract resource group
-        const rgIdx = parts.findIndex((p: string) => p.toLowerCase() === "resourcegroups");
-        if (rgIdx !== -1 && parts[rgIdx + 1]) {
-          attributes["azure.resource_group"] = parts[rgIdx + 1];
-        }
-
-        // Extract provider
-        const provIdx = parts.findIndex((p: string) => p.toLowerCase() === "providers");
-        if (provIdx !== -1 && parts[provIdx + 1]) {
-          attributes["azure.provider"] = parts[provIdx + 1].toLowerCase();
+  
+      // Parse body once for both metadata and name resolution
+      const parsedBody = parseJsonSafely(text);
+  
+      const nameContext: NameResolutionContext = {
+        body: parsedBody ?? text,
+        attributes,
+        scope: { name: "azure-eventhub-logs" },
+        resourceAttributes: BASE_RESOURCE_ATTRIBUTES,
+      };
+  
+      // Generic metadata extraction
+      if (parsedBody && typeof parsedBody === "object") {
+        const resourceId = (parsedBody as any).resourceId;
+        if (resourceId && typeof resourceId === "string") {
+          const parts = resourceId.split("/").filter(Boolean);
+  
+          const subIdx = parts.findIndex((p) => p.toLowerCase() === "subscriptions");
+          if (subIdx !== -1 && parts[subIdx + 1]) {
+            attributes["azure.subscription_id"] = parts[subIdx + 1];
+          }
+  
+          const rgIdx = parts.findIndex((p) => p.toLowerCase() === "resourcegroups");
+          if (rgIdx !== -1 && parts[rgIdx + 1]) {
+            attributes["azure.resource_group"] = parts[rgIdx + 1];
+          }
+  
+          const provIdx = parts.findIndex((p) => p.toLowerCase() === "providers");
+          if (provIdx !== -1 && parts[provIdx + 1]) {
+            attributes["azure.provider"] = parts[provIdx + 1].toLowerCase();
+          }
         }
       }
+  
+      // Dynamic subsystem extraction via pre-parsed rule
+      const subsystemName = resolveNameFromRuleConfig(
+        SUBSYSTEM_NAME_RULE,
+        nameContext,
+        "NO_SUBSYSTEM"
+      );
+  
+  
+      attributes["cx.application.name"] = APPLICATION_NAME;
+      attributes["cx.subsystem.name"] = subsystemName;
+  
+      // Get cached logger for this app/subsystem combo
+      const logger = getLoggerForAppSubsystem(APPLICATION_NAME, subsystemName);
+  
+      logger.emit({
+        severityNumber: logsAPI.SeverityNumber.INFO,
+        body: JSON.stringify(text),
+        attributes,
+      });
+    } catch (error: any) {
+      context.warn(`writeLog failed for message ${messageIndex}: ${error.message}`);
+      throw error;
     }
-
-    // Dynamic subsystem extraction via customer-defined rule
-    const subsystemName = resolveNameConfig(SUBSYSTEM_NAME, nameContext, "NO_SUBSYSTEM");
-
-    attributes["cx.application.name"] = APPLICATION_NAME;
-    attributes["cx.subsystem.name"] = subsystemName;
-
-    // Get cached logger for this app/subsystem combo
-    const logger = getLoggerForAppSubsystem(APPLICATION_NAME, subsystemName);
-
-    logger.emit({
-      severityNumber: logsAPI.SeverityNumber.INFO,
-      body: JSON.stringify(text),
-      attributes,
-    });
-  } catch (error: any) {
-    context.warn(`writeLog failed for message ${messageIndex}: ${error.message}`);
-    throw error;
-  }
-};
-
+  };
 export { eventHubTrigger };
