@@ -17,10 +17,11 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 
-// Configuration: Application is static, subsystem uses customer-defined extraction rules
+// Static application name from env var
+const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION || "NO_APPLICATION";
+// Configuration: Subsystem uses customer-defined extraction rules
 // Example: "body.category;body.resourceId;/resourceGroups/([^/]+)/;*azure-eventhub*"
-const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM || "body.category;*azure-eventhub*";
-
+const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM || "NO_SUBSYSTEM";
 const functionName = process.env.FUNCTION_APP_NAME || "unknown";
 
 const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
@@ -325,10 +326,6 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
     const threadId = context.invocationId;
     const metadata = (context as any).bindingData;
 
-    // Process events with metadata
-    let successCount = 0;
-    let errorCount = 0;
-
     events.forEach((message, index) => {
       try {
         // Extract Event Hub metadata for this message from bindingData arrays
@@ -340,24 +337,14 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
         };
 
         if ("records" in message && Array.isArray(message.records)) {
-          message.records.forEach((inner_record: any, recordIndex: number) => {
-            try {
-              writeLog(context, inner_record, threadId, index, eventMetadata);
-              successCount++;
-            } catch (recordError: any) {
-              errorCount++;
-              context.error(
-                `Failed to process record ${recordIndex} in message ${index}: ${recordError.message}`
-              );
-            }
+          message.records.forEach((inner_record: any) => {
+            writeLog(context, inner_record, threadId, index, eventMetadata);
           });
         } else {
           writeLog(context, message, threadId, index, eventMetadata);
-          successCount++;
         }
       } catch (msgError: any) {
-        errorCount++;
-        context.error(`Failed to process message ${index}: ${msgError.message}`);
+        context.warn(`Failed to process message ${index}: ${msgError.message}`);
       }
     });
 
@@ -370,7 +357,7 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
     );
     await Promise.all(flushPromises);
   } catch (error: any) {
-    context.error(`Function error: ${error.message}`);
+    context.warn(`Function error: ${error.message}`);
     throw error;
   }
 };
@@ -394,18 +381,15 @@ const writeLog = function (
       "message.index": messageIndex,
     };
 
-    // Add Event Hub system properties FIRST so they are visible to expressions
-    if (eventMetadata.sequenceNumber !== undefined) {
-      attributes["eventhub.sequence_number"] = eventMetadata.sequenceNumber;
-    }
-    if (eventMetadata.offset !== undefined) {
-      attributes["eventhub.offset"] = eventMetadata.offset;
-    }
-    if (eventMetadata.enqueuedTimeUtc !== undefined) {
-      attributes["eventhub.enqueued_time"] = eventMetadata.enqueuedTimeUtc;
-    }
-    if (eventMetadata.partitionKey !== undefined) {
-      attributes["eventhub.partition_key"] = eventMetadata.partitionKey;
+    // Add Event Hub system properties generically
+    if (eventMetadata && typeof eventMetadata === 'object') {
+      for (const [key, value] of Object.entries(eventMetadata)) {
+        if (value !== null && value !== undefined) {
+          // Convert camelCase to snake_case for consistency (e.g., enqueuedTimeUtc -> enqueued_time_utc)
+          const attrKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+          attributes[`eventhub.${attrKey}`] = value;
+        }
+      }
     }
 
     const nameContext: NameResolutionContext = {
@@ -427,45 +411,40 @@ const writeLog = function (
       bodyObj = text;
     }
     
-    // Extract ALL top-level fields as azure.* attributes
+    // Parse resourceId for key structured metadata
     if (bodyObj && typeof bodyObj === 'object') {
-      for (const [key, value] of Object.entries(bodyObj)) {
-        if (value !== null && value !== undefined) {
-          // Only primitive values (skip nested objects/arrays)
-          if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-            attributes[`azure.${key}`] = value;
-          }
-        }
-      }
-      
-      // Parse resourceId for additional structured attributes
       const resourceId = bodyObj.resourceId;
       if (resourceId && typeof resourceId === 'string') {
         const parts = resourceId.split('/').filter(Boolean);
+        
+        // Extract subscription ID
+        const subIdx = parts.findIndex((p: string) => p.toLowerCase() === 'subscriptions');
+        if (subIdx !== -1 && parts[subIdx + 1]) {
+          attributes['azure.subscription_id'] = parts[subIdx + 1];
+        }
+        
+        // Extract resource group
         const rgIdx = parts.findIndex((p: string) => p.toLowerCase() === 'resourcegroups');
         if (rgIdx !== -1 && parts[rgIdx + 1]) {
           attributes['azure.resource_group'] = parts[rgIdx + 1];
         }
         
+        // Extract provider
         const provIdx = parts.findIndex((p: string) => p.toLowerCase() === 'providers');
         if (provIdx !== -1 && parts[provIdx + 1]) {
           attributes['azure.provider'] = parts[provIdx + 1].toLowerCase();
         }
       }
     }
-
-    // Static application name from env var
-    const applicationName = process.env.CORALOGIX_APPLICATION || "Azure-EventHub";
     
     // Dynamic subsystem extraction via customer-defined rule
-    const subsystemName = resolveNameConfig(
-      SUBSYSTEM_NAME,
-      nameContext,
-      "NO_SUBSYSTEM"
-    );
+    const subsystemName = resolveNameConfig(SUBSYSTEM_NAME, nameContext, "NO_SUBSYSTEM");
+
+    attributes['cx.application.name'] = APPLICATION_NAME;
+    attributes['cx.subsystem.name'] = subsystemName;
 
     // Get cached logger for this app/subsystem combo
-    const logger = getLoggerForAppSubsystem(applicationName, subsystemName);
+    const logger = getLoggerForAppSubsystem(APPLICATION_NAME, subsystemName);
 
     logger.emit({
       severityNumber: logsAPI.SeverityNumber.INFO,
@@ -473,7 +452,7 @@ const writeLog = function (
       attributes,
     });
   } catch (error: any) {
-    context.error(`writeLog failed for message ${messageIndex}: ${error.message}`);
+    context.warn(`writeLog failed for message ${messageIndex}: ${error.message}`);
     throw error;
   }
 };
