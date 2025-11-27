@@ -62,11 +62,7 @@ describe("getValueFromExpression", () => {
     attributes: {
       "http.status_code": 200,
       env: "prod",
-    },
-    scope: { name: "test-scope" },
-    resourceAttributes: {
-      "cloud.provider": "azure",
-    },
+    }
   };
 
   it("resolves body path expressions like 'body.category'", () => {
@@ -77,11 +73,6 @@ describe("getValueFromExpression", () => {
   it("resolves attributes via 'attributes' prefix", () => {
     const v = getValueFromExpression("attributes.http.status_code", baseCtx);
     expect(v).toBe("200");
-  });
-
-  it("resolves resource attributes via 'resource.attributes' prefix", () => {
-    const v = getValueFromExpression("resource.attributes.cloud.provider", baseCtx);
-    expect(v).toBe("azure");
   });
 
   it("falls back to body path when not using known prefixes", () => {
@@ -108,8 +99,6 @@ describe("parseNameRuleConfig + resolveNameFromRuleConfig", () => {
         "/subscriptions/123/resourceGroups/rg-payments/providers/Microsoft.Web/sites/app1",
     },
     attributes: {},
-    scope: { name: "azure-eventhub-logs" },
-    resourceAttributes: {},
   };
 
   it("parses sources, regex and default", () => {

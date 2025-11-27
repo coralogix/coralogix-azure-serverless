@@ -86,11 +86,9 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): logsA
 /* -------------------------------------------------------------------------- */
 /*  Name-resolution types & config parsing                                    */
 /* -------------------------------------------------------------------------- */
-export type NameResolutionContext = {
+type NameResolutionContext = {
     body: unknown;
     attributes: Record<string, any>;
-    scope: { name?: string; version?: string; schemaUrl?: string };
-    resourceAttributes: Record<string, any>;
   };
   
   type NameRuleConfig = {
@@ -104,7 +102,7 @@ export type NameResolutionContext = {
    * "body.category;body.resourceId;/resourceGroups/([^/]+)/;*azure-eventhub*"
    * into a structured config.
    */
-  export function parseNameRuleConfig(config: string | undefined): NameRuleConfig {
+  function parseNameRuleConfig(config: string | undefined): NameRuleConfig {
     if (!config || !config.trim()) {
       return { sources: [] };
     }
@@ -149,7 +147,7 @@ export type NameResolutionContext = {
    */
   const SUBSYSTEM_NAME_RULE: NameRuleConfig = parseNameRuleConfig(SUBSYSTEM_NAME);
 
-export function getNestedValue(source: unknown, path: string): string | undefined {
+function getNestedValue(source: unknown, path: string): string | undefined {
   if (source == null) return undefined;
 
   let obj: any = source;
@@ -233,7 +231,7 @@ export function getNestedValue(source: unknown, path: string): string | undefine
  * Apply a precompiled regex to a value and return the first capture group
  * or the full match if no capture group exists.
  */
-export function applyRegex(
+function applyRegex(
     value: string | undefined,
     pattern?: RegExp
   ): string | undefined {
@@ -246,7 +244,7 @@ export function applyRegex(
     return match[1] ?? match[0];
   }
 
-export function nestFlatKeys(obj: Record<string, any>): any {
+function nestFlatKeys(obj: Record<string, any>): any {
   const root: any = {};
 
   for (const [key, value] of Object.entries(obj)) {
@@ -271,17 +269,12 @@ export function nestFlatKeys(obj: Record<string, any>): any {
   return root;
 }
 
-export function buildEvaluationRoot(ctx: NameResolutionContext): any {
+function buildEvaluationRoot(ctx: NameResolutionContext): any {
     const nestedAttributes = nestFlatKeys(ctx.attributes);
-    const nestedResourceAttributes = nestFlatKeys(ctx.resourceAttributes);
   
     return {
       body: ctx.body,
       attributes: nestedAttributes,
-      scope: ctx.scope,
-      resource: {
-        attributes: nestedResourceAttributes,
-      },
       logRecord: {
         body: ctx.body,
         attributes: nestedAttributes,
@@ -298,7 +291,7 @@ export function buildEvaluationRoot(ctx: NameResolutionContext): any {
  *  3. If regex fails, use rule's defaultValue (if any).
  *  4. If still empty, fall back to globalDefault.
  */
-export function resolveNameFromRuleConfig(
+function resolveNameFromRuleConfig(
     rule: NameRuleConfig,
     ctx: NameResolutionContext,
     globalDefault: string
@@ -330,7 +323,7 @@ export function resolveNameFromRuleConfig(
     return result;
   }
 
-export function getValueFromExpression(
+function getValueFromExpression(
   expr: string,
   ctx: NameResolutionContext
 ): string | undefined {
@@ -370,7 +363,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function parseJsonSafely(input: unknown): any | null {
+function parseJsonSafely(input: unknown): any | null {
   if (typeof input === "string") {
     try {
       return JSON.parse(input);
@@ -477,8 +470,6 @@ const writeLog = function (
       const nameContext: NameResolutionContext = {
         body: parsedBody ?? text,
         attributes,
-        scope: { name: "azure-eventhub-logs" },
-        resourceAttributes: BASE_RESOURCE_ATTRIBUTES,
       };
   
       // Generic metadata extraction
@@ -528,4 +519,19 @@ const writeLog = function (
       throw error;
     }
   };
+
+// Main function entry point
 export { eventHubTrigger };
+
+// Testing
+export type { NameResolutionContext };
+export {
+  getNestedValue,
+  applyRegex,
+  getValueFromExpression,
+  resolveNameFromRuleConfig,
+  parseNameRuleConfig,
+  nestFlatKeys,
+  buildEvaluationRoot,
+  parseJsonSafely,
+};
