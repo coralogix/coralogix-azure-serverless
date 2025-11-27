@@ -17,20 +17,24 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 
-// Static application name from env var
+/* -------------------------------------------------------------------------- */
+/*  Constants & configuration                                                 */
+/* -------------------------------------------------------------------------- */
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION || "NO_APPLICATION";
-// Configuration: Subsystem uses customer-defined extraction rules
+
+// Configuration: Subsystem uses customer-defined extraction rules.
 // Example: "body.category;body.resourceId;/resourceGroups/([^/]+)/;*azure-eventhub*"
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM || "NO_SUBSYSTEM";
-const functionName = process.env.FUNCTION_APP_NAME || "unknown";
+
+const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
 
 const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
   [ATTR_SERVICE_NAME]: "eventhub-to-otel",
 };
 
-/**
- * Logger cache to store LoggerProvider instances per app/subsystem combination
- */
+/* -------------------------------------------------------------------------- */
+/*  Logger cache                                                              */
+/* -------------------------------------------------------------------------- */
 interface LoggerCacheEntry {
   provider: LoggerProvider;
   logger: logsAPI.Logger;
@@ -38,24 +42,10 @@ interface LoggerCacheEntry {
 
 const loggerCache = new Map<string, LoggerCacheEntry>();
 
-/**
- * Get or create a logger for a specific app/subsystem combination
- */
-function getLoggerForAppSubsystem(appName: string, subsystemName: string): logsAPI.Logger {
-  const cacheKey = `${appName}::${subsystemName}`;
-
-  let entry = loggerCache.get(cacheKey);
-  if (entry) {
-    return entry.logger;
-  }
-
-  const resource = resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: "eventhub-to-otel",
-    'cx.application.name': appName,
-    "cx.subsystem.name": subsystemName,
-  });
-
+function createLoggerProvider(resourceAttributes: Record<string, any>): LoggerProvider {
+  const resource = resourceFromAttributes(resourceAttributes);
   const loggerProvider = new LoggerProvider({ resource });
+
   const otlpExporter = new OTLPLogExporter();
 
   loggerProvider.addLogRecordProcessor(
@@ -66,17 +56,37 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): logsA
     })
   );
 
+  return loggerProvider;
+}
+
+/**
+ * Get or create a logger for a specific app/subsystem combination.
+ */
+function getLoggerForAppSubsystem(appName: string, subsystemName: string): logsAPI.Logger {
+  const cacheKey = `${appName}::${subsystemName}`;
+
+  const cached = loggerCache.get(cacheKey);
+  if (cached) {
+    return cached.logger;
+  }
+
+  const loggerProvider = createLoggerProvider({
+    ...BASE_RESOURCE_ATTRIBUTES,
+    "cx.application.name": appName,
+    "cx.subsystem.name": subsystemName,
+  });
+
   const logger = loggerProvider.getLogger("azure-eventhub-logs");
 
-  entry = { provider: loggerProvider, logger };
-  loggerCache.set(cacheKey, entry);
+  loggerCache.set(cacheKey, { provider: loggerProvider, logger });
 
   return logger;
 }
 
-/**
- * Name-resolution support types & helpers
- */
+/* -------------------------------------------------------------------------- */
+/*  Name-resolution support types & helpers                                   */
+/* -------------------------------------------------------------------------- */
+
 export type NameResolutionContext = {
   body: unknown;
   attributes: Record<string, any>;
@@ -94,7 +104,6 @@ export function getNestedValue(source: unknown, path: string): string | undefine
     try {
       obj = JSON.parse(obj);
     } catch {
-      // If path is empty, we can use the raw string; otherwise we can't traverse it
       if (!path) {
         return obj;
       }
@@ -145,7 +154,7 @@ export function getNestedValue(source: unknown, path: string): string | undefine
     const remainingPath = parts.slice(i).join(".");
     if (remainingPath in current) {
       current = current[remainingPath];
-      break; // We've consumed all remaining parts
+      break;
     }
 
     // Neither worked, path not found
@@ -312,12 +321,39 @@ export function resolveNameConfig(
   return result;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Utility helpers                                                           */
+/* -------------------------------------------------------------------------- */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseJsonSafely(input: unknown): any | null {
+  if (typeof input === "string") {
+    try {
+      return JSON.parse(input);
+    } catch {
+      return null;
+    }
+  }
+  if (input && typeof input === "object") {
+    return input;
+  }
+  return null;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Azure Function entrypoint                                                 */
+/* -------------------------------------------------------------------------- */
 /**
  * @description Function entrypoint
- * @param {object} context - Function context
+ * @param {InvocationContext} context - Function context
  * @param {array} events - event hub messages
  */
-const eventHubTrigger = async function (context: InvocationContext, events: any): Promise<void> {
+const eventHubTrigger = async function (
+  context: InvocationContext,
+  events: any
+): Promise<void> {
   try {
     if (!Array.isArray(events) || events.length === 0) {
       return;
@@ -328,7 +364,6 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
 
     events.forEach((message, index) => {
       try {
-        // Extract Event Hub metadata for this message from bindingData arrays
         const eventMetadata = {
           enqueuedTimeUtc: metadata?.enqueuedTimeUtcArray?.[index],
           sequenceNumber: metadata?.sequenceNumberArray?.[index],
@@ -337,8 +372,8 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
         };
 
         if ("records" in message && Array.isArray(message.records)) {
-          message.records.forEach((inner_record: any) => {
-            writeLog(context, inner_record, threadId, index, eventMetadata);
+          message.records.forEach((innerRecord: any) => {
+            writeLog(context, innerRecord, threadId, index, eventMetadata);
           });
         } else {
           writeLog(context, message, threadId, index, eventMetadata);
@@ -349,7 +384,7 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
     });
 
     // Add delay before force flush to allow batch to accumulate
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await sleep(2000);
 
     // Flush all logger providers in the cache
     const flushPromises = Array.from(loggerCache.values()).map((entry) =>
@@ -362,12 +397,15 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
   }
 };
 
+/* -------------------------------------------------------------------------- */
+/*  Log writing                                                               */
+/* -------------------------------------------------------------------------- */
 const writeLog = function (
   context: InvocationContext,
   text: any,
   threadId: string,
   messageIndex: number,
-  eventMetadata: any,
+  eventMetadata: any
 ): void {
   if (!text) {
     return;
@@ -377,16 +415,16 @@ const writeLog = function (
     const attributes: Record<string, any> = {
       "log.type": "EventHubLogRecord",
       threadId,
-      "function.name": functionName,
+      "function.name": FUNCTION_NAME,
       "message.index": messageIndex,
     };
 
     // Add Event Hub system properties generically
-    if (eventMetadata && typeof eventMetadata === 'object') {
+    if (eventMetadata && typeof eventMetadata === "object") {
       for (const [key, value] of Object.entries(eventMetadata)) {
         if (value !== null && value !== undefined) {
           // Convert camelCase to snake_case for consistency (e.g., enqueuedTimeUtc -> enqueued_time_utc)
-          const attrKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+          const attrKey = key.replace(/([A-Z])/g, "_$1").toLowerCase();
           attributes[`eventhub.${attrKey}`] = value;
         }
       }
@@ -399,49 +437,40 @@ const writeLog = function (
       resourceAttributes: BASE_RESOURCE_ATTRIBUTES,
     };
 
-    // Generic metadata extraction: add all fields as azure.* attributes
-    let bodyObj: any = null;
-    if (typeof text === 'string') {
-      try {
-        bodyObj = JSON.parse(text);
-      } catch {
-        // Not JSON, skip metadata extraction
-      }
-    } else if (typeof text === 'object') {
-      bodyObj = text;
-    }
-    
+    // Generic metadata extraction: attempt to parse body as JSON
+    const bodyObj = parseJsonSafely(text);
+
     // Parse resourceId for key structured metadata
-    if (bodyObj && typeof bodyObj === 'object') {
-      const resourceId = bodyObj.resourceId;
-      if (resourceId && typeof resourceId === 'string') {
-        const parts = resourceId.split('/').filter(Boolean);
-        
+    if (bodyObj && typeof bodyObj === "object") {
+      const resourceId = (bodyObj as any).resourceId;
+      if (resourceId && typeof resourceId === "string") {
+        const parts = resourceId.split("/").filter(Boolean);
+
         // Extract subscription ID
-        const subIdx = parts.findIndex((p: string) => p.toLowerCase() === 'subscriptions');
+        const subIdx = parts.findIndex((p: string) => p.toLowerCase() === "subscriptions");
         if (subIdx !== -1 && parts[subIdx + 1]) {
-          attributes['azure.subscription_id'] = parts[subIdx + 1];
+          attributes["azure.subscription_id"] = parts[subIdx + 1];
         }
-        
+
         // Extract resource group
-        const rgIdx = parts.findIndex((p: string) => p.toLowerCase() === 'resourcegroups');
+        const rgIdx = parts.findIndex((p: string) => p.toLowerCase() === "resourcegroups");
         if (rgIdx !== -1 && parts[rgIdx + 1]) {
-          attributes['azure.resource_group'] = parts[rgIdx + 1];
+          attributes["azure.resource_group"] = parts[rgIdx + 1];
         }
-        
+
         // Extract provider
-        const provIdx = parts.findIndex((p: string) => p.toLowerCase() === 'providers');
+        const provIdx = parts.findIndex((p: string) => p.toLowerCase() === "providers");
         if (provIdx !== -1 && parts[provIdx + 1]) {
-          attributes['azure.provider'] = parts[provIdx + 1].toLowerCase();
+          attributes["azure.provider"] = parts[provIdx + 1].toLowerCase();
         }
       }
     }
-    
+
     // Dynamic subsystem extraction via customer-defined rule
     const subsystemName = resolveNameConfig(SUBSYSTEM_NAME, nameContext, "NO_SUBSYSTEM");
 
-    attributes['cx.application.name'] = APPLICATION_NAME;
-    attributes['cx.subsystem.name'] = subsystemName;
+    attributes["cx.application.name"] = APPLICATION_NAME;
+    attributes["cx.subsystem.name"] = subsystemName;
 
     // Get cached logger for this app/subsystem combo
     const logger = getLoggerForAppSubsystem(APPLICATION_NAME, subsystemName);
