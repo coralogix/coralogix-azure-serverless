@@ -17,8 +17,9 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 
-const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION || "NO_APPLICATION";
-const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM || "NO_SUBSYSTEM";
+// Configuration: Application is static, subsystem uses customer-defined extraction rules
+// Example: "body.category;body.resourceId;/resourceGroups/([^/]+)/;*azure-eventhub*"
+const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM || "body.category;*azure-eventhub*";
 
 const functionName = process.env.FUNCTION_APP_NAME || "unknown";
 
@@ -49,7 +50,7 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): logsA
 
   const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: "eventhub-to-otel",
-    "cx.application.name": appName,
+    'cx.application.name': appName,
     "cx.subsystem.name": subsystemName,
   });
 
@@ -414,19 +415,57 @@ const writeLog = function (
       resourceAttributes: BASE_RESOURCE_ATTRIBUTES,
     };
 
-    const applicationName = resolveNameConfig(
-      APPLICATION_NAME,
-      nameContext,
-      "NO_APPLICATION"
-    );
+    // Generic metadata extraction: add all fields as azure.* attributes
+    let bodyObj: any = null;
+    if (typeof text === 'string') {
+      try {
+        bodyObj = JSON.parse(text);
+      } catch {
+        // Not JSON, skip metadata extraction
+      }
+    } else if (typeof text === 'object') {
+      bodyObj = text;
+    }
+    
+    // Extract ALL top-level fields as azure.* attributes
+    if (bodyObj && typeof bodyObj === 'object') {
+      for (const [key, value] of Object.entries(bodyObj)) {
+        if (value !== null && value !== undefined) {
+          // Only primitive values (skip nested objects/arrays)
+          if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+            attributes[`azure.${key}`] = value;
+          }
+        }
+      }
+      
+      // Parse resourceId for additional structured attributes
+      const resourceId = bodyObj.resourceId;
+      if (resourceId && typeof resourceId === 'string') {
+        const parts = resourceId.split('/').filter(Boolean);
+        const rgIdx = parts.findIndex((p: string) => p.toLowerCase() === 'resourcegroups');
+        if (rgIdx !== -1 && parts[rgIdx + 1]) {
+          attributes['azure.resource_group'] = parts[rgIdx + 1];
+        }
+        
+        const provIdx = parts.findIndex((p: string) => p.toLowerCase() === 'providers');
+        if (provIdx !== -1 && parts[provIdx + 1]) {
+          attributes['azure.provider'] = parts[provIdx + 1].toLowerCase();
+        }
+      }
+    }
+
+    // Static application name from env var
+    const applicationName = process.env.CORALOGIX_APPLICATION || "Azure-EventHub";
+    
+    // Dynamic subsystem extraction via customer-defined rule
     const subsystemName = resolveNameConfig(
       SUBSYSTEM_NAME,
       nameContext,
       "NO_SUBSYSTEM"
     );
 
-    attributes["cx.application.name"] = applicationName;
-    attributes["cx.subsystem.name"] = subsystemName;
+    // Get cached logger for this app/subsystem combo
+    const logger = getLoggerForAppSubsystem(applicationName, subsystemName);
 
     logger.emit({
       severityNumber: logsAPI.SeverityNumber.INFO,
