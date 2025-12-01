@@ -49,3 +49,24 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 **Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
 
 **Function App Name** (Optional) - Custom name for the Azure Function to be used in Coralogix logs. Defaults to 'coralogix-eventhub-func-{uniqueId}' if not specified.
+
+## Configuration Examples for Application and Subsystem names
+
+```bash
+# Static values
+CORALOGIX_APPLICATION="Azure"
+CORALOGIX_SUBSYSTEM="production"
+
+# Simple field extraction
+CORALOGIX_APPLICATION="{{ $.category }}"
+CORALOGIX_SUBSYSTEM="{{ $.properties.appName }}"
+
+# Extract with regex (case-insensitive)
+CORALOGIX_SUBSYSTEM="{{ $.resourceId | r'/resourcegroups/([^/]+)/i' }}"
+
+# Multiple fallbacks
+CORALOGIX_SUBSYSTEM="{{ $.properties.appName || $.properties.roleInstance || $.location }}"
+
+# Combine fallbacks with regex
+CORALOGIX_SUBSYSTEM="{{ $.properties.appName || $.resourceId | r'/resourcegroups/([^/]+)/i' }}"
+```
