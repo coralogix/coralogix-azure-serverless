@@ -6,7 +6,7 @@
  * @link        https://coralogix.com/
  * @copyright   Coralogix Ltd.
  * @licence     Apache-2.0
- * @version     3.0.0
+ * @version     3.1.0
  * @since       1.0.0
  */
 
@@ -17,15 +17,8 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 
-/* -------------------------------------------------------------------------- */
-/*  Constants & configuration                                                 */
-/* -------------------------------------------------------------------------- */
-const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION || "NO_APPLICATION";
-
-// Configuration: Subsystem uses customer-defined extraction rules.
-// Example: "body.category;body.resourceId;/resourceGroups/([^/]+)/;*azure-eventhub*"
-const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM || "NO_SUBSYSTEM";
-
+const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
+const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
 const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
 
 const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
@@ -83,69 +76,162 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): logsA
   return logger;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Name-resolution types & config parsing                                    */
-/* -------------------------------------------------------------------------- */
-type NameResolutionContext = {
-    body: unknown;
-    attributes: Record<string, any>;
-  };
+type TemplateContext = {
+  body: unknown;
+  attributes: Record<string, any>;
+};
   
-  type NameRuleConfig = {
-    sources: string[];       // expressions like "body.category", "body.resourceId"
-    regex?: RegExp;          // optional compiled regex
-    defaultValue?: string;   // optional *default* from config
-  };
-  
-  /**
-   * Parse a rule string like:
-   * "body.category;body.resourceId;/resourceGroups/([^/]+)/;*azure-eventhub*"
-   * into a structured config.
-   */
-  function parseNameRuleConfig(config: string | undefined): NameRuleConfig {
-    if (!config || !config.trim()) {
-      return { sources: [] };
-    }
-  
-    const tokens = config
-      .split(";")
-      .map((t) => t.trim())
-      .filter(Boolean);
-  
-    const sources: string[] = [];
-    let regex: RegExp | undefined;
-    let defaultValue: string | undefined;
-  
-    for (const token of tokens) {
-      // Regex token: /.../
-      if (token.startsWith("/") && token.endsWith("/") && token.length > 2) {
-        const pattern = token.slice(1, -1);
-        try {
-          regex = new RegExp(pattern);
-        } catch (e) {
-          // Invalid regex: log once and skip it
-          console.warn(`Invalid CORALOGIX_SUBSYSTEM regex: ${token}`, e);
-        }
-        continue;
-      }
-  
-      // Default token: *default*
-      if (token.startsWith("*") && token.endsWith("*") && token.length > 2) {
-        defaultValue = token.slice(1, -1);
-        continue;
-      }
-  
-      // Otherwise it's a source expression
-      sources.push(token);
-    }
-  
-    return { sources, regex, defaultValue };
+type TemplateConfig = {
+  expression: string;
+  regex?: RegExp;
+};
+
+/**
+ * Parses a template like "{{ $.category | r'/pattern/' }}"
+ * Returns null if not a template.
+ */
+function parseTemplate(template: string | undefined): TemplateConfig | null {
+  if (!template || !template.trim()) {
+    return null;
   }
+
+  const trimmed = template.trim();
   
-  /**
-   * Pre-parsed subsystem rule config (from env) at module load time.
-   */
-  const SUBSYSTEM_NAME_RULE: NameRuleConfig = parseNameRuleConfig(SUBSYSTEM_NAME);
+  // Check if it's a template with {{ }}
+  const templateMatch = trimmed.match(/^\{\{\s*(.+?)\s*\}\}$/);
+  if (!templateMatch) {
+    return null;
+  }
+
+  const content = templateMatch[1];
+  
+  // Check for pipe operator with regex: {{ expression | r'pattern' }} or {{ expression | r'pattern/flags' }}
+  const pipeMatch = content.match(/^(.+?)\s*\|\s*r['"](.*?)['"]$/);
+  
+  if (pipeMatch) {
+    const expression = pipeMatch[1].trim();
+    const patternString = pipeMatch[2];
+    
+    // Extract pattern and flags if present (e.g., "/pattern/i" or "pattern")
+    let pattern = patternString;
+    let flags = "";
+    
+    // Check if pattern ends with /flags
+    const flagsMatch = patternString.match(/\/([gimsuvy]*)$/);
+    if (flagsMatch) {
+      flags = flagsMatch[1];
+      pattern = patternString.substring(0, patternString.length - flagsMatch[0].length);
+    }
+    
+    try {
+      const regex = new RegExp(pattern, flags);
+      return { expression, regex };
+    } catch (e) {
+      console.warn(`Invalid regex pattern in template: ${patternString}`, e);
+      return { expression };
+    }
+  }
+
+  // No regex, just expression
+  return { expression: content.trim() };
+}
+
+/**
+ * Evaluates a single expression (e.g., "$.field" or "attributes.key").
+ * Returns the value or undefined if not found.
+ */
+function evaluateExpression(expression: string, ctx: TemplateContext): string | undefined {
+  const expr = expression.trim();
+  
+  // Handle $.field syntax
+  if (expr.startsWith("$.")) {
+    const path = expr.substring(2); // Remove "$."
+    return getNestedValue(ctx.body, path);
+  }
+  // Handle attributes.field syntax
+  else if (expr.startsWith("attributes.")) {
+    const path = expr.substring("attributes.".length);
+    return getNestedValue(ctx.attributes, path);
+  }
+  // Handle body.field syntax
+  else if (expr.startsWith("body.")) {
+    const path = expr.substring("body.".length);
+    return getNestedValue(ctx.body, path);
+  }
+  // Try as body path by default
+  else {
+    return getNestedValue(ctx.body, expr);
+  }
+}
+
+/**
+ * Evaluates a template against the context.
+ * Supports multiple fallback expressions with || operator.
+ * Returns the resolved value or undefined if not found.
+ */
+function evaluateTemplate(
+  templateConfig: TemplateConfig,
+  ctx: TemplateContext
+): string | undefined {
+  const { expression, regex } = templateConfig;
+
+  let value: string | undefined;
+
+  // Check if expression contains || for multiple fallback options
+  if (expression.includes("||")) {
+    const expressions = expression.split("||").map((e) => e.trim());
+    
+    // Try each expression in order, use first non-empty result
+    for (const expr of expressions) {
+      value = evaluateExpression(expr, ctx);
+      if (value !== undefined && value !== "") {
+        break;
+      }
+    }
+  } else {
+    // Single expression
+    value = evaluateExpression(expression, ctx);
+  }
+
+  // If value not found, return undefined
+  if (value === undefined) {
+    return undefined;
+  }
+
+  // Apply regex if present
+  if (regex) {
+    const regexResult = applyRegex(value, regex);
+    // If regex fails, return raw value
+    return regexResult !== undefined ? regexResult : value;
+  }
+
+  return value;
+}
+
+/**
+ * Resolves a name from a template string with fallback to default.
+ */
+function resolveName(
+  template: string | undefined,
+  ctx: TemplateContext,
+  globalDefault: string
+): string {
+  if (!template || !template.trim()) {
+    return globalDefault;
+  }
+
+  const parsed = parseTemplate(template);
+  
+  // Not a template - treat as literal value
+  if (!parsed) {
+    return template.trim();
+  }
+
+  const resolved = evaluateTemplate(parsed, ctx);
+  
+  // If resolved, use it, otherwise use default
+  return resolved !== undefined ? resolved : globalDefault;
+}
 
 function getNestedValue(source: unknown, path: string): string | undefined {
   if (source == null) return undefined;
@@ -244,121 +330,6 @@ function applyRegex(
     return match[1] ?? match[0];
   }
 
-function nestFlatKeys(obj: Record<string, any>): any {
-  const root: any = {};
-
-  for (const [key, value] of Object.entries(obj)) {
-    const parts = key.split(".");
-    let current = root;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isLast = i === parts.length - 1;
-
-      if (isLast) {
-        current[part] = value;
-      } else {
-        if (!current[part] || typeof current[part] !== "object") {
-          current[part] = {};
-        }
-        current = current[part];
-      }
-    }
-  }
-
-  return root;
-}
-
-function buildEvaluationRoot(ctx: NameResolutionContext): any {
-    const nestedAttributes = nestFlatKeys(ctx.attributes);
-  
-    return {
-      body: ctx.body,
-      attributes: nestedAttributes,
-      logRecord: {
-        body: ctx.body,
-        attributes: nestedAttributes,
-      },
-    };
-  }
-
-  /**
- * Evaluate a parsed NameRuleConfig against a context to produce a name.
- *
- * Order:
- *  1. Evaluate sources in order; take first non-empty result.
- *  2. If regex exists, apply it to that result.
- *  3. If regex fails, use rule's defaultValue (if any).
- *  4. If still empty, fall back to globalDefault.
- */
-function resolveNameFromRuleConfig(
-    rule: NameRuleConfig,
-    ctx: NameResolutionContext,
-    globalDefault: string
-  ): string {
-    let chosenValue: string | undefined;
-  
-    for (const source of rule.sources) {
-      const v = getValueFromExpression(source, ctx);
-      if (v !== undefined && v !== "") {
-        chosenValue = v;
-        break;
-      }
-    }
-  
-    // Step 1–3: combine chosen, default, global
-    let result = chosenValue ?? rule.defaultValue ?? globalDefault;
-  
-    // Step 4: apply regex if we have a result and a pattern
-    if (result && rule.regex) {
-      const processed = applyRegex(result, rule.regex);
-      if (processed) {
-        result = processed;
-      } else {
-        // Regex didn't match; fall back to default or global
-        result = rule.defaultValue ?? globalDefault;
-      }
-    }
-  
-    return result;
-  }
-
-function getValueFromExpression(
-  expr: string,
-  ctx: NameResolutionContext
-): string | undefined {
-  const e = expr.trim();
-  if (!e) return undefined;
-
-  const root = buildEvaluationRoot(ctx);
-
-  const knownPrefixes = ["body.", "attributes.", "resource.", "scope.", "logRecord."];
-  const isPathExpression = knownPrefixes.some((prefix) => e.startsWith(prefix));
-
-  // Try interpreting the expression as a path on the evaluation root
-  const val = getNestedValue(root, e);
-  if (val !== undefined) {
-    return val;
-  }
-
-  // Fallback: try it as a path on the body directly
-  const fromBody = getNestedValue(ctx.body, e);
-  if (fromBody !== undefined) {
-    return fromBody;
-  }
-
-  // If it looks like a path expression but wasn't found, return undefined
-  if (isPathExpression) {
-    return undefined;
-  }
-
-  // Otherwise, treat it as a literal candidate
-  return e;
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Utility helpers                                                           */
-/* -------------------------------------------------------------------------- */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -464,13 +435,13 @@ const writeLog = function (
         }
       }
   
-      // Parse body once for both metadata and name resolution
-      const parsedBody = parseJsonSafely(text);
-  
-      const nameContext: NameResolutionContext = {
-        body: parsedBody ?? text,
-        attributes,
-      };
+    // Parse body once for both metadata and template evaluation
+    const parsedBody = parseJsonSafely(text);
+
+    const templateContext: TemplateContext = {
+      body: parsedBody ?? text,
+      attributes,
+    };
   
       // Generic metadata extraction
       if (parsedBody && typeof parsedBody === "object") {
@@ -495,19 +466,24 @@ const writeLog = function (
         }
       }
   
-      // Dynamic subsystem extraction via pre-parsed rule
-      const subsystemName = resolveNameFromRuleConfig(
-        SUBSYSTEM_NAME_RULE,
-        nameContext,
-        "NO_SUBSYSTEM"
-      );
-  
-  
-      attributes["cx.application.name"] = APPLICATION_NAME;
-      attributes["cx.subsystem.name"] = subsystemName;
-  
-      // Get cached logger for this app/subsystem combo
-      const logger = getLoggerForAppSubsystem(APPLICATION_NAME, subsystemName);
+    // Dynamic application and subsystem name resolution via templates
+    const applicationName = resolveName(
+      APPLICATION_NAME,
+      templateContext,
+      "Azure-EventHub"
+    );
+
+    const subsystemName = resolveName(
+      SUBSYSTEM_NAME,
+      templateContext,
+      "EventHub"
+    );
+
+    attributes["cx.application.name"] = applicationName;
+    attributes["cx.subsystem.name"] = subsystemName;
+
+    // Get cached logger for this app/subsystem combo
+    const logger = getLoggerForAppSubsystem(applicationName, subsystemName);
   
       logger.emit({
         severityNumber: logsAPI.SeverityNumber.INFO,
@@ -524,14 +500,13 @@ const writeLog = function (
 export { eventHubTrigger };
 
 // Testing
-export type { NameResolutionContext };
+export type { TemplateContext, TemplateConfig };
 export {
   getNestedValue,
   applyRegex,
-  getValueFromExpression,
-  resolveNameFromRuleConfig,
-  parseNameRuleConfig,
-  nestFlatKeys,
-  buildEvaluationRoot,
+  parseTemplate,
+  evaluateExpression,
+  evaluateTemplate,
+  resolveName,
   parseJsonSafely,
 };
