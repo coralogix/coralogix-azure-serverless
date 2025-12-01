@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - "master"
+    paths:
+      - "EventHub/**"
   pull_request:
     branches:
       - "master"
+    paths:
+      - "EventHub/**"
 
 permissions:
   contents: write 
