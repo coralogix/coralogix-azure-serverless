@@ -1,3 +1,6 @@
+### 3.1.0 / 01 Dec 2025
+[FEATURE] Support dynamic application and subsystem name extraction using template syntax with support for JSONPath field access, regex patterns, and multiple fallbacks.
+
 ### 3.0.0 / 20 Nov 2024
 [BREAKING CHANGE] Major update with the following changes:
 * Updated Node.js runtime to 22

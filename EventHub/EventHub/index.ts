@@ -20,9 +20,6 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 
-/* -------------------------------------------------------------------------- */
-/*  Constants                                                                 */
-/* -------------------------------------------------------------------------- */
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
 const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
@@ -30,10 +27,6 @@ const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
 const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
   [ATTR_SERVICE_NAME]: "eventhub-to-otel",
 };
-
-/* -------------------------------------------------------------------------- */
-/*  Logger cache                                                              */
-/* -------------------------------------------------------------------------- */
 
 interface LoggerCacheEntry {
   provider: LoggerProvider;
@@ -59,9 +52,7 @@ function createLoggerProvider(resourceAttributes: Record<string, any>): LoggerPr
   return loggerProvider;
 }
 
-/**
- * Get or create a logger for a specific app/subsystem combination.
- */
+// Get or create a logger for a specific app/subsystem combination.
 function getLoggerForAppSubsystem(
   appName: string,
   subsystemName: string
@@ -83,10 +74,7 @@ function getLoggerForAppSubsystem(
   return logger;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Template evaluation                                                       */
-/* -------------------------------------------------------------------------- */
-
+// Template evaluation
 export type TemplateContext = {
   body: unknown;
   attributes: Record<string, any>;
@@ -320,10 +308,7 @@ export function parseJsonSafely(input: unknown): any | null {
   return null;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Log writing                                                               */
-/* -------------------------------------------------------------------------- */
-
+// Log writing
 type EventMetadata = Record<string, unknown>;
 
 function buildBaseAttributes(
