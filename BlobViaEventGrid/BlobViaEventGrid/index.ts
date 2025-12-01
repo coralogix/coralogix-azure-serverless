@@ -54,9 +54,9 @@ function debugLog(context: InvocationContext, message: string, data?: any): void
     const isDebugMode = process.env.DEBUG_MODE === "true";
     if (isDebugMode) {
         if (data !== undefined) {
-            context.warn(`[DEBUG] ${message}`, data);
+            context.log(`[DEBUG] ${message}`, data);
         } else {
-            context.warn(`[DEBUG] ${message}`);
+            context.log(`[DEBUG] ${message}`);
         }
     }
 }
