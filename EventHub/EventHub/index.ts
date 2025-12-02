@@ -73,14 +73,9 @@ export enum LogFormat {
   JSON_STRING = "json-string",
   JSON_OBJECT = "json-object",
   JSON_ARRAY = "json-array",
-  INVALID = "invalid",
 }
 
 export function detectLogFormat(log: unknown): LogFormat {
-  if (log === null || log === undefined) {
-    return LogFormat.INVALID;
-  }
-
   // Handle strings
   if (typeof log === "string") {
     try {
@@ -160,18 +155,6 @@ export function handleJsonString(text: string): LogHandlerResult {
   };
 }
 
-export function handleInvalidFormat(
-  text: any,
-  context: InvocationContext,
-  messageIndex: number
-): LogHandlerResult {
-  context.log(`Invalid log format detected for message ${messageIndex}`);
-  return {
-    body: JSON.stringify(text),
-    parsedBody: null,
-  };
-}
-
 // Array handler
 export function handleJsonArray(arr: any[]): LogHandlerResult[] {
   return arr.map((elem) => {
@@ -224,7 +207,6 @@ const writeLog = function (
         break;
       default:
         context.log(`Invalid log format detected for message ${messageIndex}: ${text}`);
-        results = handleInvalidFormat(text, context, messageIndex);
         break;
     }
     const logRecords = Array.isArray(results) ? results : [results];
