@@ -11,5 +11,6 @@
     }
   ],
   "scriptFile": "../dist/EventHub/index.js",
+  "entryPoint": "eventHubTrigger",
   "disabled": false
 }

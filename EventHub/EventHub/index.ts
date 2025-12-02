@@ -97,31 +97,6 @@ export interface LogHandlerResult {
   parsedBody: any | null;
 }
 
-// Log writing
-type EventMetadata = Record<string, unknown>;
-
-function buildBaseAttributes(
-  threadId: string,
-  messageIndex: number,
-  eventMetadata: EventMetadata | undefined
-): Record<string, any> {
-  const attributes: Record<string, any> = {
-    threadId,
-    "function.name": FUNCTION_NAME,
-    "message.index": messageIndex,
-  };
-
-  if (eventMetadata && typeof eventMetadata === "object") {
-    for (const [key, value] of Object.entries(eventMetadata)) {
-      if (value === null || value === undefined) continue;
-      const attrKey = key.replace(/([A-Z])/g, "_$1").toLowerCase();
-      attributes[`eventhub.${attrKey}`] = value;
-    }
-  }
-
-  return attributes;
-}
-
 function enrichAzureMetadata(attributes: Record<string, any>, parsedBody: any): void {
   if (!parsedBody || typeof parsedBody !== "object") return;
 
@@ -203,13 +178,17 @@ const writeLog = function (
   context: InvocationContext,
   text: any,
   threadId: string,
-  messageIndex: number,
-  eventMetadata: Record<string, unknown>
+  messageIndex: number
 ): void {
   if (!text) return;
 
   try {
-    const attributes = buildBaseAttributes(threadId, messageIndex, eventMetadata);
+    const attributes: Record<string, any> = {
+      threadId,
+      "function.name": FUNCTION_NAME,
+      "message.index": messageIndex,
+    };
+
     const logFormat = detectLogFormat(text);
     attributes["log.format"] = logFormat;
 
@@ -253,70 +232,32 @@ const writeLog = function (
 };
 
 /* -------------------------------------------------------------------------- */
-/*  Message handlers                                                          */
+/*  Message handler                                                        */
 /* -------------------------------------------------------------------------- */
+function handleEventHubMessage(context: InvocationContext, message: any, threadId: string): void {
+  let entries: any[];
 
-/**
- * @description Handler for batch messages (contains records array)
- */
-function handleBatchMessage(
-  context: InvocationContext,
-  message: any,
-  threadId: string,
-  messageIndex: number,
-  eventMetadata: EventMetadata
-): void {
-  message.records.forEach((innerRecord: any) => {
-    writeLog(context, innerRecord, threadId, messageIndex, eventMetadata);
-  });
-}
-
-/**
- * @description Handler for single message
- */
-function handleSingleMessage(
-  context: InvocationContext,
-  message: any,
-  threadId: string,
-  messageIndex: number,
-  eventMetadata: EventMetadata
-): void {
-  // Extract body if EventHub wrapped it (e.g., plain text in { body: "..." })
-  const content =
-    message && typeof message === "object" && "body" in message ? message.body : message;
-
-  writeLog(context, content, threadId, messageIndex, eventMetadata);
-}
-
-/**
- * @description Process a single EventHub message - routes to batch or single handler
- */
-function processMessage(
-  context: InvocationContext,
-  message: any,
-  threadId: string,
-  messageIndex: number,
-  eventMetadata: EventMetadata
-): void {
-  // Check if it's a batch message with records array
-  const isBatch =
+  if (
     message &&
     typeof message === "object" &&
     !Array.isArray(message) &&
-    "records" in message &&
-    Array.isArray(message.records);
-
-  if (isBatch) {
-    handleBatchMessage(context, message, threadId, messageIndex, eventMetadata);
+    Array.isArray((message as any).records)
+  ) {
+    entries = (message as any).records;
   } else {
-    handleSingleMessage(context, message, threadId, messageIndex, eventMetadata);
+    const content =
+      message && typeof message === "object" && "body" in message ? (message as any).body : message;
+    entries = [content];
   }
+
+  entries.forEach((entry, idx) => {
+    writeLog(context, entry, threadId, idx);
+  });
 }
 
 /* -------------------------------------------------------------------------- */
 /*  Azure Function entrypoint                                                 */
 /* -------------------------------------------------------------------------- */
-
 /**
  * @description Function entrypoint
  * @param {InvocationContext} context - Function context
@@ -325,20 +266,11 @@ function processMessage(
 const eventHubTrigger = async function (context: InvocationContext, events: any): Promise<void> {
   try {
     if (!Array.isArray(events) || events.length === 0) return;
-
     const threadId = context.invocationId;
-    const metadata = (context as any).bindingData;
 
     events.forEach((event, index) => {
       try {
-        const eventMetadata: EventMetadata = {
-          enqueuedTimeUtc: metadata?.enqueuedTimeUtcArray?.[index],
-          sequenceNumber: metadata?.sequenceNumberArray?.[index],
-          offset: metadata?.offsetArray?.[index],
-          partitionKey: metadata?.partitionKeyArray?.[index],
-        };
-
-        processMessage(context, event, threadId, index, eventMetadata);
+        handleEventHubMessage(context, event, threadId);
       } catch (msgError: any) {
         context.log(`Failed to process message ${index}: ${msgError.message}`);
       }
@@ -351,6 +283,7 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
     const flushPromises = Array.from(loggerCache.values()).map((entry) =>
       entry.provider.forceFlush()
     );
+
     await Promise.all(flushPromises);
   } catch (error: any) {
     context.log(`Function error: ${error.message}`);
