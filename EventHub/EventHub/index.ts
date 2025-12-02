@@ -208,6 +208,7 @@ const writeLog = function (
         results = handlePlainText(text);
         break;
       default:
+        context.log(`Invalid log format detected for message ${messageIndex}: ${text}`);
         results = handleInvalidFormat(text, context, messageIndex);
         break;
     }
