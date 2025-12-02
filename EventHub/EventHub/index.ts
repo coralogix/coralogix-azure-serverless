@@ -232,9 +232,6 @@ const writeLog = function (
   }
 };
 
-/* -------------------------------------------------------------------------- */
-/*  Message handler                                                        */
-/* -------------------------------------------------------------------------- */
 function handleEventHubMessage(context: InvocationContext, message: any, threadId: string): void {
   let entries: any[];
 
