@@ -1,3 +1,13 @@
+### 3.1.0 / 02 Dec 2024
+[FEATURE] Multi-format log support and testing improvements:
+* Added automatic log format detection (plain text, JSON string, JSON object, JSON array)
+* Added support for JSON array payloads - automatically splits arrays into individual log records
+* Added Azure metadata enrichment (subscription ID, resource group, provider extraction from resourceId)
+* Added logger caching for improved performance with multiple app/subsystem combinations
+* Added Prettier code formatting support
+* Updated GitHub Actions workflow to include test execution
+* Updated consumer group configuration to use environment variable (`%EVENTHUB_CONSUMER_GROUP%`)
+
 ### 3.0.0 / 20 Nov 2024
 [BREAKING CHANGE] Major update with the following changes:
 * Updated Node.js runtime to 22
