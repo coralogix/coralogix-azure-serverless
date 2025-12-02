@@ -77,6 +77,11 @@ export enum LogFormat {
 }
 
 export function detectLogFormat(log: unknown): LogFormat {
+  if (log === null || log === undefined) {
+    return LogFormat.INVALID;
+  }
+
+  // Handle strings
   if (typeof log === "string") {
     try {
       const parsed = JSON.parse(log);
@@ -87,9 +92,18 @@ export function detectLogFormat(log: unknown): LogFormat {
     }
   }
 
-  if (Array.isArray(log)) return LogFormat.JSON_ARRAY;
-  if (log && typeof log === "object") return LogFormat.JSON_OBJECT;
-  return LogFormat.INVALID;
+  // Handle arrays
+  if (Array.isArray(log)) {
+    return LogFormat.JSON_ARRAY;
+  }
+
+  // Handle objects
+  if (typeof log === "object") {
+    return LogFormat.JSON_OBJECT;
+  }
+
+  // Handle primitives (number, boolean, etc.)
+  return LogFormat.STRING;
 }
 
 export interface LogHandlerResult {
@@ -122,9 +136,10 @@ function enrichAzureMetadata(attributes: Record<string, any>, parsedBody: any): 
 }
 
 // Single-log handlers
-export function handlePlainText(text: string): LogHandlerResult {
+export function handlePlainText(text: any): LogHandlerResult {
+  const bodyString = typeof text === "string" ? text : String(text);
   return {
-    body: text,
+    body: bodyString,
     parsedBody: null,
   };
 }
