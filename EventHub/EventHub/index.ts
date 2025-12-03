@@ -103,10 +103,6 @@ export function detectLogFormat(log: unknown): LogFormat {
   return LogFormat.STRING;
 }
 
-function isBinaryPayload(input: unknown): boolean {
-  return typeof Buffer !== "undefined" && (Buffer.isBuffer(input) || input instanceof Uint8Array);
-}
-
 export interface LogHandlerResult {
   body: string;
   parsedBody: any | null;
