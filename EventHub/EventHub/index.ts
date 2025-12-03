@@ -73,10 +73,18 @@ export enum LogFormat {
   JSON_STRING = "json-string",
   JSON_OBJECT = "json-object",
   JSON_ARRAY = "json-array",
+  BINARY = "binary",
+  INVALID = "invalid",
 }
 
 export function detectLogFormat(log: unknown): LogFormat {
-  // Handle strings
+  if (log === null || log === undefined) {
+    return LogFormat.INVALID;
+  }
+  if (log instanceof Buffer || log instanceof Uint8Array) {
+    return LogFormat.BINARY;
+  }
+
   if (typeof log === "string") {
     try {
       const parsed = JSON.parse(log);
@@ -87,12 +95,10 @@ export function detectLogFormat(log: unknown): LogFormat {
     }
   }
 
-  // Handle arrays
   if (Array.isArray(log)) {
     return LogFormat.JSON_ARRAY;
   }
 
-  // Handle objects
   if (typeof log === "object") {
     return LogFormat.JSON_OBJECT;
   }
@@ -188,11 +194,13 @@ const writeLog = function (
     };
 
     const logFormat = detectLogFormat(text);
-    attributes["log.format"] = logFormat;
 
     let results: LogHandlerResult | LogHandlerResult[];
 
     switch (logFormat) {
+      case LogFormat.BINARY:
+        results = handleBinary(text);
+        break;
       case LogFormat.JSON_STRING:
         results = handleJsonString(text);
         break;
@@ -204,6 +212,9 @@ const writeLog = function (
         break;
       case LogFormat.STRING:
         results = handlePlainText(text);
+        break;
+      case LogFormat.INVALID:
+        context.log(`Invalid log format detected for message ${messageIndex}: ${text}`);
         break;
       default:
         context.log(`Invalid log format detected for message ${messageIndex}: ${text}`);
@@ -228,6 +239,13 @@ const writeLog = function (
     throw error;
   }
 };
+
+export function handleBinary(buffer: Buffer | Uint8Array): LogHandlerResult {
+  return {
+    body: Buffer.from(buffer).toString("base64"),
+    parsedBody: null,
+  };
+}
 
 function handleEventHubMessage(context: InvocationContext, message: any, threadId: string): void {
   let entries: any[];

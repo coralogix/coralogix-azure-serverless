@@ -5,6 +5,7 @@ import {
   handleJsonString,
   handleJsonObject,
   handleJsonArray,
+  handleBinary,
   type LogHandlerResult,
 } from "./EventHub/index";
 
@@ -88,5 +89,85 @@ describe("logger parsing", () => {
 
     expect(results[2].body).toBe("3");
     expect(results[2].parsedBody).toBeNull();
+  });
+
+  it("should detect raw Buffer as BINARY", () => {
+    const buffer = Buffer.from("Hello Binary", "utf8");
+
+    expect(detectLogFormat(buffer)).toBe(LogFormat.BINARY);
+    const res: LogHandlerResult = handleBinary(buffer);
+    expect(res.body).toBe(buffer.toString("base64"));
+    expect(res.parsedBody).toBeNull();
+  });
+
+  it("should detect Uint8Array as BINARY", () => {
+    const uint8 = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
+
+    expect(detectLogFormat(uint8)).toBe(LogFormat.BINARY);
+  });
+
+  it("should handle number primitives as STRING", () => {
+    const num = 42;
+
+    expect(detectLogFormat(num)).toBe(LogFormat.STRING);
+
+    const res: LogHandlerResult = handlePlainText(num);
+
+    expect(res.body).toBe("42");
+    expect(res.parsedBody).toBeNull();
+  });
+
+  it("should handle boolean primitives as STRING", () => {
+    const bool = true;
+
+    expect(detectLogFormat(bool)).toBe(LogFormat.STRING);
+
+    const res: LogHandlerResult = handlePlainText(bool);
+
+    expect(res.body).toBe("true");
+    expect(res.parsedBody).toBeNull();
+  });
+
+  // Edge cases - null, undefined, and special types
+  it("should detect null as invalid", () => {
+    expect(detectLogFormat(null)).toBe(LogFormat.INVALID);
+  });
+
+  it("should detect undefined as invalid", () => {
+    expect(detectLogFormat(undefined)).toBe(LogFormat.INVALID);
+  });
+
+  it("should handle deeply nested objects as JSON_OBJECT", () => {
+    const nested = {
+      level1: {
+        level2: {
+          level3: {
+            level4: {
+              message: "deeply nested",
+              values: [1, 2, 3],
+            },
+          },
+        },
+      },
+    };
+
+    expect(detectLogFormat(nested)).toBe(LogFormat.JSON_OBJECT);
+
+    const res: LogHandlerResult = handleJsonObject(nested);
+
+    expect(res.body).toBe(JSON.stringify(nested));
+    expect(res.parsedBody).toEqual(nested);
+    expect(res.parsedBody.level1.level2.level3.level4.message).toBe("deeply nested");
+  });
+
+  it("should handle JSON string containing array as JSON_ARRAY", () => {
+    const arr = [{ a: 1 }, { b: 2 }];
+    const jsonString = JSON.stringify(arr);
+
+    expect(detectLogFormat(jsonString)).toBe(LogFormat.JSON_ARRAY);
+
+    const results: LogHandlerResult[] = handleJsonArray(JSON.parse(jsonString));
+
+    expect(results).toHaveLength(2);
   });
 });
