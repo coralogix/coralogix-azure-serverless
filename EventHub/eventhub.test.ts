@@ -5,7 +5,6 @@ import {
   handleJsonString,
   handleJsonObject,
   handleJsonArray,
-  handleBinary,
   type LogHandlerResult,
 } from "./EventHub/index";
 
@@ -89,21 +88,6 @@ describe("logger parsing", () => {
 
     expect(results[2].body).toBe("3");
     expect(results[2].parsedBody).toBeNull();
-  });
-
-  it("should detect raw Buffer as BINARY", () => {
-    const buffer = Buffer.from("Hello Binary", "utf8");
-
-    expect(detectLogFormat(buffer)).toBe(LogFormat.BINARY);
-    const res: LogHandlerResult = handleBinary(buffer);
-    expect(res.body).toBe(buffer.toString("base64"));
-    expect(res.parsedBody).toBeNull();
-  });
-
-  it("should detect Uint8Array as BINARY", () => {
-    const uint8 = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
-
-    expect(detectLogFormat(uint8)).toBe(LogFormat.BINARY);
   });
 
   it("should handle number primitives as STRING", () => {
