@@ -1,9 +1,16 @@
-name: Build & Release Packages
+name: Build, Test & Release
 
 on:
   push:
     branches:
       - "master"
+    paths:
+      - "EventHub/**"
+  pull_request:
+    branches:
+      - "master"
+    paths:
+      - "EventHub/**"
 
 permissions:
   contents: write 
@@ -11,7 +18,7 @@ permissions:
   issues: write
 
 jobs:
-  release:
+  build-and-test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -36,6 +43,10 @@ jobs:
     
       - name: Install functools
         run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      - name: Run tests
+        working-directory: ./${{ matrix.package }}
+        run: npm test
 
       - name: Build
         working-directory: ./${{ matrix.package }}
