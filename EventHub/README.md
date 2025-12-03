@@ -49,3 +49,46 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 **Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
 
 **Function App Name** (Optional) - Custom name for the Azure Function to be used in Coralogix logs. Defaults to 'coralogix-eventhub-func-{uniqueId}' if not specified.
+
+## Configuration Examples for Application and Subsystem names
+
+### JSON Logs (Template Syntax)
+
+For JSON-formatted logs, use the template syntax with `{{ }}`:
+
+```bash
+# Static values
+CORALOGIX_APPLICATION="Azure"
+CORALOGIX_SUBSYSTEM="production"
+
+# Simple field extraction from JSON body
+CORALOGIX_APPLICATION="{{ $.category }}"
+CORALOGIX_SUBSYSTEM="{{ $.properties.appName }}"
+
+# Use enriched Azure metadata from attributes
+CORALOGIX_SUBSYSTEM="{{ attributes.azure.resource_group }}"
+
+# Extract with regex (case-insensitive)
+CORALOGIX_SUBSYSTEM="{{ $.resourceId | r'/resourcegroups/([^/]+)/i' }}"
+
+# Multiple fallbacks
+CORALOGIX_SUBSYSTEM="{{ $.properties.appName || $.properties.roleInstance || $.location }}"
+
+# Combine fallbacks with regex
+CORALOGIX_SUBSYSTEM="{{ $.properties.appName || $.resourceId | r'/resourcegroups/([^/]+)/i' }}"
+```
+
+### Plain Text Logs (Regex Syntax)
+
+For plain text logs, use the regex-only syntax with `/pattern/`:
+
+```bash
+# Extract from plain text like: "APP=payment-service ENV=production STATUS=ok"
+CORALOGIX_APPLICATION="/APP=([^\s]+)/"
+CORALOGIX_SUBSYSTEM="/ENV=([^\s]+)/"
+
+# Extract hostname from syslog-style logs
+CORALOGIX_SUBSYSTEM="/^[A-Za-z]{3}\s+\d+\s+[\d:]+\s+([^\s]+)/"
+```
+
+The first capture group `([...])` in the regex is used as the extracted value. If no capture group exists, the full match is used.

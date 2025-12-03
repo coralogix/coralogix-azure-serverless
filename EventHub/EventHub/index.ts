@@ -16,10 +16,11 @@ import { LoggerProvider, BatchLogRecordProcessor } from "@opentelemetry/sdk-logs
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
+import { resolveNameFromTemplate, resolveNameFromRegex, TemplateContext } from "./nameResolution";
 
-const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION || "Azure-EventHub";
-const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM || "EventHub";
-const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
+const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
+const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
+export const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
 
 const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
   [ATTR_SERVICE_NAME]: "eventhub-to-otel",
@@ -181,6 +182,8 @@ const writeLog = function (
   messageIndex: number
 ): void {
   if (!text) return;
+  let applicationName = "Azure-EventHub";
+  let subsystemName = "EventHub";
 
   try {
     const attributes: Record<string, any> = {
@@ -192,7 +195,6 @@ const writeLog = function (
     const logFormat = detectLogFormat(text);
 
     let results: LogHandlerResult | LogHandlerResult[];
-
     switch (logFormat) {
       case LogFormat.JSON_STRING:
         results = handleJsonString(text);
@@ -216,13 +218,25 @@ const writeLog = function (
     const logRecords = Array.isArray(results) ? results : [results];
 
     for (const result of logRecords) {
-      if (result.parsedBody) {
+      if (!result.parsedBody) {
+        applicationName = resolveNameFromRegex(APPLICATION_NAME, result.body, "Azure-EventHub");
+        subsystemName = resolveNameFromRegex(SUBSYSTEM_NAME, result.body, "EventHub");
+      } else {
         enrichAzureMetadata(attributes, result.parsedBody);
+
+        const templateContext: TemplateContext = {
+          body: result.parsedBody ?? text,
+          attributes,
+        };
+        applicationName = resolveNameFromTemplate(APPLICATION_NAME, templateContext, "Azure-EventHub");
+        subsystemName = resolveNameFromTemplate(SUBSYSTEM_NAME, templateContext, "EventHub");
       }
 
-      const logger = getLoggerForAppSubsystem(APPLICATION_NAME, SUBSYSTEM_NAME);
+      attributes["applicationName"] = applicationName;
+      attributes["subsystemName"] = subsystemName;
+
+      const logger = getLoggerForAppSubsystem(applicationName, subsystemName);
       logger.emit({
-        severityNumber: logsAPI.SeverityNumber.INFO,
         body: result.body,
         attributes: attributes,
       });
