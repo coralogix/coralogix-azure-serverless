@@ -46,7 +46,7 @@ jobs:
 
       - name: Run tests
         working-directory: ./${{ matrix.package }}
-        run: npm test
+        run: npm run test
 
       - name: Build
         working-directory: ./${{ matrix.package }}
