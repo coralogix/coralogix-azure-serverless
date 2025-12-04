@@ -1,3 +1,14 @@
+### 3.2.0 / 04 Dec 2024
+[FEATURE] Dynamic application and subsystem name resolution:
+* Added template-based name resolution with `{{ $.field }}` syntax for JSON logs
+* Added regex-based name resolution with `/pattern/` syntax for plain text logs
+* Added support for multiple fallback expressions with `||` operator (e.g., `{{ $.appName || $.location }}`)
+* Added support for regex extraction within templates (e.g., `{{ $.resourceId | r'/resourceGroups/([^/]+)/i' }}`)
+* Added `attributes.azure.*` access in templates for enriched Azure metadata
+* Graceful fallback to default values when patterns don't match
+* Added unit tests for name resolution logic
+* Reorganized tests into dedicated `tests/` folder
+
 ### 3.1.0 / 02 Dec 2024
 [FEATURE] Multi-format log support and testing improvements:
 * Added automatic log format detection (plain text, JSON string, JSON object, JSON array)

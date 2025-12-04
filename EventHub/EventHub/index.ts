@@ -6,17 +6,17 @@
  * @link        https://coralogix.com/
  * @copyright   Coralogix Ltd.
  * @licence     Apache-2.0
- * @version     3.1.0
+ * @version     3.2.0
  * @since       1.0.0
  */
 
 import { InvocationContext } from "@azure/functions";
-import * as logsAPI from "@opentelemetry/api-logs";
+import { Logger } from "@opentelemetry/api-logs";
 import { LoggerProvider, BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
-import { resolveNameFromTemplate, resolveNameFromRegex, TemplateContext } from "./nameResolution";
+import { resolveName, TemplateContext } from "./nameResolution";
 
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
@@ -28,7 +28,7 @@ const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
 
 interface LoggerCacheEntry {
   provider: LoggerProvider;
-  logger: logsAPI.Logger;
+  logger: Logger;
 }
 
 const loggerCache = new Map<string, LoggerCacheEntry>();
@@ -51,7 +51,7 @@ function createLoggerProvider(resourceAttributes: Record<string, any>): LoggerPr
 }
 
 // Get or create a logger for a specific app/subsystem combination.
-function getLoggerForAppSubsystem(appName: string, subsystemName: string): logsAPI.Logger {
+function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logger {
   const cacheKey = `${appName}::${subsystemName}`;
   const cached = loggerCache.get(cacheKey);
 
@@ -100,13 +100,26 @@ export function detectLogFormat(log: unknown): LogFormat {
     return LogFormat.JSON_OBJECT;
   }
 
-  // Handle primitives (number, boolean, etc.)
+  // handle primitives (number, boolean, etc.)
   return LogFormat.STRING;
 }
 
 export interface LogHandlerResult {
   body: string;
   parsedBody: any | null;
+}
+
+function resolveApplicationAndSubsystem(
+  rawBody: string,
+  parsedBody: any,
+  attributes: Record<string, any>
+) {
+  const ctx: TemplateContext = { body: parsedBody ?? rawBody, attributes };
+
+  return {
+    app: resolveName(APPLICATION_NAME, ctx, rawBody),
+    subsystem: resolveName(SUBSYSTEM_NAME, ctx, rawBody),
+  };
 }
 
 function enrichAzureMetadata(attributes: Record<string, any>, parsedBody: any): void {
@@ -133,119 +146,83 @@ function enrichAzureMetadata(attributes: Record<string, any>, parsedBody: any): 
   }
 }
 
-// Single-log handlers
-export function handlePlainText(text: any): LogHandlerResult {
-  const bodyString = typeof text === "string" ? text : String(text);
-  return {
-    body: bodyString,
-    parsedBody: null,
-  };
-}
-
-export function handleJsonObject(obj: any): LogHandlerResult {
-  return {
-    body: JSON.stringify(obj),
-    parsedBody: obj,
-  };
-}
-
-export function handleJsonString(text: string): LogHandlerResult {
-  const parsed = JSON.parse(text); // may be object or array, but this
-  // function always returns a single result
-  return {
-    body: text, // keep original JSON string as body
-    parsedBody: parsed,
-  };
-}
-
-// Array handler
-export function handleJsonArray(arr: any[]): LogHandlerResult[] {
-  return arr.map((elem) => {
-    if (elem && typeof elem === "object") {
-      return {
-        body: JSON.stringify(elem),
-        parsedBody: elem,
-      };
-    } else {
-      return {
-        body: String(elem),
-        parsedBody: null,
-      };
-    }
-  });
-}
-
 const writeLog = function (
   context: InvocationContext,
   text: any,
   threadId: string,
-  messageIndex: number
+  idx: number
 ): void {
   if (!text) return;
-  let applicationName = "Azure-EventHub";
-  let subsystemName = "EventHub";
+  const attributes: Record<string, any> = {
+    threadId,
+    "function.name": FUNCTION_NAME,
+    "message.index": idx,
+  };
 
   try {
-    const attributes: Record<string, any> = {
-      threadId,
-      "function.name": FUNCTION_NAME,
-      "message.index": messageIndex,
-    };
+    const format = detectLogFormat(text);
+    const logEntries = handleLogEntries(text, format);
 
-    const logFormat = detectLogFormat(text);
-
-    let results: LogHandlerResult | LogHandlerResult[];
-    switch (logFormat) {
-      case LogFormat.JSON_STRING:
-        results = handleJsonString(text);
-        break;
-      case LogFormat.JSON_OBJECT:
-        results = handleJsonObject(text);
-        break;
-      case LogFormat.JSON_ARRAY:
-        results = handleJsonArray(typeof text === "string" ? JSON.parse(text) : text);
-        break;
-      case LogFormat.STRING:
-        results = handlePlainText(text);
-        break;
-      case LogFormat.INVALID:
-        context.log(`Invalid log format detected for message ${messageIndex}: ${text}`);
-        return;
-      default:
-        context.log(`Unknown log format for message ${messageIndex}: ${text}`);
-        return;
-    }
-    const logRecords = Array.isArray(results) ? results : [results];
-
-    for (const result of logRecords) {
-      if (!result.parsedBody) {
-        applicationName = resolveNameFromRegex(APPLICATION_NAME, result.body, "Azure-EventHub");
-        subsystemName = resolveNameFromRegex(SUBSYSTEM_NAME, result.body, "EventHub");
-      } else {
-        enrichAzureMetadata(attributes, result.parsedBody);
-
-        const templateContext: TemplateContext = {
-          body: result.parsedBody ?? text,
-          attributes,
-        };
-        applicationName = resolveNameFromTemplate(APPLICATION_NAME, templateContext, "Azure-EventHub");
-        subsystemName = resolveNameFromTemplate(SUBSYSTEM_NAME, templateContext, "EventHub");
+    for (const { body, parsedBody } of logEntries) {
+      if (parsedBody) {
+        enrichAzureMetadata(attributes, parsedBody);
       }
 
-      attributes["applicationName"] = applicationName;
-      attributes["subsystemName"] = subsystemName;
+      const { app, subsystem } = resolveApplicationAndSubsystem(body, parsedBody, attributes);
 
-      const logger = getLoggerForAppSubsystem(applicationName, subsystemName);
+      attributes.applicationName = app;
+      attributes.subsystemName = subsystem;
+
+      const logger = getLoggerForAppSubsystem(app, subsystem);
       logger.emit({
-        body: result.body,
-        attributes: attributes,
+        body,
+        attributes,
       });
     }
-  } catch (error: any) {
-    context.log(`writeLog failed for message ${messageIndex}: ${error.message}`);
-    throw error;
+  } catch (e: any) {
+    context.log(`writeLog failed for message ${idx}: ${e.message}`);
+    throw e;
   }
 };
+
+export function handleLogEntries(raw: any, format: LogFormat): LogHandlerResult[] {
+  switch (format) {
+    case LogFormat.JSON_OBJECT:
+      return [
+        {
+          body: JSON.stringify(raw),
+          parsedBody: raw,
+        },
+      ];
+
+    case LogFormat.JSON_STRING:
+      const parsed = JSON.parse(raw);
+      return [
+        {
+          body: raw,
+          parsedBody: parsed,
+        },
+      ];
+
+    case LogFormat.JSON_ARRAY:
+      const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+      return arr.map((elem) => ({
+        body: typeof elem === "object" ? JSON.stringify(elem) : String(elem),
+        parsedBody: typeof elem === "object" ? elem : null,
+      }));
+
+    case LogFormat.STRING:
+      return [
+        {
+          body: String(raw),
+          parsedBody: null,
+        },
+      ];
+
+    default:
+      return [];
+  }
+}
 
 function handleEventHubMessage(context: InvocationContext, message: any, threadId: string): void {
   let entries: any[];
@@ -292,7 +269,6 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
     // Add delay before force flush to allow batch to accumulate
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Flush all logger providers in the cache
     const flushPromises = Array.from(loggerCache.values()).map((entry) =>
       entry.provider.forceFlush()
     );

@@ -59,7 +59,7 @@ For JSON-formatted logs, use the template syntax with `{{ }}`:
 ```bash
 # Static values
 CORALOGIX_APPLICATION="Azure"
-CORALOGIX_SUBSYSTEM="production"
+CORALOGIX_SUBSYSTEM="Production"
 
 # Simple field extraction from JSON body
 CORALOGIX_APPLICATION="{{ $.category }}"
@@ -91,4 +91,14 @@ CORALOGIX_SUBSYSTEM="/ENV=([^\s]+)/"
 CORALOGIX_SUBSYSTEM="/^[A-Za-z]{3}\s+\d+\s+[\d:]+\s+([^\s]+)/"
 ```
 
-The first capture group `([...])` in the regex is used as the extracted value. If no capture group exists, the full match is used.
+### Fallback Behavior for dynamic Application and Subsystem name
+
+When a template or regex pattern doesn't match, the function gracefully falls back to the default value `Coralogix-Azure-EventHub`. This ensures no logs are lost even if the pattern configuration is incorrect.
+
+| Scenario | Result |
+|----------|--------|
+| Pattern matches | Extracted value is used |
+| Pattern doesn't match | Falls back to `Coralogix-Azure-EventHub` |
+| Field doesn't exist | Falls back to `Coralogix-Azure-EventHub` |
+| Empty/undefined config | Falls back to `Coralogix-Azure-EventHub` |
+| Static string value | Static value is used as-is |

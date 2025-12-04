@@ -1,4 +1,3 @@
-// Template evaluation
 export type TemplateContext = {
   body: unknown;
   attributes: Record<string, any>;
@@ -9,6 +8,47 @@ export type TemplateConfig = {
   regex?: RegExp;
 };
 
+export function resolveName(rule: string | undefined, ctx: TemplateContext, body: string): string {
+  const DEFAULT_APP = "Coralogix-Azure-EventHub";
+
+  const type = classifyNameRule(rule);
+
+  switch (type) {
+    case "static":
+      return rule?.trim() || DEFAULT_APP;
+
+    case "regex":
+      return resolveFromRegex(rule!, body, DEFAULT_APP);
+
+    case "template":
+      return resolveFromTemplate(rule!, ctx, DEFAULT_APP);
+
+    default:
+      return DEFAULT_APP;
+  }
+}
+
+export function classifyNameRule(rule: string | undefined): "static" | "regex" | "template" {
+  if (!rule?.trim()) return "static";
+  const trimmed = rule.trim();
+
+  if (trimmed.startsWith("/") && trimmed.endsWith("/")) return "regex";
+  if (/^\{\{.*\}\}$/.test(trimmed)) return "template";
+
+  return "static";
+}
+
+export function resolveFromRegex(rule: string, text: string, fallback: string): string {
+  try {
+    const pattern = rule.slice(1, -1);
+    const re = new RegExp(pattern);
+    const m = text.match(re);
+    return m ? (m[1] ?? m[0]) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * Resolves a name from a template string with fallback to default.
  * @param template - The template string to resolve the name from
@@ -16,7 +56,7 @@ export type TemplateConfig = {
  * @param globalDefault - The fallback value to return if the template string is not a template
  * @returns The resolved name
  */
-export function resolveNameFromTemplate(
+export function resolveFromTemplate(
   template: string | undefined,
   ctx: TemplateContext,
   globalDefault: string
