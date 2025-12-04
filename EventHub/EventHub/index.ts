@@ -20,7 +20,7 @@ import { resolveName, TemplateContext } from "./nameResolution";
 
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
-export const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
+const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
 
 const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
   [ATTR_SERVICE_NAME]: "eventhub-to-otel",
