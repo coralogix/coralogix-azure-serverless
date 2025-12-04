@@ -161,7 +161,7 @@ const writeLog = function (
 
   try {
     const format = detectLogFormat(text);
-    const logEntries = handleLogEntries(text, format);
+    const logEntries = handleLogEntries(text, format, context);
 
     for (const { body, parsedBody } of logEntries) {
       if (parsedBody) {
@@ -185,7 +185,11 @@ const writeLog = function (
   }
 };
 
-export function handleLogEntries(raw: any, format: LogFormat): LogHandlerResult[] {
+export function handleLogEntries(
+  raw: any,
+  format: LogFormat,
+  context: InvocationContext
+): LogHandlerResult[] {
   switch (format) {
     case LogFormat.JSON_OBJECT:
       return [
@@ -219,7 +223,12 @@ export function handleLogEntries(raw: any, format: LogFormat): LogHandlerResult[
         },
       ];
 
+    case LogFormat.INVALID:
+      context.log(`Skipping invalid log payload: ${typeof raw}`);
+      return [];
+
     default:
+      context.log(`Unknown log format: ${format}`);
       return [];
   }
 }
