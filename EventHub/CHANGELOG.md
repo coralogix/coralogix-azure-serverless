@@ -1,3 +1,10 @@
+### 3.3.0 / 05 Dec 2024
+[FEATURE] Newline pattern splitting and empty capture handling:
+* Added `NEWLINE_PATTERN` environment variable to split multi-line text logs into separate entries
+* Added `NewlinePattern` parameter to ARM template V2
+* Fixed bug for empty regex capture handling
+* Improved test coverage for edge cases
+
 ### 3.2.0 / 04 Dec 2024
 [FEATURE] Dynamic application and subsystem name resolution:
 * Added template-based name resolution with `{{ $.field }}` syntax for JSON logs

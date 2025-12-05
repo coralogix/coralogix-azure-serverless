@@ -83,15 +83,27 @@ describe("applyRegex", () => {
     expect(applyRegex(value, pattern)).toBe("my-group");
   });
 
-  it("returns undefined when pattern does not match", () => {
+  it("returns original value when pattern does not match", () => {
     const value = "no match here";
     const pattern = new RegExp("/resourceGroups/([^/]+)/");
-    expect(applyRegex(value, pattern)).toBeUndefined();
+    expect(applyRegex(value, pattern)).toBe("no match here");
   });
 
   it("returns original value when pattern is undefined", () => {
     const value = "test-value";
     expect(applyRegex(value, undefined)).toBe("test-value");
+  });
+
+  it("returns undefined when regex captures empty string", () => {
+    const value = "name=;other=test";
+    const pattern = new RegExp("name=([^;]*);");
+    expect(applyRegex(value, pattern)).toBeUndefined();
+  });
+
+  it("returns undefined when regex captures whitespace-only string", () => {
+    const value = "name=   ;other=test";
+    const pattern = new RegExp("name=([^;]*);");
+    expect(applyRegex(value, pattern)).toBeUndefined();
   });
 });
 
@@ -330,6 +342,30 @@ describe("resolveFromTemplate", () => {
   it("handles body prefix explicitly", () => {
     const result = resolveFromTemplate("{{ body.operationName }}", baseCtx, "fallback-default");
     expect(result).toBe("Microsoft.Compute/virtualMachines/write");
+  });
+
+  it("returns default when template resolves to empty string", () => {
+    const ctx: TemplateContext = {
+      body: {
+        emptyField: "",
+      },
+      attributes: {},
+    };
+    const result = resolveFromTemplate("{{ $.emptyField }}", ctx, "fallback-default");
+    expect(result).toBe("fallback-default");
+  });
+
+  it("returns default when regex captures empty string", () => {
+    const ctx: TemplateContext = {
+      body: {
+        value: "name=;other=test",
+      },
+      attributes: {},
+    };
+    // Regex captures empty string between "name=" and ";"
+    const result = resolveFromTemplate("{{ $.value | r'name=([^;]*)' }}", ctx, "fallback-default");
+    // Since captured value is empty, should fall back to default
+    expect(result).toBe("fallback-default");
   });
 
   it("supports multiple fallback sources with || operator", () => {

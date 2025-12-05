@@ -92,6 +92,13 @@
       "metadata": {
         "description": "Optional: Custom name for the Azure Function to be used in Coralogix logs. Defaults to 'coralogix-eventhub-func-{uniqueId}'."
       }
+    },
+    "NewlinePattern": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Regex pattern to split multi-line text logs into separate entries. Example: '\\n' to split on newlines. Leave empty to treat text as single log entry."
+      }
     }
   },
   "variables": {
@@ -101,7 +108,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.2.0/EventHub-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.3.0/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
@@ -232,6 +239,10 @@
             {
               "name": "FUNCTION_APP_NAME",
               "value": "[parameters('functionAppName')]"
+            },
+            {
+              "name": "NEWLINE_PATTERN",
+              "value": "[parameters('NewlinePattern')]"
             }
           ]
         }
