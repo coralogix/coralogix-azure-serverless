@@ -83,10 +83,10 @@ describe("applyRegex", () => {
     expect(applyRegex(value, pattern)).toBe("my-group");
   });
 
-  it("returns original value when pattern does not match", () => {
+  it("returns undefined when pattern does not match", () => {
     const value = "no match here";
     const pattern = new RegExp("/resourceGroups/([^/]+)/");
-    expect(applyRegex(value, pattern)).toBe("no match here");
+    expect(applyRegex(value, pattern)).toBeUndefined();
   });
 
   it("returns original value when pattern is undefined", () => {
@@ -214,13 +214,13 @@ describe("evaluateTemplate", () => {
     expect(evaluateTemplate(config, baseCtx)).toBe("production-rg");
   });
 
-  it("returns raw value when regex doesn't match", () => {
+  it("returns undefined when regex doesn't match", () => {
     const config: TemplateConfig = {
       expression: "$.category",
       regex: new RegExp("/resourceGroups/([^/]+)/"), // Won't match "AuditLogs"
     };
-    // Returns original value instead of undefined when regex fails
-    expect(evaluateTemplate(config, baseCtx)).toBe("AuditLogs");
+    // Returns undefined when regex fails, triggering fallback to default
+    expect(evaluateTemplate(config, baseCtx)).toBeUndefined();
   });
 
   it("returns undefined when field doesn't exist", () => {
@@ -300,13 +300,13 @@ describe("resolveFromTemplate", () => {
     expect(result).toBe("prod-rg");
   });
 
-  it("returns raw value when regex doesn't match", () => {
+  it("returns default when regex doesn't match", () => {
     const result = resolveFromTemplate(
       "{{ $.category | r'/resourceGroups/([^/]+)/' }}",
       baseCtx,
       "fallback-default"
     );
-    expect(result).toBe("AuditLogs"); // Raw value, not fallback-default
+    expect(result).toBe("fallback-default"); // Falls back to default when regex doesn't match
   });
 
   it("returns default when field doesn't exist", () => {

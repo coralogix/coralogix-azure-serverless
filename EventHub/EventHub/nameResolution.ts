@@ -191,10 +191,11 @@ export function evaluateTemplate(
 
   if (value === undefined) return undefined;
 
-  // Apply regex if configured
-  // - Returns captured value if matched
-  // - Returns original value if no match
-  // - Returns undefined if matched but captured empty (triggers default fallback)
+  /**
+   * Apply regex if configured:
+   * - Returns captured value if regex matches with non-empty capture
+   * - Returns undefined if regex doesn't match or captures empty (triggers default fallback)
+   */
   return applyRegex(value, regex);
 }
 
@@ -275,21 +276,20 @@ export function getNestedValue(source: unknown, path: string): string | undefine
  *
  * Returns:
  * - The captured value if regex matches with non-empty capture
- * - The original value if regex doesn't match (fallback)
- * - undefined if regex matches but captures empty string
+ * - undefined if regex doesn't match or captures empty string (triggers default fallback)
  */
 export function applyRegex(value: string | undefined, pattern?: RegExp): string | undefined {
   if (!value || !pattern) return value;
 
   const match = pattern.exec(value);
 
-  // No match - return original value as fallback
-  if (!match) return value;
+  // Return undefined if no match to trigger default fallback
+  if (!match) return undefined;
 
-  // Match found - extract capture group or full match
+  // Extract capture group or full match when match is found
   const result = match[1] ?? match[0];
 
-  // Empty capture - return undefined to trigger default fallback
+  // Return undefined if capture is empty to trigger default fallback
   if (!result || result.trim() === "") return undefined;
 
   return result;
