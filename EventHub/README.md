@@ -50,6 +50,8 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 
 **Function App Name** (Optional) - Custom name for the Azure Function to be used in Coralogix logs. Defaults to 'coralogix-eventhub-func-{uniqueId}' if not specified.
 
+**Newline Pattern** (Optional) - Regex pattern to split multi-line text logs into separate entries. Example: `\n` to split on newlines. Leave empty to treat text as a single log entry.
+
 ## Configuration Examples for Application and Subsystem names
 
 ### JSON Logs (Template Syntax)

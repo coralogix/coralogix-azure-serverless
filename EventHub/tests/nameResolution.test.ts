@@ -93,6 +93,18 @@ describe("applyRegex", () => {
     const value = "test-value";
     expect(applyRegex(value, undefined)).toBe("test-value");
   });
+
+  it("returns undefined when regex captures empty string", () => {
+    const value = "name=;other=test";
+    const pattern = new RegExp("name=([^;]*);");
+    expect(applyRegex(value, pattern)).toBeUndefined();
+  });
+
+  it("returns undefined when regex captures whitespace-only string", () => {
+    const value = "name=   ;other=test";
+    const pattern = new RegExp("name=([^;]*);");
+    expect(applyRegex(value, pattern)).toBeUndefined();
+  });
 });
 
 describe("parseTemplate", () => {
@@ -202,13 +214,13 @@ describe("evaluateTemplate", () => {
     expect(evaluateTemplate(config, baseCtx)).toBe("production-rg");
   });
 
-  it("returns raw value when regex doesn't match", () => {
+  it("returns undefined when regex doesn't match", () => {
     const config: TemplateConfig = {
       expression: "$.category",
       regex: new RegExp("/resourceGroups/([^/]+)/"), // Won't match "AuditLogs"
     };
-    // Returns original value instead of undefined when regex fails
-    expect(evaluateTemplate(config, baseCtx)).toBe("AuditLogs");
+    // Returns undefined when regex fails, triggering fallback to default
+    expect(evaluateTemplate(config, baseCtx)).toBeUndefined();
   });
 
   it("returns undefined when field doesn't exist", () => {
@@ -288,13 +300,13 @@ describe("resolveFromTemplate", () => {
     expect(result).toBe("prod-rg");
   });
 
-  it("returns raw value when regex doesn't match", () => {
+  it("returns default when regex doesn't match", () => {
     const result = resolveFromTemplate(
       "{{ $.category | r'/resourceGroups/([^/]+)/' }}",
       baseCtx,
       "fallback-default"
     );
-    expect(result).toBe("AuditLogs"); // Raw value, not fallback-default
+    expect(result).toBe("fallback-default"); // Falls back to default when regex doesn't match
   });
 
   it("returns default when field doesn't exist", () => {
@@ -330,6 +342,30 @@ describe("resolveFromTemplate", () => {
   it("handles body prefix explicitly", () => {
     const result = resolveFromTemplate("{{ body.operationName }}", baseCtx, "fallback-default");
     expect(result).toBe("Microsoft.Compute/virtualMachines/write");
+  });
+
+  it("returns default when template resolves to empty string", () => {
+    const ctx: TemplateContext = {
+      body: {
+        emptyField: "",
+      },
+      attributes: {},
+    };
+    const result = resolveFromTemplate("{{ $.emptyField }}", ctx, "fallback-default");
+    expect(result).toBe("fallback-default");
+  });
+
+  it("returns default when regex captures empty string", () => {
+    const ctx: TemplateContext = {
+      body: {
+        value: "name=;other=test",
+      },
+      attributes: {},
+    };
+    // Regex captures empty string between "name=" and ";"
+    const result = resolveFromTemplate("{{ $.value | r'name=([^;]*)' }}", ctx, "fallback-default");
+    // Since captured value is empty, should fall back to default
+    expect(result).toBe("fallback-default");
   });
 
   it("supports multiple fallback sources with || operator", () => {

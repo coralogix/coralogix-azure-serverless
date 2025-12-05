@@ -69,7 +69,11 @@ export function resolveFromTemplate(
   if (!parsed) return template.trim();
 
   const resolved = evaluateTemplate(parsed, ctx);
-  return resolved ?? globalDefault;
+  // Treat empty string as "not resolved"
+  if (resolved === undefined || resolved === "") {
+    return globalDefault;
+  }
+  return resolved;
 }
 
 /**
@@ -90,7 +94,8 @@ export function resolveNameFromRegex(config: string, text: string, fallback: str
   try {
     const re = new RegExp(pattern);
     const match = text.match(re);
-    return match ? (match[1] ?? match[0]) : fallback;
+    const result = match ? (match[1] ?? match[0]) : null;
+    return result && result.trim() !== "" ? result : fallback;
   } catch {
     return fallback;
   }
@@ -186,8 +191,12 @@ export function evaluateTemplate(
 
   if (value === undefined) return undefined;
 
-  const regexResult = applyRegex(value, regex);
-  return regexResult ?? value;
+  /**
+   * Apply regex if configured:
+   * - Returns captured value if regex matches with non-empty capture
+   * - Returns undefined if regex doesn't match or captures empty (triggers default fallback)
+   */
+  return applyRegex(value, regex);
 }
 
 export function getNestedValue(source: unknown, path: string): string | undefined {
@@ -264,12 +273,26 @@ export function getNestedValue(source: unknown, path: string): string | undefine
 /**
  * Apply a precompiled regex to a value and return the first capture group
  * or the full match if no capture group exists.
+ *
+ * Returns:
+ * - The captured value if regex matches with non-empty capture
+ * - undefined if regex doesn't match or captures empty string (triggers default fallback)
  */
 export function applyRegex(value: string | undefined, pattern?: RegExp): string | undefined {
   if (!value || !pattern) return value;
 
   const match = pattern.exec(value);
-  return match ? (match[1] ?? match[0]) : undefined;
+
+  // Return undefined if no match to trigger default fallback
+  if (!match) return undefined;
+
+  // Extract capture group or full match when match is found
+  const result = match[1] ?? match[0];
+
+  // Return undefined if capture is empty to trigger default fallback
+  if (!result || result.trim() === "") return undefined;
+
+  return result;
 }
 
 export function parseJsonSafely(input: unknown): any | null {
