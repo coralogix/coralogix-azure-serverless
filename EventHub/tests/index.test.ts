@@ -1,13 +1,21 @@
 import { detectLogFormat, LogFormat, handleLogEntries } from "../EventHub/index";
 import { InvocationContext } from "@azure/functions";
 
-// Mock context for testing
-const mockContext = {
-  log: jest.fn(),
-} as unknown as InvocationContext;
+// Create a reusable mock context
+const createMockContext = () =>
+  ({
+    invocationId: "test-id",
+    log: jest.fn(),
+  }) as unknown as InvocationContext;
+
+let mockContext: InvocationContext;
 
 describe("log processing", () => {
   beforeEach(() => {
+    mockContext = createMockContext();
+  });
+
+  afterEach(() => {
     jest.clearAllMocks();
   });
 
@@ -162,5 +170,113 @@ describe("log processing", () => {
     expect(results[0].body).toBe(JSON.stringify(nested));
     expect(results[0].parsedBody).toEqual(nested);
     expect(results[0].parsedBody.level1.level2.level3.level4.message).toBe("deeply nested");
+  });
+});
+
+describe("handleLogEntries - newline pattern handling", () => {
+  let originalEnv: string | undefined;
+
+  beforeEach(() => {
+    originalEnv = process.env.NEWLINE_PATTERN;
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env.NEWLINE_PATTERN;
+    } else {
+      process.env.NEWLINE_PATTERN = originalEnv;
+    }
+    jest.resetModules();
+  });
+
+  const createMockContext = () =>
+    ({
+      invocationId: "test-id",
+      log: jest.fn(),
+    }) as unknown as InvocationContext;
+
+  test("should return a single log entry when NEWLINE_PATTERN is not set", async () => {
+    delete process.env.NEWLINE_PATTERN;
+    const { handleLogEntries, LogFormat } = await import("../EventHub/index");
+
+    const result = handleLogEntries("line1\nline2\nline3", LogFormat.STRING, createMockContext());
+    expect(result).toHaveLength(1);
+    expect(result[0].body).toBe("line1\nline2\nline3");
+  });
+
+  test("should split on simple newline when NEWLINE_PATTERN='\\n'", async () => {
+    process.env.NEWLINE_PATTERN = "\\n";
+    const { handleLogEntries, LogFormat } = await import("../EventHub/index");
+
+    const result = handleLogEntries("a\nb\nc", LogFormat.STRING, createMockContext());
+    expect(result).toHaveLength(3);
+    expect(result.map((r) => r.body)).toEqual(["a", "b", "c"]);
+  });
+
+  test("should split on regex CRLF '\\r?\\n'", async () => {
+    process.env.NEWLINE_PATTERN = "\\r?\\n";
+    const { handleLogEntries, LogFormat } = await import("../EventHub/index");
+
+    const result = handleLogEntries("line1\r\nline2\nline3", LogFormat.STRING, createMockContext());
+    expect(result).toHaveLength(3);
+    expect(result.map((r) => r.body)).toEqual(["line1", "line2", "line3"]);
+  });
+
+  test("should not split when pattern does not exist in text", async () => {
+    process.env.NEWLINE_PATTERN = "---";
+    const { handleLogEntries, LogFormat } = await import("../EventHub/index");
+
+    const result = handleLogEntries("line1\nline2", LogFormat.STRING, createMockContext());
+    expect(result).toHaveLength(1);
+    expect(result[0].body).toBe("line1\nline2");
+  });
+
+  test("should trim empty results", async () => {
+    process.env.NEWLINE_PATTERN = "\\n";
+    const { handleLogEntries, LogFormat } = await import("../EventHub/index");
+
+    const result = handleLogEntries("line1\n\nline2\n", LogFormat.STRING, createMockContext());
+    expect(result.map((r) => r.body)).toEqual(["line1", "line2"]);
+  });
+
+  test("JSON_STRING logs should NOT split even if they contain newlines", async () => {
+    process.env.NEWLINE_PATTERN = "\\n";
+    const { handleLogEntries, LogFormat } = await import("../EventHub/index");
+
+    const jsonString = JSON.stringify({ msg: "a\nb\nc" });
+    const result = handleLogEntries(jsonString, LogFormat.JSON_STRING, createMockContext());
+
+    expect(result).toHaveLength(1);
+    expect(result[0].parsedBody).toEqual({ msg: "a\nb\nc" });
+  });
+
+  test("JSON_OBJECT logs should NOT split even with newlines", async () => {
+    process.env.NEWLINE_PATTERN = "\\n";
+    const { handleLogEntries, LogFormat } = await import("../EventHub/index");
+
+    const result = handleLogEntries(
+      { msg: "hello\nworld" },
+      LogFormat.JSON_OBJECT,
+      createMockContext()
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].parsedBody).toEqual({ msg: "hello\nworld" });
+  });
+
+  test("JSON_ARRAY logs should NOT split by newline", async () => {
+    process.env.NEWLINE_PATTERN = "\\n";
+    const { handleLogEntries, LogFormat } = await import("../EventHub/index");
+
+    const result = handleLogEntries(
+      ["a\nb", { test: 123 }],
+      LogFormat.JSON_ARRAY,
+      createMockContext()
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[0].body).toBe("a\nb");
+    expect(result[1].parsedBody).toEqual({ test: 123 });
   });
 });

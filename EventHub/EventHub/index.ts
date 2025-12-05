@@ -21,6 +21,8 @@ import { resolveName, TemplateContext } from "./nameResolution";
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
 const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
+const NEWLINE_PATTERN = process.env.NEWLINE_PATTERN;
+const NEWLINE_REGEX = NEWLINE_PATTERN ? new RegExp(NEWLINE_PATTERN, "g") : null;
 
 const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
   [ATTR_SERVICE_NAME]: "eventhub-to-otel",
@@ -215,13 +217,28 @@ export function handleLogEntries(
         parsedBody: typeof elem === "object" ? elem : null,
       }));
 
-    case LogFormat.STRING:
-      return [
-        {
-          body: String(raw),
-          parsedBody: null,
-        },
-      ];
+    case LogFormat.STRING: {
+      const text = String(raw);
+
+      // If no newline pattern configured - treat as single log
+      if (!NEWLINE_REGEX) {
+        return [{ body: text, parsedBody: null }];
+      }
+
+      // Split text using the configured regex
+      const parts = text.split(NEWLINE_REGEX).filter((p) => p.trim() !== "");
+
+      // Keep original as single log if the regex matches nothing
+      if (parts.length <= 1) {
+        return [{ body: text, parsedBody: null }];
+      }
+
+      // Create multiple log records for each part
+      return parts.map((p) => ({
+        body: p,
+        parsedBody: null,
+      }));
+    }
 
     case LogFormat.INVALID:
       context.log(`Skipping invalid log payload: ${typeof raw}`);
