@@ -1,3 +1,7 @@
+### 3.4.0 / 08 Dec 2024
+[UPDATE] Node.js runtime upgrade:
+* Updated Node.js runtime to version 22 (Azure Functions max supported)
+
 ### 3.3.0 / 05 Dec 2024
 [FEATURE] Newline pattern splitting and empty capture handling:
 * Added `NEWLINE_PATTERN` environment variable to split multi-line text logs into separate entries
