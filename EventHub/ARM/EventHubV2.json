@@ -108,7 +108,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.3.0/EventHub-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.4.0/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
@@ -174,7 +174,7 @@
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "siteConfig": {
-          "linuxFxVersion": "Node|20",
+          "linuxFxVersion": "Node|22",
           "appSettings": [
             {
               "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
@@ -195,6 +195,10 @@
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
               "value": "~4"
+            },
+            {
+              "name": "WEBSITE_NODE_DEFAULT_VERSION",
+              "value": "~22"
             },
             {
               "name": "FUNCTIONS_WORKER_RUNTIME",
