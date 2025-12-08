@@ -1,3 +1,8 @@
+### 3.5.0 / 08 Dec 2024
+[FEATURE] Log blocking pattern support:
+* Added `BLOCKING_PATTERN` environment variable to filter/block logs matching a regex pattern
+* Blocking is applied early in `handleLogEntries` for efficient filtering
+
 ### 3.4.0 / 08 Dec 2024
 [UPDATE] Runtime upgrades:
 * Updated Node.js runtime to version 22 (Azure Functions max supported)

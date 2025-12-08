@@ -20,9 +20,14 @@ import { resolveName, TemplateContext } from "./nameResolution";
 
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
+
 const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
+
 const NEWLINE_PATTERN = process.env.NEWLINE_PATTERN;
 const NEWLINE_REGEX = NEWLINE_PATTERN ? new RegExp(NEWLINE_PATTERN, "g") : null;
+
+const BLOCKING_PATTERN = process.env.BLOCKING_PATTERN;
+const BLOCKING_REGEX = BLOCKING_PATTERN ? new RegExp(BLOCKING_PATTERN) : null;
 
 const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
   [ATTR_SERVICE_NAME]: "eventhub-to-otel",
@@ -69,6 +74,11 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logge
   loggerCache.set(cacheKey, { provider: loggerProvider, logger });
 
   return logger;
+}
+
+function isBlocked(body: string): boolean {
+  if (!BLOCKING_REGEX) return false;
+  return BLOCKING_REGEX.test(body);
 }
 
 export enum LogFormat {
@@ -192,37 +202,43 @@ export function handleLogEntries(
   format: LogFormat,
   context: InvocationContext
 ): LogHandlerResult[] {
+  let entries: LogHandlerResult[];
+
   switch (format) {
     case LogFormat.JSON_OBJECT:
-      return [
+      entries = [
         {
           body: JSON.stringify(raw),
           parsedBody: raw,
         },
       ];
+      break;
 
     case LogFormat.JSON_STRING:
       const parsed = JSON.parse(raw);
-      return [
+      entries = [
         {
           body: raw,
           parsedBody: parsed,
         },
       ];
+      break;
 
     case LogFormat.JSON_ARRAY:
       const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
-      return arr.map((elem) => ({
+      entries = arr.map((elem) => ({
         body: typeof elem === "object" ? JSON.stringify(elem) : String(elem),
         parsedBody: typeof elem === "object" ? elem : null,
       }));
+      break;
 
     case LogFormat.STRING: {
       const text = String(raw);
 
       // If no newline pattern configured - treat as single log
       if (!NEWLINE_REGEX) {
-        return [{ body: text, parsedBody: null }];
+        entries = [{ body: text, parsedBody: null }];
+        break;
       }
 
       // Split text using the configured regex
@@ -230,14 +246,16 @@ export function handleLogEntries(
 
       // Keep original as single log if the regex matches nothing
       if (parts.length <= 1) {
-        return [{ body: text, parsedBody: null }];
+        entries = [{ body: text, parsedBody: null }];
+        break;
       }
 
       // Create multiple log records for each part
-      return parts.map((p) => ({
+      entries = parts.map((p) => ({
         body: p,
         parsedBody: null,
       }));
+      break;
     }
 
     case LogFormat.INVALID:
@@ -248,6 +266,18 @@ export function handleLogEntries(
       context.log(`Unknown log format: ${format}`);
       return [];
   }
+
+  if (BLOCKING_REGEX) {
+    return entries.filter((entry) => {
+      if (isBlocked(entry.body)) {
+        context.log(`Coralogix: blocked log line (pattern=${BLOCKING_PATTERN}): ${entry.body}`);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  return entries;
 }
 
 function handleEventHubMessage(context: InvocationContext, message: any, threadId: string): void {
