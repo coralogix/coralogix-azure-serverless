@@ -275,5 +275,23 @@ describe("Log processing + blocking + splitting behaviour", () => {
       const entries = handleLogEntries(input, LogFormat.STRING, mockContext);
       expect(entries.map((r) => r.body)).toEqual(["ok-line-1", "ok-line-2"]);
     });
+
+    it("should block JSON log containing DEBUG", () => {
+      const { LogFormat, handleLogEntries } = loadLogModule({
+        BLOCKING_PATTERN: "\\[DEBUG\\]",
+      });
+      const input = { level: "debug", message: "[DEBUG] Loading configuration" };
+      const entries = handleLogEntries(input, LogFormat.JSON_OBJECT, mockContext);
+      expect(entries).toHaveLength(0);
+    });
+
+    it("should allow JSON log not matching pattern", () => {
+      const { LogFormat, handleLogEntries } = loadLogModule({
+        BLOCKING_PATTERN: "\\[DEBUG\\]",
+      });
+      const input = { level: "info", message: "[INFO] Application started" };
+      const entries = handleLogEntries(input, LogFormat.JSON_OBJECT, mockContext);
+      expect(entries).toHaveLength(1);
+    });
   });
 });
