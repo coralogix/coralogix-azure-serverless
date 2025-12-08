@@ -99,6 +99,13 @@
       "metadata": {
         "description": "Optional: Regex pattern to split multi-line text logs into separate entries. Example: '\\n' to split on newlines. Leave empty to treat text as single log entry."
       }
+    },
+    "BlockingPattern": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Regex pattern to block/filter logs. Logs matching this pattern will not be sent to Coralogix. Example: 'healthcheck|heartbeat' to filter health checks."
+      }
     }
   },
   "variables": {
@@ -108,7 +115,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.4.0/EventHub-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.5.0/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
@@ -247,6 +254,10 @@
             {
               "name": "NEWLINE_PATTERN",
               "value": "[parameters('NewlinePattern')]"
+            },
+            {
+              "name": "BLOCKING_PATTERN",
+              "value": "[parameters('BlockingPattern')]"
             }
           ]
         }

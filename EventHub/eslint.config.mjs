@@ -19,7 +19,8 @@ export default [
 		},
 		rules: {
 			...tsEslint.configs.recommended.rules,
-			"@typescript-eslint/no-explicit-any": "off"
+			"@typescript-eslint/no-explicit-any": "off",
+			"@typescript-eslint/no-require-imports": "off"
 		}
 	}
 ];

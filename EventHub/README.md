@@ -52,6 +52,8 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 
 **Newline Pattern** (Optional) - Regex pattern to split multi-line text logs into separate entries. Example: `\n` to split on newlines. Leave empty to treat text as a single log entry.
 
+**Blocking Pattern** (Optional) - Regex pattern to filter/block logs. Logs matching this pattern will not be sent to Coralogix. Example: `healthcheck|heartbeat` to filter health check logs, or `secret` to block logs containing sensitive data.
+
 ## Configuration Examples for Application and Subsystem names
 
 ### JSON Logs (Template Syntax)
@@ -104,3 +106,15 @@ When a template or regex pattern doesn't match, the function gracefully falls ba
 | Field doesn't exist | Falls back to `Coralogix-Azure-EventHub` |
 | Empty/undefined config | Falls back to `Coralogix-Azure-EventHub` |
 | Static string value | Static value is used as-is |
+
+## Blocking Pattern
+
+Use the `BLOCKING_PATTERN` environment variable to filter out logs that match a regex pattern. Blocked logs are not sent to Coralogix.
+
+```bash
+# Block logs containing sensitive data
+BLOCKING_PATTERN="password|secret|token"
+
+# Block specific log levels
+BLOCKING_PATTERN="\\[DEBUG\\]|\\[TRACE\\]"
+```
