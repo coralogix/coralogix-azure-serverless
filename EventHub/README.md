@@ -36,6 +36,10 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 
 **Coralogix Subsystem** – A mandatory metadata field that is sent with each log and helps to classify it.
 
+**Coralogix Application Selector** (Optional) - Dynamic application name selector. Supports template syntax `{{$.field}}` for JSON logs or regex syntax `/pattern/` for plain text. Supports fallback expressions with `||` (e.g., `{{$.category || $.metricName}}`). Falls back to static `CoralogixApplication` when selector doesn't match.
+
+**Coralogix Subsystem Selector** (Optional) - Dynamic subsystem name selector. Supports template syntax `{{$.field}}` for JSON logs or regex syntax `/pattern/` for plain text. Supports fallback expressions with `||` (e.g., `{{$.operationName || $.ApiName}}`). Falls back to static `CoralogixSubsystem` when selector doesn't match.
+
 **Eventhub Resource Group** - The name of the Resource Group that contains the EventHub.
 
 **EventHub Namespace** - The name of the EventHub Namespace.
@@ -97,15 +101,19 @@ CORALOGIX_SUBSYSTEM="/^[A-Za-z]{3}\s+\d+\s+[\d:]+\s+([^\s]+)/"
 
 ### Fallback Behavior for dynamic Application and Subsystem name
 
-When a template or regex pattern doesn't match, the function gracefully falls back to the default value `Coralogix-Azure-EventHub`. This ensures no logs are lost even if the pattern configuration is incorrect.
+When a selector template or regex pattern doesn't match, the function follows this fallback chain:
+
+1. **Selector** (`CoralogixApplicationSelector` / `CoralogixSubsystemSelector`) - Dynamic extraction from log body
+2. **Static value** (`CoralogixApplication` / `CoralogixSubsystem`) - ARM template parameters
+3. **Default** (`coralogix-azure-eventhub` / `azure`) - Built-in defaults
 
 | Scenario | Result |
 |----------|--------|
-| Pattern matches | Extracted value is used |
-| Pattern doesn't match | Falls back to `Coralogix-Azure-EventHub` |
-| Field doesn't exist | Falls back to `Coralogix-Azure-EventHub` |
-| Empty/undefined config | Falls back to `Coralogix-Azure-EventHub` |
-| Static string value | Static value is used as-is |
+| Selector matches | Extracted value is used |
+| Selector doesn't match | Falls back to static `CoralogixApplication`/`CoralogixSubsystem` |
+| Field doesn't exist | Falls back to static `CoralogixApplication`/`CoralogixSubsystem` |
+| No selector configured | Uses static `CoralogixApplication`/`CoralogixSubsystem` |
+| No static value configured | Falls back to built-in defaults |
 
 ## Blocking Pattern
 

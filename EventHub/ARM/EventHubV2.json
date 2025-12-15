@@ -106,6 +106,20 @@
       "metadata": {
         "description": "Optional: Regex pattern to block/filter logs. Logs matching this pattern will not be sent to Coralogix. Example: 'healthcheck|heartbeat' to filter health checks."
       }
+    },
+    "CoralogixApplicationSelector": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Dynamic application name selector. Supports templates like {{$.category}} or regex like /pattern/. Leave empty to use static CoralogixApplication."
+      }
+    },
+    "CoralogixSubsystemSelector": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Dynamic subsystem name selector. Supports templates like {{$.source}} or regex like /pattern/. Leave empty to use static CoralogixSubsystem."
+      }
     }
   },
   "variables": {
@@ -115,7 +129,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.5.0/EventHub-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.6.0/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
@@ -258,6 +272,14 @@
             {
               "name": "BLOCKING_PATTERN",
               "value": "[parameters('BlockingPattern')]"
+            },
+            {
+              "name": "CORALOGIX_APPLICATION_SELECTOR",
+              "value": "[parameters('CoralogixApplicationSelector')]"
+            },
+            {
+              "name": "CORALOGIX_SUBSYSTEM_SELECTOR",
+              "value": "[parameters('CoralogixSubsystemSelector')]"
             }
           ]
         }

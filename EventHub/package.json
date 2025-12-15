@@ -1,7 +1,7 @@
 {
   "name": "coralogix-azure-serverless",
   "title": "Azure Functions for integration with Coralogix",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "description": "Azure Functions Set for integration with Coralogix",
   "homepage": "https://coralogix.com",
   "license": "Apache-2.0",
@@ -61,6 +61,7 @@
     "url": "https://github.com/coralogix/coralogix-azure-serverless/issues"
   },
   "devDependencies": {
+    "@azure/event-hubs": "^6.0.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^11.1.0",
     "@semantic-release/exec": "^6.0.3",
@@ -80,7 +81,6 @@
     "typescript": ">=4.9.4"
   },
   "dependencies": {
-    "@azure/event-hubs": "^6.0.0",
     "@azure/functions": "^4.7.0",
     "@opentelemetry/api-logs": "^0.200.0",
     "@opentelemetry/exporter-logs-otlp-grpc": "^0.200.0",

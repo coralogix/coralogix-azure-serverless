@@ -1,3 +1,8 @@
+### 3.6.0 / 15 Dec 2024
+[FEATURE] Dynamic Application/Subsystem Selector ARM Template Parameters:
+* Added `CoralogixApplicationSelector` ARM template parameter for dynamic application name resolution
+* Added `CoralogixSubsystemSelector` ARM template parameter for dynamic subsystem name resolution
+
 ### 3.5.0 / 08 Dec 2024
 [FEATURE] Log blocking pattern support:
 * Added `BLOCKING_PATTERN` environment variable to filter/block logs matching a regex pattern
