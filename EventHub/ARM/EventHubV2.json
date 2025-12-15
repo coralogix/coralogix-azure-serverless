@@ -111,14 +111,14 @@
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Optional: Dynamic application name selector. Supports templates like {{$.category}} or regex like /pattern/. Leave empty to use static CoralogixApplication."
+        "description": "Optional: Dynamic application name selector. Supports templates like {{ $.category }} or regex like /pattern/. Leave empty to use static CoralogixApplication."
       }
     },
     "CoralogixSubsystemSelector": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Optional: Dynamic subsystem name selector. Supports templates like {{$.source}} or regex like /pattern/. Leave empty to use static CoralogixSubsystem."
+        "description": "Optional: Dynamic subsystem name selector. Supports templates like {{ $.source }} or regex like /pattern/. Leave empty to use static CoralogixSubsystem."
       }
     }
   },
