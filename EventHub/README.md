@@ -58,32 +58,29 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 
 **Blocking Pattern** (Optional) - Regex pattern to filter/block logs. Logs matching this pattern will not be sent to Coralogix. Example: `healthcheck|heartbeat` to filter health check logs, or `secret` to block logs containing sensitive data.
 
-## Configuration Examples for Application and Subsystem names
+## Configuration Examples for Application and Subsystem Selectors
 
 ### JSON Logs (Template Syntax)
 
-For JSON-formatted logs, use the template syntax with `{{ }}`:
+For JSON-formatted logs, use the template syntax with `{{ }}` in the selector parameters:
 
 ```bash
-# Static values
-CORALOGIX_APPLICATION="Azure"
-CORALOGIX_SUBSYSTEM="Production"
-
 # Simple field extraction from JSON body
-CORALOGIX_APPLICATION="{{ $.category }}"
-CORALOGIX_SUBSYSTEM="{{ $.properties.appName }}"
+CORALOGIX_APPLICATION_SELECTOR="{{ $.category }}"
+CORALOGIX_SUBSYSTEM_SELECTOR="{{ $.operationName }}"
+
+# Multiple fallbacks - tries each field until one matches
+CORALOGIX_APPLICATION_SELECTOR="{{ $.category || $.metricName }}"
+CORALOGIX_SUBSYSTEM_SELECTOR="{{ $.operationName || $.ApiName }}"
 
 # Use enriched Azure metadata from attributes
-CORALOGIX_SUBSYSTEM="{{ attributes.azure.resource_group }}"
+CORALOGIX_SUBSYSTEM_SELECTOR="{{ attributes.azure.resource_group }}"
 
-# Extract with regex (case-insensitive)
-CORALOGIX_SUBSYSTEM="{{ $.resourceId | r'/resourcegroups/([^/]+)/i' }}"
-
-# Multiple fallbacks
-CORALOGIX_SUBSYSTEM="{{ $.properties.appName || $.properties.roleInstance || $.location }}"
+# Extract with regex pipe operator
+CORALOGIX_SUBSYSTEM_SELECTOR="{{ $.resourceId | r'/resourcegroups/([^/]+)/i' }}"
 
 # Combine fallbacks with regex
-CORALOGIX_SUBSYSTEM="{{ $.properties.appName || $.resourceId | r'/resourcegroups/([^/]+)/i' }}"
+CORALOGIX_SUBSYSTEM_SELECTOR="{{ $.properties.appName || $.resourceId | r'/resourcegroups/([^/]+)/i' }}"
 ```
 
 ### Plain Text Logs (Regex Syntax)
@@ -92,11 +89,20 @@ For plain text logs, use the regex-only syntax with `/pattern/`:
 
 ```bash
 # Extract from plain text like: "APP=payment-service ENV=production STATUS=ok"
-CORALOGIX_APPLICATION="/APP=([^\s]+)/"
-CORALOGIX_SUBSYSTEM="/ENV=([^\s]+)/"
+CORALOGIX_APPLICATION_SELECTOR="/APP=([^\s]+)/"
+CORALOGIX_SUBSYSTEM_SELECTOR="/ENV=([^\s]+)/"
 
 # Extract hostname from syslog-style logs
-CORALOGIX_SUBSYSTEM="/^[A-Za-z]{3}\s+\d+\s+[\d:]+\s+([^\s]+)/"
+CORALOGIX_SUBSYSTEM_SELECTOR="/^[A-Za-z]{3}\s+\d+\s+[\d:]+\s+([^\s]+)/"
+```
+
+### Static Values (No Dynamic Extraction)
+
+For static values without dynamic extraction, use the base parameters:
+
+```bash
+CORALOGIX_APPLICATION="Azure"
+CORALOGIX_SUBSYSTEM="Production"
 ```
 
 ### Fallback Behavior for dynamic Application and Subsystem name
