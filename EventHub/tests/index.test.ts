@@ -15,6 +15,10 @@ type LogModule = {
 type EnvConfig = {
   NEWLINE_PATTERN?: string;
   BLOCKING_PATTERN?: string;
+  CORALOGIX_APPLICATION?: string;
+  CORALOGIX_APPLICATION_SELECTOR?: string;
+  CORALOGIX_SUBSYSTEM?: string;
+  CORALOGIX_SUBSYSTEM_SELECTOR?: string;
 };
 
 /**
@@ -25,16 +29,12 @@ function loadLogModule(env: EnvConfig = {}): LogModule {
   const originalEnv = { ...process.env };
 
   // Set env vars before loading module
-  if (env.NEWLINE_PATTERN !== undefined) {
-    process.env.NEWLINE_PATTERN = env.NEWLINE_PATTERN;
-  } else {
-    delete process.env.NEWLINE_PATTERN;
-  }
-
-  if (env.BLOCKING_PATTERN !== undefined) {
-    process.env.BLOCKING_PATTERN = env.BLOCKING_PATTERN;
-  } else {
-    delete process.env.BLOCKING_PATTERN;
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
   }
 
   let mod: LogModule;
@@ -42,10 +42,102 @@ function loadLogModule(env: EnvConfig = {}): LogModule {
     mod = require("../EventHub/index");
   });
 
-  process.env = originalEnv;
+  // Restore env safely
+  Object.keys(process.env).forEach((key) => {
+    if (!(key in originalEnv)) {
+      delete process.env[key];
+    }
+  });
+  Object.assign(process.env, originalEnv);
 
   return mod!;
 }
+
+describe("Application / Subsystem selector resolution", () => {
+  it("uses default when selector is not set", () => {
+    const mod = loadLogModule({
+      CORALOGIX_APPLICATION: "default-app",
+    });
+
+    const { resolveApplicationAndSubsystem } = mod as any;
+
+    const { app, subsystem } = resolveApplicationAndSubsystem("hello", null, {});
+
+    expect(app).toBe("default-app");
+    expect(subsystem).toBe("azure"); // or your default
+  });
+
+  it("uses selector when it resolves", () => {
+    const mod = loadLogModule({
+      CORALOGIX_APPLICATION: "default-app",
+      CORALOGIX_APPLICATION_SELECTOR: "{{ $.service }}",
+    });
+
+    const { resolveApplicationAndSubsystem } = mod as any;
+
+    const { app } = resolveApplicationAndSubsystem(
+      JSON.stringify({ service: "payments" }),
+      { service: "payments" },
+      {}
+    );
+
+    expect(app).toBe("payments");
+  });
+
+  it("falls back to default when selector resolves empty", () => {
+    const mod = loadLogModule({
+      CORALOGIX_APPLICATION: "default-app",
+      CORALOGIX_APPLICATION_SELECTOR: "{{ $.missing }}",
+    });
+
+    const { resolveApplicationAndSubsystem } = mod as any;
+
+    const { app } = resolveApplicationAndSubsystem("{}", {}, {});
+
+    expect(app).toBe("default-app");
+  });
+
+  it("supports regex selector", () => {
+    const mod = loadLogModule({
+      CORALOGIX_APPLICATION: "default-app",
+      CORALOGIX_APPLICATION_SELECTOR: "/service=([^ ]+)/",
+    });
+
+    const { resolveApplicationAndSubsystem } = mod as any;
+
+    const { app } = resolveApplicationAndSubsystem("service=auth level=info", null, {});
+
+    expect(app).toBe("auth");
+  });
+
+  it("falls back when regex selector does not match", () => {
+    const mod = loadLogModule({
+      CORALOGIX_APPLICATION: "default-app",
+      CORALOGIX_APPLICATION_SELECTOR: "/service=([^ ]+)/",
+    });
+
+    const { resolveApplicationAndSubsystem } = mod as any;
+
+    const { app } = resolveApplicationAndSubsystem("no service here", null, {});
+
+    expect(app).toBe("default-app");
+  });
+
+  it("can resolve from attributes", () => {
+    const mod = loadLogModule({
+      CORALOGIX_APPLICATION: "default-app",
+      CORALOGIX_APPLICATION_SELECTOR: "{{ attributes.azure.resource_group }}",
+    });
+
+    const { resolveApplicationAndSubsystem } = mod as any;
+
+    const { app } = resolveApplicationAndSubsystem("body", null, {
+      "azure.resource_group": "prod-rg",
+    });
+
+    expect(app).toBe("prod-rg");
+  });
+});
 
 describe("Log processing + blocking + splitting behaviour", () => {
   let mockContext: InvocationContext;

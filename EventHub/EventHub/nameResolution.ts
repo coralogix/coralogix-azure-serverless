@@ -8,23 +8,31 @@ export type TemplateConfig = {
   regex?: RegExp;
 };
 
-export function resolveName(rule: string | undefined, ctx: TemplateContext, body: string): string {
-  const DEFAULT_APP = "Coralogix-Azure-EventHub";
+export function resolveSelector(
+  selector: string | undefined,
+  ctx: TemplateContext,
+  rawBody: string
+): string | undefined {
+  if (!selector || !selector.trim()) return undefined;
 
-  const type = classifyNameRule(rule);
+  const type = classifyNameRule(selector);
 
   switch (type) {
+    case "template": {
+      const value = resolveFromTemplate(selector, ctx, "");
+      return value && value.trim() !== "" ? value : undefined;
+    }
+
+    case "regex": {
+      const value = resolveFromRegex(selector, rawBody, "");
+      return value && value.trim() !== "" ? value : undefined;
+    }
+
     case "static":
-      return rule?.trim() || DEFAULT_APP;
-
-    case "regex":
-      return resolveFromRegex(rule!, body, DEFAULT_APP);
-
-    case "template":
-      return resolveFromTemplate(rule!, ctx, DEFAULT_APP);
+      return selector.trim() || undefined;
 
     default:
-      return DEFAULT_APP;
+      return undefined;
   }
 }
 

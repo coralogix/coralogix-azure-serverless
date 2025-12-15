@@ -16,10 +16,13 @@ import { LoggerProvider, BatchLogRecordProcessor } from "@opentelemetry/sdk-logs
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
-import { resolveName, TemplateContext } from "./nameResolution";
+import { resolveSelector, TemplateContext } from "./nameResolution";
 
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
+
+const APPLICATION_SELECTOR = process.env.CORALOGIX_APPLICATION_SELECTOR;
+const SUBSYSTEM_SELECTOR = process.env.CORALOGIX_SUBSYSTEM_SELECTOR;
 
 const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
 
@@ -121,17 +124,23 @@ export interface LogHandlerResult {
   parsedBody: any | null;
 }
 
-function resolveApplicationAndSubsystem(
+export function resolveApplicationAndSubsystem(
   rawBody: string,
   parsedBody: any,
   attributes: Record<string, any>
 ) {
-  const ctx: TemplateContext = { body: parsedBody ?? rawBody, attributes };
-
-  return {
-    app: resolveName(APPLICATION_NAME, ctx, rawBody),
-    subsystem: resolveName(SUBSYSTEM_NAME, ctx, rawBody),
+  const ctx: TemplateContext = {
+    body: parsedBody ?? rawBody,
+    attributes,
   };
+
+  const resolvedApp = resolveSelector(APPLICATION_SELECTOR, ctx, rawBody);
+  const resolvedSubsystem = resolveSelector(SUBSYSTEM_SELECTOR, ctx, rawBody);
+
+  const app = resolvedApp ?? APPLICATION_NAME ?? "coralogix-azure-eventhub";
+  const subsystem = resolvedSubsystem ?? SUBSYSTEM_NAME ?? "azure";
+
+  return { app, subsystem };
 }
 
 function enrichAzureMetadata(attributes: Record<string, any>, parsedBody: any): void {
@@ -267,10 +276,12 @@ export function handleLogEntries(
       return [];
   }
 
+  // filter out blocked logs
   if (BLOCKING_REGEX) {
     return entries.filter((entry) => {
-      if (isBlocked(entry.body)) {
-        context.log(`Coralogix: blocked log line (pattern=${BLOCKING_PATTERN}): ${entry.body}`);
+      const bodyToCheck = entry.parsedBody != null ? JSON.stringify(entry.parsedBody) : entry.body;
+      if (isBlocked(bodyToCheck)) {
+        context.log(`Coralogix: blocked log line (pattern=${BLOCKING_PATTERN}): ${bodyToCheck}`);
         return false;
       }
       return true;
