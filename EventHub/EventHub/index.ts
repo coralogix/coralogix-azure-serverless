@@ -291,25 +291,35 @@ export function handleLogEntries(
   return entries;
 }
 
-function handleEventHubMessage(context: InvocationContext, message: any, threadId: string): void {
-  let entries: any[];
-
-  if (
-    message &&
-    typeof message === "object" &&
-    !Array.isArray(message) &&
-    Array.isArray((message as any).records)
-  ) {
-    entries = (message as any).records;
-  } else {
-    const content =
-      message && typeof message === "object" && "body" in message ? (message as any).body : message;
-    entries = [content];
+/**
+ * @description Unwrap an EventHub message into individual log entries.
+ * @param message - Raw EventHub message (string, object, or any)
+ * @returns Array of individual log entries to process
+ */
+export function unwrapEventHubMessage(message: any): any[] {
+  let parsed = message;
+  if (typeof message === "string") {
+    try {
+      parsed = JSON.parse(message);
+    } catch {
+      parsed = message;
+    }
   }
 
-  entries.forEach((entry, idx) => {
-    writeLog(context, entry, threadId, idx);
-  });
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    !Array.isArray(parsed) &&
+    Array.isArray(parsed.records)
+  ) {
+    return parsed.records;
+  }
+
+  if (parsed && typeof parsed === "object" && "body" in parsed) {
+    return [parsed.body];
+  }
+
+  return [message];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -327,7 +337,10 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
 
     events.forEach((event, index) => {
       try {
-        handleEventHubMessage(context, event, threadId);
+        const entries = unwrapEventHubMessage(event);
+        entries.forEach((entry, idx) => {
+          writeLog(context, entry, threadId, idx);
+        });
       } catch (msgError: any) {
         context.log(`Failed to process message ${index}: ${msgError.message}`);
       }

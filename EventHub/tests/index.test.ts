@@ -10,6 +10,7 @@ type LogModule = {
   detectLogFormat: typeof import("../EventHub/index").detectLogFormat;
   LogFormat: typeof import("../EventHub/index").LogFormat;
   handleLogEntries: typeof import("../EventHub/index").handleLogEntries;
+  unwrapEventHubMessage: typeof import("../EventHub/index").unwrapEventHubMessage;
 };
 
 type EnvConfig = {
@@ -52,6 +53,142 @@ function loadLogModule(env: EnvConfig = {}): LogModule {
 
   return mod!;
 }
+
+describe("unwrapEventHubMessage - eventHub message parsing", () => {
+  describe("JSON string parsing", () => {
+    it("should parse JSON string into object", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const jsonString = JSON.stringify({ category: "Test", message: "Hello" });
+
+      const result = unwrapEventHubMessage(jsonString);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(jsonString);
+    });
+
+    it("should keep invalid JSON as string", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const invalidJson = "not valid json {";
+
+      const result = unwrapEventHubMessage(invalidJson);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(invalidJson);
+    });
+
+    it("should keep plain text as-is", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const plainText = "2025-01-01 INFO Application started";
+
+      const result = unwrapEventHubMessage(plainText);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(plainText);
+    });
+  });
+
+  describe("records array wrapper", () => {
+    it("should unwrap records array from object", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const input = {
+        records: [
+          { id: 1, message: "first" },
+          { id: 2, message: "second" },
+          { id: 3, message: "third" },
+        ],
+      };
+
+      const result = unwrapEventHubMessage(input);
+
+      expect(result).toHaveLength(3);
+      expect(result[0].id).toBe(1);
+      expect(result[1].id).toBe(2);
+      expect(result[2].id).toBe(3);
+    });
+
+    it("should unwrap records array from JSON string", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const jsonString = JSON.stringify({
+        records: [
+          { id: 1, message: "first" },
+          { id: 2, message: "second" },
+        ],
+      });
+
+      const result = unwrapEventHubMessage(jsonString);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe(1);
+      expect(result[1].id).toBe(2);
+    });
+
+    it("should handle empty records array", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const input = { records: [] };
+
+      const result = unwrapEventHubMessage(input);
+
+      expect(result).toHaveLength(0);
+    });
+
+    it("should handle single record in array", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const input = {
+        records: [{ id: 1, message: "only one" }],
+      };
+
+      const result = unwrapEventHubMessage(input);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe(1);
+    });
+  });
+
+  describe("body property wrapper", () => {
+    it("should unwrap object body", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const input = {
+        body: { event: "user_login", userId: 123 },
+      };
+
+      const result = unwrapEventHubMessage(input);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].event).toBe("user_login");
+    });
+
+    it("should unwrap string body", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const input = {
+        body: "plain text log message",
+      };
+
+      const result = unwrapEventHubMessage(input);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe("plain text log message");
+    });
+  });
+
+  describe("Edge cases", () => {
+    it("should preserve nested objects in records", () => {
+      const { unwrapEventHubMessage } = loadLogModule();
+      const jsonString = JSON.stringify({
+        records: [
+          {
+            id: 1,
+            nested: { deep: { value: 42 } },
+          },
+        ],
+      });
+
+      const result = unwrapEventHubMessage(jsonString);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].nested.deep.value).toBe(42);
+    });
+  });
+});
 
 describe("Application / Subsystem selector resolution", () => {
   it("uses default when selector is not set", () => {
