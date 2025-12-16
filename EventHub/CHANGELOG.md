@@ -1,3 +1,8 @@
+### 3.6.1 / 16 Dec 2024
+[REFACTOR]
+* Remove `handleEventHubMessage` wrapper function
+* Inline `writeLog` calls directly in the EventHub trigger
+
 ### 3.6.0 / 15 Dec 2024
 [FEATURE] Dynamic Application/Subsystem Selector ARM Template Parameters:
 * Added `CoralogixApplicationSelector` ARM template parameter for dynamic application name resolution
