@@ -9,7 +9,8 @@ module.exports = {
       }],
       ['@semantic-release/github', {
         assets: [
-          { path: 'EventHub-FunctionApp.zip', label: 'EventHub FunctionApp Artifact' }
+          { path: 'EventHub-FunctionApp.zip', label: 'EventHub-FunctionApp.zip' },
+          { path: 'ARM/EventHubV2.json', label: 'EventHubV2.json' }
         ],
         successComment: false,
         failComment: false,
