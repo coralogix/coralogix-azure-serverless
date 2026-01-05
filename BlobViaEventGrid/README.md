@@ -4,6 +4,10 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 The Azure BlobStorage via EventGrid integration allows parsing of Azure Blobs, triggered by an EventGrid subscription notification.
 
+## Note on Capacity Limit
+
+Due to internal limitations of EventGrid (particularly 30 seconds of message delivery timeout that can't be changed), this function can process log files sized up to 450-500 MB. If you need to process large log files sized 500 MB and more, please consider using [BlobToOtel](../BlobToOtel/) function, which does the same job, but uses EventHub instead of EventGrid, thus bypassing its limitations.  
+
 ## Prerequisites
 
 * An Azure account with an active subscription.

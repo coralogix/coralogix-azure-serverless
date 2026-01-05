@@ -52,7 +52,7 @@ The BlobToOtel function can be deployed by clicking the link below and signing i
 
 **Suffix Filter** - The suffix filter to apply to the blob container. Use 'NoFilter' to not filter by suffix. Wildcards are not allowed. Use the following format `.log`.
 
-**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support.
+**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support. In case if you're processing large log files with the size >500MB, you'll also need to set up a `Premium` App Service Plan.
 
 **Virtual Network Name** - The name of the Virtual Network to integrate with (leave empty if VNet integration is not needed).
 
