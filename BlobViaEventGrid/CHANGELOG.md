@@ -5,6 +5,9 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.1.2 / 05 Jan 2026
+[Bug] fix: replace `context.error` by `context.log` to avoid runtime errors.
+
 ### 2.1.1 / 01 Dec 2025
 [Bug] fix: replace `context.warn` by `context.log` to avoid runtime errors.
 
