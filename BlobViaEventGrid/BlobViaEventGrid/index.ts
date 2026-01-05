@@ -111,7 +111,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
     
     const blobURL = eventGridEvent.data?.url;
     if (!blobURL) {
-        context.error("No blob URL found in event data");
+        context.log("No blob URL found in event data");
         return;
     }
 
@@ -136,7 +136,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
         // Check if myBlob is defined
         if (myBlob == null || myBlob === undefined) {
             const errorMsg = `myBlob is ${myBlob} for blob: ${blobName}. This could indicate a binding issue with the blob input.`;
-            context.error(errorMsg);
+            context.log(errorMsg);
             
             logger.emit({
                 severityNumber: logsAPI.SeverityNumber.ERROR,
@@ -197,7 +197,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                 }
             } catch (gzipError) {
                 const errorMsg = `Failed to decompress gzipped blob ${blobName}: ${gzipError}`;
-                context.error(errorMsg);
+                context.log(errorMsg);
                 logger.emit({
                     severityNumber: logsAPI.SeverityNumber.ERROR,
                     severityText: 'ERROR',
@@ -227,7 +227,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
             debugLog(context, `Successfully converted blob to string. Length: ${blobText.length}`);
         } catch (stringError) {
             const errorMsg = `Failed to convert blob data to string for ${blobName}: ${stringError}`;
-            context.error(errorMsg);
+            context.log(errorMsg);
             logger.emit({
                 severityNumber: logsAPI.SeverityNumber.ERROR,
                 severityText: 'ERROR',
@@ -265,7 +265,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                         });
                         processedCount++;
                     } catch (logError) {
-                        context.error(`Error emitting log at position ${i + j + 1}: ${logError}`);
+                        context.log(`Error emitting log at position ${i + j + 1}: ${logError}`);
                     }
                 }
             }
@@ -275,7 +275,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                 await loggerProvider.forceFlush();
                 context.log(`Batch ${Math.floor(i/batchSize) + 1} flushed successfully`);
             } catch (flushError) {
-                context.error(`Error flushing batch ${Math.floor(i/batchSize) + 1}: ${flushError}`);
+                context.log(`Error flushing batch ${Math.floor(i/batchSize) + 1}: ${flushError}`);
             }
         }
         
@@ -284,7 +284,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
         context.log(`Processing summary: ${processedCount} out of ${totalRecords} records processed`);
         
     } catch (error) {
-        context.error(`Error during processing of ${blobName}: ${error}`);
+        context.log(`Error during processing of ${blobName}: ${error}`);
         debugLog(context, "Full error details:", error);
         
         try {
@@ -294,7 +294,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
                 body: createLogText("Azure blob log collector failed during process of log file:" + error, blobName, blobURL),
             });
         } catch (coralogix_error) {
-            context.error("Error during sending exception to Coralogix:", coralogix_error);
+            context.log("Error during sending exception to Coralogix:", coralogix_error);
         }
     }
     
@@ -314,7 +314,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
         
     } catch (flushError) {
         const flushDuration = Date.now() - flushStartTime;
-        context.error(`Final flush failed for ${blobName} after ${flushDuration}ms: ${flushError}`);
+        context.log(`Final flush failed for ${blobName} after ${flushDuration}ms: ${flushError}`);
         
         try {
             logger.emit({
@@ -325,7 +325,7 @@ const eventGridTrigger = async function (context: InvocationContext, eventGridEv
             await loggerProvider.forceFlush();
             context.log("Error log successfully sent to Coralogix");
         } catch (finalError) {
-            context.error("Failed to send final error log to Coralogix:", finalError);
+            context.log("Failed to send final error log to Coralogix:", finalError);
         }
     }
 };
