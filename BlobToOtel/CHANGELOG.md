@@ -5,6 +5,10 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.2.0 / 05 Jan 2026
+[Fix] Improve batching logic
+[Update] Use `@opentelemetry/exporter-logs-otlp-http` instead of `@opentelemetry/exporter-logs-otlp-grpc`
+
 ### 2.1.0 / 08 Apr 2025
 [Fix] Use `@opentelemetry/exporter-logs-otlp-grpc` lib instead of `@opentelemetry/exporter-logs-otlp-http`
 [Fix] Wait for batch accumulation

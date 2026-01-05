@@ -1,7 +1,7 @@
 {
   "name": "coralogix-azure-serverless",
   "title": "Azure Functions for integration with Coralogix",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Azure Functions Set for integration with Coralogix",
   "homepage": "https://coralogix.com",
   "license": "Apache-2.0",
@@ -59,7 +59,7 @@
     "@azure/identity": "^4.8.0",
     "@azure/storage-blob": "^12.27.0",
     "@opentelemetry/api-logs": "^0.200.0",
-    "@opentelemetry/exporter-logs-otlp-grpc": "^0.200.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.200.0",
     "@opentelemetry/resources": "^2.0.0",
     "@opentelemetry/sdk-logs": "^0.200.0",
     "@opentelemetry/semantic-conventions": "^1.30.0"

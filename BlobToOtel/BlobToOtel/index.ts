@@ -7,7 +7,7 @@ import * as logsAPI from '@opentelemetry/api-logs';
 import { LoggerProvider, BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-grpc';
+import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 
 // Init OTLP exporter
 
@@ -36,9 +36,9 @@ const otlpExporter = new OTLPLogExporter({
 
 loggerProvider.addLogRecordProcessor(
     new BatchLogRecordProcessor(otlpExporter, {
-        maxExportBatchSize: 512,
-        scheduledDelayMillis: 1000,
-        exportTimeoutMillis: 30000,
+        maxExportBatchSize: 1000,
+        scheduledDelayMillis: 2000,
+        exportTimeoutMillis: 60000,
     })
 );
 
@@ -99,44 +99,89 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
 
                 // Split blob content into lines and emit each line as a log record
                 const lines = blobData.toString().split(newlinePattern);
+                const totalRecords = lines.length;
                 let processedLines = 0;
                 let failedLines = 0;
 
-                for (const line of lines) {
-                    if (!line.trim()) continue; // Skip empty lines
+                context.log(`Processing ${totalRecords} records from ${blobPath}`);
+
+                // Process records in batches to avoid hitting OpenTelemetry limits
+                const batchSize = 1000;
+
+                for (let i = 0; i < totalRecords; i += batchSize) {
+                    const batchEnd = Math.min(i + batchSize, totalRecords);
+                    const batch = lines.slice(i, batchEnd);
+
+                    context.log(`Processing batch ${Math.floor(i/batchSize) + 1}: records ${i + 1}-${batchEnd}`);
+
+                    // Process current batch
+                    for (let j = 0; j < batch.length; j++) {
+                        const line = batch[j];
+                        if (!line || !line.trim()) continue; // Skip empty lines
+
+                        try {
+                            logger.emit({
+                                severityNumber: logsAPI.SeverityNumber.INFO,
+                                severityText: 'INFO',
+                                body: line,
+                                attributes: {
+                                    'log.type': 'BlobLogRecord',
+                                    'blob.container': containerName,
+                                    'blob.path': blobPath,
+                                    'blob.storage.account': event.topic.split('/').pop(),
+                                    'blob.size': event.data.contentLength
+                                }
+                            });
+                            processedLines++;
+                        } catch (lineError) {
+                            failedLines++;
+                            hasErrors = true;
+                            context.log(`Error emitting log at position ${i + j + 1}: ${lineError}`);
+                        }
+                    }
 
                     try {
-                        logger.emit({
-                            severityNumber: logsAPI.SeverityNumber.INFO,
-                            severityText: 'INFO',
-                            body: line,
-                            attributes: {
-                                'log.type': 'BlobLogRecord',
-                                'blob.container': containerName,
-                                'blob.path': blobPath,
-                                'blob.storage.account': event.topic.split('/').pop(),
-                                'blob.size': event.data.contentLength
-                            }
-                        });
-                        processedLines++;
-                    } catch (lineError) {
-                        failedLines++;
-                        hasErrors = true;
-                        context.log(`Error processing line from ${blobPath}: ${lineError}`);
+                        context.log(`Flushing batch ${Math.floor(i/batchSize) + 1}...`);
+                        await loggerProvider.forceFlush();
+                        context.log(`Batch ${Math.floor(i/batchSize) + 1} flushed successfully`);
+                    } catch (flushError) {
+                        context.log(`Error flushing batch ${Math.floor(i/batchSize) + 1}: ${flushError}`);
                     }
                 }
 
-                context.log(`Processed ${processedLines} lines, failed ${failedLines} lines from ${blobPath}`);
+                context.log(`Processing summary: ${processedLines} out of ${totalRecords} records processed, failed ${failedLines} lines from ${blobPath}`);
             }
         }
 
-        // Add delay before force flush to allow batch to accumulate
-        context.log('Waiting for batch accumulation...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Final flush with delay to ensure all batches are sent
+        context.log('Starting final flush process...');
+        const flushStartTime = Date.now();
 
-        context.log('Starting force flush...');
-        await loggerProvider.forceFlush();
-        context.log('Force flush completed');
+        try {
+            // Add a small delay before final flush
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            context.log('Starting final force flush...');
+            await loggerProvider.forceFlush();
+            const flushDuration = Date.now() - flushStartTime;
+            context.log(`All logs successfully sent to Coralogix in ${flushDuration}ms`);
+
+        } catch (flushError) {
+            const flushDuration = Date.now() - flushStartTime;
+            context.log(`Final flush failed after ${flushDuration}ms: ${flushError}`);
+
+            try {
+                logger.emit({
+                    severityNumber: logsAPI.SeverityNumber.ERROR,
+                    severityText: 'ERROR',
+                    body: `Final flush failed after ${flushDuration}ms: ${flushError}`,
+                });
+                await loggerProvider.forceFlush();
+                context.log("Error log successfully sent to Coralogix");
+            } catch (finalError) {
+                context.log("Failed to send final error log to Coralogix:", finalError);
+            }
+        }
 
         context.log('Successfully processed and exported all logs');
 
