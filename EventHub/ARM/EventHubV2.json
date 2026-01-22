@@ -21,7 +21,6 @@
     },
     "CustomURL": {
       "type": "string",
-      "defaultValue": "https://<CustomURL>/api/v1/logs",
       "metadata": {
         "description": "Your Custom URL for the Coralogix account. Ignore unless you have a custom URL."
       }
