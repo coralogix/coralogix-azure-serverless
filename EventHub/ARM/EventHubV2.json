@@ -21,6 +21,7 @@
     },
     "CustomURL": {
       "type": "string",
+      "defaultValue": "",
       "metadata": {
         "description": "Your Custom URL for the Coralogix account. Ignore unless you have a custom URL."
       }
@@ -37,10 +38,24 @@
         "description": "The name of the Application in Coralogix."
       }
     },
+    "CoralogixApplicationSelector": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Dynamic application name selector. Supports templates like {{ $.category }} or regex like /pattern/. Leave empty to use static CoralogixApplication."
+      }
+    },
     "CoralogixSubsystem": {
       "type": "string",
       "metadata": {
         "description": "The name of the Subsystem in Coralogix."
+      }
+    },
+    "CoralogixSubsystemSelector": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Dynamic subsystem name selector. Supports templates like {{ $.source }} or regex like /pattern/. Leave empty to use static CoralogixSubsystem."
       }
     },
     "EventhubResourceGroup": {
@@ -104,20 +119,6 @@
       "defaultValue": "",
       "metadata": {
         "description": "Optional: Regex pattern to block/filter logs. Logs matching this pattern will not be sent to Coralogix. Example: 'healthcheck|heartbeat' to filter health checks."
-      }
-    },
-    "CoralogixApplicationSelector": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Optional: Dynamic application name selector. Supports templates like {{ $.category }} or regex like /pattern/. Leave empty to use static CoralogixApplication."
-      }
-    },
-    "CoralogixSubsystemSelector": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Optional: Dynamic subsystem name selector. Supports templates like {{ $.source }} or regex like /pattern/. Leave empty to use static CoralogixSubsystem."
       }
     }
   },
