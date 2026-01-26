@@ -120,17 +120,23 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
                         if (!line || !line.trim()) continue; // Skip empty lines
 
                         try {
+                            const storageAccountName = event.topic ? event.topic.split('/').pop() : urlParts.hostname.split('.')[0];
+                            const attributes: any = {
+                                'log.type': 'BlobLogRecord',
+                                'blob.container': containerName,
+                                'blob.path': blobPath,
+                                'blob.storage.account': storageAccountName
+                            };
+                            
+                            if (event.data?.contentLength) {
+                                attributes['blob.size'] = event.data.contentLength;
+                            }
+                            
                             logger.emit({
                                 severityNumber: logsAPI.SeverityNumber.INFO,
                                 severityText: 'INFO',
                                 body: line,
-                                attributes: {
-                                    'log.type': 'BlobLogRecord',
-                                    'blob.container': containerName,
-                                    'blob.path': blobPath,
-                                    'blob.storage.account': event.topic.split('/').pop(),
-                                    'blob.size': event.data.contentLength
-                                }
+                                attributes
                             });
                             processedLines++;
                         } catch (lineError) {
