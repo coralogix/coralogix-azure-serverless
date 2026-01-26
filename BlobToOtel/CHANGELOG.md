@@ -5,6 +5,9 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.3.0 / 26 Jan 2026 
+* [Fix] Handle undefined event.topic when extracting storage account name
+
 ### 2.2.0 / 05 Jan 2026
 [Fix] Improve batching logic
 [Update] Use `@opentelemetry/exporter-logs-otlp-http` instead of `@opentelemetry/exporter-logs-otlp-grpc`
