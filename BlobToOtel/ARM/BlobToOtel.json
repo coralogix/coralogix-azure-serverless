@@ -125,7 +125,7 @@
     }
   },
   "variables": {
-    "functionAppName": "[format('BlobToOtel-{0}', parameters('StorageAccountName'))]",
+    "functionAppName": "[format('BlobToOtel-{0}-{1}', parameters('StorageAccountName'), uniqueString(resourceGroup().id, parameters('StorageAccountName')))]",
     "location": "[resourceGroup().location]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
