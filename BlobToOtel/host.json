@@ -1,5 +1,6 @@
 {
   "version": "2.0",
+  "functionTimeout": "00:10:00",
   "aggregator": {
     "batchSize": 1,
     "flushTimeout": "00:00:30"
@@ -17,7 +18,7 @@
       "batchCheckpointFrequency": 1
     },
     "blobs": {
-      "maxDegreeOfParallelism": 5
+      "maxDegreeOfParallelism": 2
     }
   },
   "logging": {
@@ -30,6 +31,6 @@
   },
   "extensionBundle": {
     "id": "Microsoft.Azure.Functions.ExtensionBundle",
-    "version": "[3.*, 4.0.0)"
+    "version": "[4.*, 5.0.0)"
   }
 }
