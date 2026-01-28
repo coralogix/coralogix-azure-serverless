@@ -10,7 +10,6 @@ import { resourceFromAttributes } from '@opentelemetry/resources';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 
 // Init OTLP exporter
-
 const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: 'blob-to-otel',
     'cx.application.name': process.env.CORALOGIX_APPLICATION || "NO_APPLICATION",
@@ -77,8 +76,8 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
                 // Parse both container and blob path from the URL
                 const urlParts = new URL(blobURL);
                 const pathSegments = urlParts.pathname.split('/');
-                const containerName = pathSegments[1]; // First segment after the leading slash
-                const blobPath = pathSegments.slice(2).join('/'); // Everything after the container name
+                const containerName = pathSegments[1];
+                const blobPath = pathSegments.slice(2).join('/');
 
                 if (prefixCheck && !blobPath.startsWith(prefixFilter)) {
                     context.log(`Skipping ${blobPath} - does not match prefix filter ${prefixFilter}`);
