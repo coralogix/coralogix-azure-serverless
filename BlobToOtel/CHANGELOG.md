@@ -15,7 +15,6 @@
 * [Fix] Fix Application Insights configuration in ARM template
   - Added `APPINSIGHTS_INSTRUMENTATIONKEY` app setting
   - Added `APPLICATIONINSIGHTS_CONNECTION_STRING` app setting
-* [Update] Add function timeout configuration (10 minutes)
 * [Update] Upgrade extension bundle to v4 ([4.*, 5.0.0) from v3)
 
 ### 2.3.0 / 26 Jan 2026 
