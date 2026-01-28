@@ -10,7 +10,6 @@ import { resourceFromAttributes } from '@opentelemetry/resources';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 
 // Init OTLP exporter
-
 const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: 'blob-to-otel',
     'cx.application.name': process.env.CORALOGIX_APPLICATION || "NO_APPLICATION",
@@ -54,8 +53,15 @@ const prefixCheck = prefixFilter && prefixFilter !== 'NoFilter';
 const suffixCheck = suffixFilter && suffixFilter !== 'NoFilter';
 
 const eventHubTrigger = async function (context: InvocationContext, eventHubMessages: any[]): Promise<void> {
+    const executionStartTime = Date.now();
+    context.log(`Function execution started at ${new Date().toISOString()}`);
+    
     try {
         let hasErrors = false;
+        let totalProcessedLines = 0;
+        let totalBatches = 0;
+        let totalFlushes = 0;
+        const processedBlobs: string[] = [];
 
         for (const message of eventHubMessages) {
             const parsedEvents = typeof message === 'string' ? JSON.parse(message) : message;
@@ -70,8 +76,8 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
                 // Parse both container and blob path from the URL
                 const urlParts = new URL(blobURL);
                 const pathSegments = urlParts.pathname.split('/');
-                const containerName = pathSegments[1]; // First segment after the leading slash
-                const blobPath = pathSegments.slice(2).join('/'); // Everything after the container name
+                const containerName = pathSegments[1];
+                const blobPath = pathSegments.slice(2).join('/');
 
                 if (prefixCheck && !blobPath.startsWith(prefixFilter)) {
                     context.log(`Skipping ${blobPath} - does not match prefix filter ${prefixFilter}`);
@@ -85,6 +91,8 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
 
                 context.log("Container:", containerName);
                 context.log("Blob path:", blobPath);
+                
+                processedBlobs.push(`${containerName}/${blobPath}`);
 
                 // Use the storage account connection string directly
                 const storageConnectionString = process.env.BLOB_STORAGE_ACCOUNT_CONNECTION_STRING;
@@ -107,12 +115,13 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
 
                 // Process records in batches to avoid hitting OpenTelemetry limits
                 const batchSize = 1000;
+                const flushEveryNBatches = 2; // Flush every 2 batches for ~10k logs/sec
 
                 for (let i = 0; i < totalRecords; i += batchSize) {
                     const batchEnd = Math.min(i + batchSize, totalRecords);
                     const batch = lines.slice(i, batchEnd);
-
-                    context.log(`Processing batch ${Math.floor(i/batchSize) + 1}: records ${i + 1}-${batchEnd}`);
+                    const batchNumber = Math.floor(i/batchSize) + 1;
+                    totalBatches++;
 
                     // Process current batch
                     for (let j = 0; j < batch.length; j++) {
@@ -146,16 +155,27 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
                         }
                     }
 
-                    try {
-                        context.log(`Flushing batch ${Math.floor(i/batchSize) + 1}...`);
-                        await loggerProvider.forceFlush();
-                        context.log(`Batch ${Math.floor(i/batchSize) + 1} flushed successfully`);
-                    } catch (flushError) {
-                        context.log(`Error flushing batch ${Math.floor(i/batchSize) + 1}: ${flushError}`);
+                    // Flush every N batches or on the last batch
+                    const isLastBatch = batchEnd >= totalRecords;
+                    const shouldFlush = (batchNumber % flushEveryNBatches === 0) || isLastBatch;
+
+                    if (shouldFlush) {
+                        try {
+                            if (batchNumber % 100 === 0 || batchNumber === 1 || isLastBatch) {
+                                context.log(`Processing batch ${batchNumber}/${Math.ceil(totalRecords / batchSize)} (${processedLines} logs processed)...`);
+                            }
+                            await loggerProvider.forceFlush();
+                            totalFlushes++;
+                        } catch (flushError) {
+                            context.log(`Error flushing at batch ${batchNumber}: ${flushError}`);
+                        }
                     }
                 }
 
-                context.log(`Processing summary: ${processedLines} out of ${totalRecords} records processed, failed ${failedLines} lines from ${blobPath}`);
+                totalProcessedLines += processedLines;
+                
+                const blobProcessingTime = Date.now() - executionStartTime;
+                context.log(`Blob summary: ${processedLines}/${totalRecords} records processed, ${failedLines} failed, ${totalBatches} batches, ${totalFlushes} flushes, ${(blobProcessingTime / 1000).toFixed(2)}s`);
             }
         }
 
@@ -189,13 +209,28 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
             }
         }
 
-        context.log('Successfully processed and exported all logs');
+        const totalExecutionTime = Date.now() - executionStartTime;
+        
+        context.log('========================================');
+        context.log('Execution Summary');
+        context.log('========================================');
+        context.log(`Blobs processed: ${processedBlobs.length}`);
+        for (const blob of processedBlobs) {
+            context.log(`  - ${blob}`);
+        }
+        context.log(`Total logs processed: ${totalProcessedLines.toLocaleString()}`);
+        context.log(`Total batches: ${totalBatches.toLocaleString()}`);
+        context.log(`Total flushes: ${totalFlushes + 1} (${totalFlushes} during processing + 1 final)`);
+        context.log(`Execution time: ${(totalExecutionTime / 1000).toFixed(2)}s (${(totalExecutionTime / 60000).toFixed(2)} minutes)`);
+        context.log(`Throughput: ${Math.round(totalProcessedLines / (totalExecutionTime / 1000)).toLocaleString()} logs/second`);
+        context.log('========================================');
 
         if (hasErrors) {
             context.log('Function completed with some errors');
         }
     } catch (error) {
-        context.log('Error processing messages:', error);
+        const totalExecutionTime = Date.now() - executionStartTime;
+        context.log(`Error processing messages after ${(totalExecutionTime / 1000).toFixed(2)}s:`, error);
         return;
     }
 };

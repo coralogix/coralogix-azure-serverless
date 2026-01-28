@@ -12,12 +12,12 @@
   },
   "extensions": {
     "eventHubs": {
-      "maxBatchSize": 64,
-      "prefetchCount": 256,
+      "maxBatchSize": 4,
+      "prefetchCount": 8,
       "batchCheckpointFrequency": 1
     },
     "blobs": {
-      "maxDegreeOfParallelism": 5
+      "maxDegreeOfParallelism": 2
     }
   },
   "logging": {
@@ -30,6 +30,6 @@
   },
   "extensionBundle": {
     "id": "Microsoft.Azure.Functions.ExtensionBundle",
-    "version": "[3.*, 4.0.0)"
+    "version": "[4.*, 5.0.0)"
   }
 }
