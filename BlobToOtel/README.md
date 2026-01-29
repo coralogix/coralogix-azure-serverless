@@ -6,6 +6,10 @@ Coralogix provides a seamless integration with ``Azure`` cloud so you can send y
 
 As an OTLP endpoint, you can configure either otel-collector endpoint or [Coralogix Opentelemetry endpoint](https://coralogix.com/docs/integrations/coralogix-endpoints/#opentelemetry) to send logs directly to the platform.
 
+## Important Limitations
+
+**File Size Limit**: Due to Node.js string size limitations in the current implementation, individual blob files larger than 536 MB will fail with error `ERR_STRING_TOO_LONG`. 
+
 ## Prerequisites
 
 * An Azure account with an active subscription.
@@ -59,6 +63,8 @@ The BlobToOtel function can be deployed by clicking the link below and signing i
 **Subnet Name** - The name of the subnet to integrate with (leave empty if VNet integration is not needed).
 
 **Virtual Network Resource Group** - The resource group name of the Virtual Network (leave empty if VNet integration is not needed).
+
+**Node Heap Size** - Node.js memory limit in MB (default: 2048 MB for Consumption plan). Increase it when processing large files. Premium EP1 (3.5 GB) or higher required for values above 2048 MB. See [Azure Functions service limits](https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale#service-limits) for plan details.  
 
 ## vNet Integration
 
