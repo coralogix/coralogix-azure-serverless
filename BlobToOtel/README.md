@@ -60,6 +60,8 @@ The BlobToOtel function can be deployed by clicking the link below and signing i
 
 **Virtual Network Resource Group** - The resource group name of the Virtual Network (leave empty if VNet integration is not needed).
 
+**Node Heap Size** - Node.js memory limit in MB (default: 2048 MB for Consumption plan). Increase it when processing large files in parallel. Premium EP1 (3.5 GB) or higher required for values above 2048 MB. See [Azure Functions service limits](https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale#service-limits) for plan details.
+
 ## vNet Integration
 
 * The function app will be deployed to a Premium plan and will be integrated with the specified vNet.
@@ -74,3 +76,27 @@ UI workflow:
 ```
 Virtual Network > Subnets > [Your Subnet] > Subnet delegation > Microsoft.Web/serverFarms > Save
 ```
+
+## Performance and Limitations
+
+### Concurrent Processing
+
+The function processes files in parallel based on EventHub partitions and `host.json` configuration:
+
+**Concurrent Processing Formula:**
+- **Max parallel files** = EventHub Partitions × `maxDegreeOfParallelism`
+- Default: `maxDegreeOfParallelism: 2`
+
+**Examples:**
+- **2 partitions** - up to **4 files** processed simultaneously (2 × 2)
+- **4 partitions** - up to **8 files** processed simultaneously (4 × 2)
+
+Each function instance processes up to `maxBatchSize: 4` events per invocation. These settings are optimized to prevent memory issues when processing large files.
+
+### File Size Limitations
+
+**Maximum individual file size: 536 MB**
+
+Due to Node.js string size limitations (`ERR_STRING_TOO_LONG`), individual blob files larger than 536 MB cannot be processed. For larger files:
+- Split files into smaller chunks (< 536 MB each)
+- Contact Coralogix support for alternative solutions

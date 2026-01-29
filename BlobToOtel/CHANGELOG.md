@@ -5,6 +5,9 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.5.0 / 29 Jan 2026 
+* [Feature] Add configurable `NodeHeapSize` parameter in ARM template (default: 2048 MB)
+
 ### 2.4.0 / 28 Jan 2026
 * [Fix] Optimize concurrency settings to prevent OOM errors
   - Reduced `maxBatchSize` from 64 to 4 to limit concurrent event load
