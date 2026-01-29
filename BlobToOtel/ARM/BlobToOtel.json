@@ -122,6 +122,15 @@
       "metadata": {
         "description": "The resource group name of the Virtual Network (required if VNet integration is needed)"
       }
+    },
+    "NodeHeapSize": {
+      "type": "int",
+      "defaultValue": 2048,
+      "minValue": 2048,
+      "maxValue": 8192,
+      "metadata": {
+        "description": "Node.js heap size in MB (default 2GB). Increase it to process large files."
+      }
     }
   },
   "variables": {
@@ -275,6 +284,10 @@
             {
               "name": "FUNCTIONS_WORKER_RUNTIME",
               "value": "node"
+            },
+            {
+              "name": "NODE_OPTIONS",
+              "value": "[concat('--max-old-space-size=', parameters('NodeHeapSize'))]"
             },
             {
               "name": "WEBSITE_RUN_FROM_PACKAGE",
