@@ -5,6 +5,15 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.6.0 / 02 Feb 2026
+* [Fix] Implement double-flush pattern to ensure queue fully drains
+  - Wait up to 60 seconds for large batches to complete export
+* [Update] Increase `maxQueueSize` to 100,000 to prevent log drops under heavy load
+* [Update] Optimize retry configuration for better reliability
+  - Increased `maxRetryCount` from 0 to 5
+  - Reduced `minimumInterval` to 5 seconds
+  - Reduced `maximumInterval` to 5 minutes
+
 ### 2.5.0 / 29 Jan 2026 
 * [Feature] Add configurable `NodeHeapSize` parameter in ARM template (default: 2048 MB)
 

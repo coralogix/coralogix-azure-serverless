@@ -6,9 +6,9 @@
   },
   "retry": {
     "strategy": "exponentialBackoff",
-    "maxRetryCount": 0,
-    "minimumInterval": "00:00:10",
-    "maximumInterval": "00:10:00"
+    "maxRetryCount": 5,
+    "minimumInterval": "00:00:05",
+    "maximumInterval": "00:05:00"
   },
   "extensions": {
     "eventHubs": {
