@@ -1,5 +1,3 @@
-import { gunzipSync } from "zlib";
-
 import { InvocationContext } from "@azure/functions";
 import { BlobServiceClient } from "@azure/storage-blob";
 
@@ -8,6 +6,7 @@ import { LoggerProvider, BatchLogRecordProcessor } from '@opentelemetry/sdk-logs
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
+import { gunzipSync } from "zlib";
 
 // Init OTLP exporter
 const resource = resourceFromAttributes({
@@ -38,6 +37,7 @@ loggerProvider.addLogRecordProcessor(
         maxExportBatchSize: 1000,
         scheduledDelayMillis: 2000,
         exportTimeoutMillis: 60000,
+        maxQueueSize: 100000,
     })
 );
 
@@ -179,28 +179,30 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
             }
         }
 
-        // Final flush with delay to ensure all batches are sent
-        context.log('Starting final flush process...');
-        const flushStartTime = Date.now();
+        // Final flush with longer wait to ensure queue drains
+        context.log(`Flushing ${totalProcessedLines.toLocaleString()} logs to Coralogix...`);
+        await loggerProvider.forceFlush();
+        
+        // Wait for queue to drain (1 second per 1000 logs, max 60s)
+        const estimatedWait = Math.min(Math.ceil(totalProcessedLines / 1000), 60);
+        if (estimatedWait > 1) {
+            context.log(`Waiting ${estimatedWait}s for queue to drain...`);
+            await new Promise(resolve => setTimeout(resolve, estimatedWait * 1000));
+            await loggerProvider.forceFlush(); // Second flush
+        }
+        
+        context.log(`All logs successfully sent to Coralogix`);
 
         try {
-            // Add a small delay before final flush
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            context.log('Starting final force flush...');
-            await loggerProvider.forceFlush();
-            const flushDuration = Date.now() - flushStartTime;
-            context.log(`All logs successfully sent to Coralogix in ${flushDuration}ms`);
-
+            // Success - continue to summary
         } catch (flushError) {
-            const flushDuration = Date.now() - flushStartTime;
-            context.log(`Final flush failed after ${flushDuration}ms: ${flushError}`);
+            context.log(`Final flush failed: ${flushError}`);
 
             try {
                 logger.emit({
                     severityNumber: logsAPI.SeverityNumber.ERROR,
                     severityText: 'ERROR',
-                    body: `Final flush failed after ${flushDuration}ms: ${flushError}`,
+                    body: `Final flush failed: ${flushError}`,
                 });
                 await loggerProvider.forceFlush();
                 context.log("Error log successfully sent to Coralogix");
