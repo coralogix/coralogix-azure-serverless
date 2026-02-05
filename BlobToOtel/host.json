@@ -13,7 +13,6 @@
   "extensions": {
     "eventHubs": {
       "maxEventBatchSize" : 25,
-      "minEventBatchSize" : 4,
       "prefetchCount": 100, 
       "batchCheckpointFrequency": 1,
       "clientRetryOptions": {
@@ -25,7 +24,7 @@
       }
     },
     "blobs": {
-      "maxDegreeOfParallelism": 6
+      "maxDegreeOfParallelism": 4
     }
   },
   "logging": {

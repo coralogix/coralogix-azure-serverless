@@ -141,20 +141,11 @@
     },
     "MaxElasticWorkerCount": {
       "type": "int",
-      "defaultValue": 5,
+      "defaultValue": 1,
       "minValue": 1,
       "maxValue": 20,
       "metadata": {
-        "description": "Maximum number of workers for Premium plan (elastic scale). Must be: 1) <= 20 (Premium SKU limit), 2) >= current NumberOfWorkers. Default: 5."
-      }
-    },
-    "AlwaysReadyInstances": {
-      "type": "int",
-      "defaultValue": 1,
-      "minValue": 0,
-      "maxValue": 20,
-      "metadata": {
-        "description": "Number of always-ready instances (pre-warmed, always running). Prevents cold starts. 0 = can scale to zero, 1-2 = recommended for batch processing, max 20. Default: 1."
+        "description": "Maximum number of workers for Premium plan (elastic scale). Must be: 1) <= 20 (Premium SKU limit), 2) >= current NumberOfWorkers. Default: 1."
       }
     },
     "PremiumPlanSku": {
@@ -245,7 +236,7 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "siteConfig": {
           "linuxFxVersion": "Node|22",
-          "minimumElasticInstanceCount": "[if(equals(parameters('FunctionAppServicePlanType'), 'Premium'), parameters('AlwaysReadyInstances'), 0)]",
+          "minimumElasticInstanceCount": 1,
           "appSettings": [
             {
               "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
