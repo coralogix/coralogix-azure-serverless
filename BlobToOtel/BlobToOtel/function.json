@@ -8,7 +8,7 @@
       "eventHubName": "%EVENT_HUB_NAME%",
       "connection": "EVENT_HUB_NAMESPACE_CONNECTION_STRING",
       "cardinality": "many",
-      "consumerGroup": "$Default"
+      "consumerGroup": "%EVENT_HUB_CONSUMER_GROUP%"
     }
   ],
   "scriptFile": "../dist/BlobToOtel/index.js"

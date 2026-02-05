@@ -106,7 +106,17 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
                 }
 
                 // Split blob content into lines and emit each line as a log record
-                const lines = blobData.toString().split(newlinePattern);
+                // Note: toString() will throw ERR_STRING_TOO_LONG for files larger than ~500MB
+                let lines: string[];
+                try {
+                    lines = blobData.toString('utf8').split(newlinePattern);
+                } catch (error) {
+                    const sizeInMB = (blobData.length / (1024 * 1024)).toFixed(2);
+                    const errorMsg = `Failed to convert blob ${blobPath} (${sizeInMB}MB) to string: ${error.message}`;
+                    context.log(`ERROR: ${errorMsg}`);
+                    hasErrors = true;
+                    continue;
+                }
                 const totalRecords = lines.length;
                 let processedLines = 0;
                 let failedLines = 0;
@@ -183,8 +193,8 @@ const eventHubTrigger = async function (context: InvocationContext, eventHubMess
         context.log(`Flushing ${totalProcessedLines.toLocaleString()} logs to Coralogix...`);
         await loggerProvider.forceFlush();
         
-        // Wait for queue to drain (1 second per 1000 logs, max 60s)
-        const estimatedWait = Math.min(Math.ceil(totalProcessedLines / 1000), 60);
+        // Wait for queue to drain (1 second per 2000 logs, max 20s)
+        const estimatedWait = Math.min(Math.ceil(totalProcessedLines / 2000), 20);
         if (estimatedWait > 1) {
             context.log(`Waiting ${estimatedWait}s for queue to drain...`);
             await new Promise(resolve => setTimeout(resolve, estimatedWait * 1000));

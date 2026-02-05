@@ -131,6 +131,43 @@
       "metadata": {
         "description": "Node.js heap size in MB (default 2GB). Increase it to process large files."
       }
+    },
+    "EventHubConsumerGroup": {
+      "type": "string",
+      "defaultValue": "$Default",
+      "metadata": {
+        "description": "The Event Hub consumer group name. Use '$Default' or create a dedicated consumer group for better isolation."
+      }
+    },
+    "MaxElasticWorkerCount": {
+      "type": "int",
+      "defaultValue": 5,
+      "minValue": 1,
+      "maxValue": 20,
+      "metadata": {
+        "description": "Maximum number of workers for Premium plan (elastic scale). Must be: 1) <= 20 (Premium SKU limit), 2) >= current NumberOfWorkers. Default: 5."
+      }
+    },
+    "AlwaysReadyInstances": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 0,
+      "maxValue": 20,
+      "metadata": {
+        "description": "Number of always-ready instances (pre-warmed, always running). Prevents cold starts. 0 = can scale to zero, 1-2 = recommended for batch processing, max 20. Default: 1."
+      }
+    },
+    "PremiumPlanSku": {
+      "type": "string",
+      "defaultValue": "EP1",
+      "allowedValues": [
+        "EP1",
+        "EP2",
+        "EP3"
+      ],
+      "metadata": {
+        "description": "The SKU for Premium App Service Plan. EP1 = 3.5GB RAM/1 vCore, EP2 = 7GB RAM/2 vCore, EP3 = 14GB RAM/4 vCore. Only applies when FunctionAppServicePlanType is 'Premium'."
+      }
     }
   },
   "variables": {
@@ -139,7 +176,7 @@
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "functionStorageAccountName": "[format('func{0}', uniqueString(resourceGroup().id))]",
-    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]",
+    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', parameters('PremiumPlanSku'))]",
     "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobToOtel.zip",
     "vnetIntegrationEnabled": "[and(not(empty(parameters('VirtualNetworkName'))), not(empty(parameters('SubnetName'))))]"
   },
@@ -165,7 +202,7 @@
       },
       "properties": {
         "reserved": true,
-        "maximumElasticWorkerCount": 1
+        "maximumElasticWorkerCount": "[if(equals(parameters('FunctionAppServicePlanType'), 'Premium'), parameters('MaxElasticWorkerCount'), 1)]"
       }
     },
     {
@@ -208,6 +245,7 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "siteConfig": {
           "linuxFxVersion": "Node|22",
+          "minimumElasticInstanceCount": "[if(equals(parameters('FunctionAppServicePlanType'), 'Premium'), parameters('AlwaysReadyInstances'), 0)]",
           "appSettings": [
             {
               "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
@@ -232,6 +270,10 @@
             {
               "name": "EVENT_HUB_NAME",
               "value": "[parameters('EventHubName')]"
+            },
+            {
+              "name": "EVENT_HUB_CONSUMER_GROUP",
+              "value": "[parameters('EventHubConsumerGroup')]"
             },
             {
               "name": "NEWLINE_PATTERN",
