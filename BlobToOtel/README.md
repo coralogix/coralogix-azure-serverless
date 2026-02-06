@@ -18,7 +18,7 @@ As an OTLP endpoint, you can configure either otel-collector endpoint or [Coralo
 
 The BlobToOtel function can be deployed by clicking the link below and signing into your Azure account:
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fgithub.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Freleases%2Fdownload%2FBlobToOtel-v3.0.1%2FBlobToOtel.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcoralogix%2Fcoralogix-azure-serverless%2Fmaster%2FBlobToOtel%2FARM%2FBlobToOtel.json)
 
 ## Fields
 
