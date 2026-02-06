@@ -168,7 +168,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "functionStorageAccountName": "[format('func{0}', uniqueString(resourceGroup().id))]",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', parameters('PremiumPlanSku'))]",
-    "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobToOtel.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/BlobToOtel-v3.0.1/BlobToOtel-FunctionApp.zip",
     "vnetIntegrationEnabled": "[and(not(empty(parameters('VirtualNetworkName'))), not(empty(parameters('SubnetName'))))]"
   },
   "resources": [
