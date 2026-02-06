@@ -6,7 +6,7 @@
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
 ### 3.0.0 / 06 Feb 2026
-* [Breaking] Make Event Hub consumer group configurable via ARM parameter
+* [Feature] Make Event Hub consumer group configurable via ARM parameter
   - Added `EventHubConsumerGroup` parameter (default: `$Default`)
   - Updated `function.json` to use `%EVENT_HUB_CONSUMER_GROUP%` environment variable
   - Allows dedicated consumer groups for production workloads
