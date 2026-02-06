@@ -136,7 +136,7 @@
       "type": "string",
       "defaultValue": "$Default",
       "metadata": {
-        "description": "The Event Hub consumer group name. Use '$Default' or create a dedicated consumer group for better isolation."
+        "description": "The Event Hub consumer group name. Defaults to '$Default' or use a dedicated consumer group."
       }
     },
     "MaxElasticWorkerCount": {
@@ -145,7 +145,7 @@
       "minValue": 1,
       "maxValue": 20,
       "metadata": {
-        "description": "Maximum number of workers for Premium plan (elastic scale). Must be: 1) <= 20 (Premium SKU limit), 2) >= current NumberOfWorkers. Default: 1."
+        "description": "Maximum number of workers for Premium plan (elastic scale). Default: 1."
       }
     },
     "PremiumPlanSku": {
