@@ -14,6 +14,8 @@ As an OTLP endpoint, you can configure either otel-collector endpoint or [Coralo
 
 * An Otel collector endpoint (available for the function app to reach) or Coralogix Opentelemetry endpoint.
 
+
+
 ## Azure Resource Manager Template Deployment
 
 The BlobToOtel function can be deployed by clicking the link below and signing into your Azure account:
@@ -114,3 +116,4 @@ Virtual Network > Subnets > [Your Subnet] > Subnet delegation > Microsoft.Web/se
 - **Default:** Single worker handles most workloads efficiently
 - **High-volume:** Increase `MaxElasticWorkerCount` via ARM parameter for concurrent processing
 - **Consumer groups:** Use dedicated consumer groups in production to prevent event loss
+- **Event Hub Units:** For high-volume workloads, set your EventHub namespace to at least **4 Processing Units**
