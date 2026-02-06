@@ -14,7 +14,7 @@
   - Added `FunctionAppSku` parameter (default: `EP1`)
   - Supports EP1, EP2, EP3 for Premium plans
 * [Feature] Add configurable max elastic worker count
-  - Added `MaxElasticWorkerCount` parameter (default: 1)
+  - Added `MaxElasticWorkerCount` parameter (default: 5)
   - Allows scaling to multiple workers for high-volume workloads
 * [Update] Optimize Event Hub processing settings in `host.json`
   - Increased `maxEventBatchSize` from 10 to 25 for better throughput

@@ -141,11 +141,11 @@
     },
     "MaxElasticWorkerCount": {
       "type": "int",
-      "defaultValue": 1,
+      "defaultValue": 5,
       "minValue": 1,
       "maxValue": 20,
       "metadata": {
-        "description": "Maximum number of workers for Premium plan (elastic scale). Default: 1."
+        "description": "Maximum number of workers for Premium plan (elastic scale). Default: 5."
       }
     },
     "PremiumPlanSku": {
@@ -193,7 +193,7 @@
       },
       "properties": {
         "reserved": true,
-        "maximumElasticWorkerCount": "[if(equals(parameters('FunctionAppServicePlanType'), 'Premium'), parameters('MaxElasticWorkerCount'), 1)]"
+        "maximumElasticWorkerCount": "[if(equals(parameters('FunctionAppServicePlanType'), 'Premium'), parameters('MaxElasticWorkerCount'), 5)]"
       }
     },
     {
