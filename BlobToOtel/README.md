@@ -66,7 +66,7 @@ The BlobToOtel function can be deployed by clicking the link below and signing i
 
 **Function App SKU** - The SKU tier for Premium plans (default: `EP1`). Higher tiers (EP2, EP3) provide more memory and CPU for large file processing.
 
-**Max Elastic Worker Count** - Maximum number of workers the function can scale to (default: 1). Increase for high-volume workloads.
+**Max Elastic Worker Count** - Maximum number of workers the function can scale to (default: 5). Increase for high-volume workloads.
 
 ## Default Configuration
 
