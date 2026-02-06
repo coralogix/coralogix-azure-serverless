@@ -5,6 +5,11 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 3.0.1 / 06 Feb 2026 
+* [Update] Use GitHub releases for ARM template deployment instead of S3
+  - Updated ARM template to download function app from GitHub releases
+  - Updated README Deploy to Azure button to point to versioned template (BlobToOtel-v3.0.1)
+
 ### 3.0.0 / 06 Feb 2026
 * [Feature] Make Event Hub consumer group configurable via ARM parameter
   - Added `EventHubConsumerGroup` parameter (default: `$Default`)
