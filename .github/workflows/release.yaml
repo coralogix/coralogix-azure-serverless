@@ -7,12 +7,14 @@ on:
     paths:
       - "EventHub/**"
       - "BlobToOtel/**"
+      - ".github/workflows/release.yaml"
   pull_request:
     branches:
       - "master"
     paths:
       - "EventHub/**"
       - "BlobToOtel/**"
+      - ".github/workflows/release.yaml"
 
 permissions:
   contents: write 
@@ -20,15 +22,48 @@ permissions:
   issues: write
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.set-packages.outputs.packages }}
+      has-changes: ${{ steps.set-packages.outputs.has-changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed packages
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          list-files: json
+          filters: |
+            EventHub:
+              - 'EventHub/**'
+            BlobToOtel:
+              - 'BlobToOtel/**'
+
+      - name: Set packages matrix
+        id: set-packages
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const changes = ${{ steps.changes.outputs.changes }};
+            console.log('Changed packages:', changes);
+            
+            core.setOutput('packages', JSON.stringify(changes));
+            core.setOutput('has-changes', changes.length > 0 ? 'true' : 'false');
+
   build-and-test:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        package:
-          - "EventHub"
-          - "BlobToOtel"
+        package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
