@@ -14,8 +14,6 @@ As an OTLP endpoint, you can configure either otel-collector endpoint or [Coralo
 
 * An Otel collector endpoint (available for the function app to reach) or Coralogix Opentelemetry endpoint.
 
-
-
 ## Azure Resource Manager Template Deployment
 
 The BlobToOtel function can be deployed by clicking the link below and signing into your Azure account:
