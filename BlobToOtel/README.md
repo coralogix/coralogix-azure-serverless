@@ -73,7 +73,7 @@ The BlobToOtel function can be deployed by clicking the link below and signing i
 The ARM template deploys with the following defaults optimized for typical workloads:
 
 - **SKU:** EP1 (3.5 GB RAM, 1 vCore) for Premium plans
-- **Max Workers:** 1 (can scale up to 1 instance)
+- **Max Workers:** 5 (can scale up to 5 instance)
 - **Always Ready Instances:** 1 (minimumElasticInstanceCount - one warm instance, no cold starts)
 - **Consumer Group:** `$Default` (shared)
 - **Event Hub Settings:**
