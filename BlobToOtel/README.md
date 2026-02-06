@@ -52,7 +52,7 @@ The BlobToOtel function can be deployed by clicking the link below and signing i
 
 **Suffix Filter** - The suffix filter to apply to the blob container. Use 'NoFilter' to not filter by suffix. Wildcards are not allowed. Use the following format `.log`.
 
-**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support. In case if you're processing large log files with the size >500MB, you'll also need to set up a `Premium` App Service Plan.
+**Function App Service Plan Type** - The type of the Function App Service Plan. Choose Premium if you need vNet Support or high-volume workloads requiring multiple workers.
 
 **Virtual Network Name** - The name of the Virtual Network to integrate with (leave empty if VNet integration is not needed).
 
@@ -61,6 +61,31 @@ The BlobToOtel function can be deployed by clicking the link below and signing i
 **Virtual Network Resource Group** - The resource group name of the Virtual Network (leave empty if VNet integration is not needed).
 
 **Node Heap Size** - Node.js memory limit in MB (default: 2048 MB for Consumption plan). Increase it when processing large files in parallel. Premium EP1 (3.5 GB) or higher required for values above 2048 MB. See [Azure Functions service limits](https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale#service-limits) for plan details.
+
+**Event Hub Consumer Group** - The Event Hub consumer group name (default: `$Default`). For production workloads, create a dedicated consumer group to avoid checkpoint conflicts with other services.
+
+**Function App SKU** - The SKU tier for Premium plans (default: `EP1`). Higher tiers (EP2, EP3) provide more memory and CPU for large file processing.
+
+**Max Elastic Worker Count** - Maximum number of workers the function can scale to (default: 5). Increase for high-volume workloads.
+
+## Default Configuration
+
+The ARM template deploys with the following defaults optimized for typical workloads:
+
+- **SKU:** EP1 (3.5 GB RAM, 1 vCore) for Premium plans
+- **Max Workers:** 5 (can scale up to 5 instance)
+- **Always Ready Instances:** 1 (minimumElasticInstanceCount - one warm instance, no cold starts)
+- **Consumer Group:** `$Default` (shared)
+- **Event Hub Settings:**
+  - `maxEventBatchSize`: 25 events per batch
+  - `prefetchCount`: 100 events buffer
+  - `maxDegreeOfParallelism`: 4 concurrent blob downloads
+
+### High-Volume Workloads
+
+For scenarios with large files (100MB+) or high throughput (500+ files, multiple GB):
+- Recommended: EP2+ SKU, increased workers, dedicated consumer group
+- Includes memory tuning, OOM prevention, and cost analysis
 
 ## vNet Integration
 
@@ -79,24 +104,13 @@ Virtual Network > Subnets > [Your Subnet] > Subnet delegation > Microsoft.Web/se
 
 ## Performance and Limitations
 
-### Concurrent Processing
+### File Size Limits
 
-The function processes files in parallel based on EventHub partitions and `host.json` configuration:
+- **Maximum file size:** Limited by Node.js `Buffer.toString()` to ~500MB per file
+- Files exceeding this limit will be logged as errors and skipped
+- For very large files, consider splitting them before upload
 
-**Concurrent Processing Formula:**
-- **Max parallel files** = EventHub Partitions × `maxDegreeOfParallelism`
-- Default: `maxDegreeOfParallelism: 2`
-
-**Examples:**
-- **2 partitions** - up to **4 files** processed simultaneously (2 × 2)
-- **4 partitions** - up to **8 files** processed simultaneously (4 × 2)
-
-Each function instance processes up to `maxBatchSize: 4` events per invocation. These settings are optimized to prevent memory issues when processing large files.
-
-### File Size Limitations
-
-**Maximum individual file size: 536 MB**
-
-Due to Node.js string size limitations (`ERR_STRING_TOO_LONG`), individual blob files larger than 536 MB cannot be processed. For larger files:
-- Split files into smaller chunks (< 536 MB each)
-- Contact Coralogix support for alternative solutions
+### Scaling
+- **Default:** Single worker handles most workloads efficiently
+- **High-volume:** Increase `MaxElasticWorkerCount` via ARM parameter for concurrent processing
+- **Consumer groups:** Use dedicated consumer groups in production to prevent event loss

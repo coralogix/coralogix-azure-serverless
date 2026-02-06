@@ -131,6 +131,34 @@
       "metadata": {
         "description": "Node.js heap size in MB (default 2GB). Increase it to process large files."
       }
+    },
+    "EventHubConsumerGroup": {
+      "type": "string",
+      "defaultValue": "$Default",
+      "metadata": {
+        "description": "The Event Hub consumer group name. Defaults to '$Default' or use a dedicated consumer group."
+      }
+    },
+    "MaxElasticWorkerCount": {
+      "type": "int",
+      "defaultValue": 5,
+      "minValue": 1,
+      "maxValue": 20,
+      "metadata": {
+        "description": "Maximum number of workers for Premium plan (elastic scale). Default: 5."
+      }
+    },
+    "PremiumPlanSku": {
+      "type": "string",
+      "defaultValue": "EP1",
+      "allowedValues": [
+        "EP1",
+        "EP2",
+        "EP3"
+      ],
+      "metadata": {
+        "description": "The SKU for Premium App Service Plan. EP1 = 3.5GB RAM/1 vCore, EP2 = 7GB RAM/2 vCore, EP3 = 14GB RAM/4 vCore. Only applies when FunctionAppServicePlanType is 'Premium'."
+      }
     }
   },
   "variables": {
@@ -139,7 +167,7 @@
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "functionStorageAccountName": "[format('func{0}', uniqueString(resourceGroup().id))]",
-    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]",
+    "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', parameters('PremiumPlanSku'))]",
     "packageUri": "https://coralogix-public.s3.eu-west-1.amazonaws.com/azure-functions-repo/BlobToOtel.zip",
     "vnetIntegrationEnabled": "[and(not(empty(parameters('VirtualNetworkName'))), not(empty(parameters('SubnetName'))))]"
   },
@@ -165,7 +193,7 @@
       },
       "properties": {
         "reserved": true,
-        "maximumElasticWorkerCount": 1
+        "maximumElasticWorkerCount": "[if(equals(parameters('FunctionAppServicePlanType'), 'Premium'), parameters('MaxElasticWorkerCount'), 5)]"
       }
     },
     {
@@ -232,6 +260,10 @@
             {
               "name": "EVENT_HUB_NAME",
               "value": "[parameters('EventHubName')]"
+            },
+            {
+              "name": "EVENT_HUB_CONSUMER_GROUP",
+              "value": "[parameters('EventHubConsumerGroup')]"
             },
             {
               "name": "NEWLINE_PATTERN",

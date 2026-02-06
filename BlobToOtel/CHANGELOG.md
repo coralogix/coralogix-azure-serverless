@@ -5,6 +5,26 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 3.0.0 / 06 Feb 2026
+* [Feature] Make Event Hub consumer group configurable via ARM parameter
+  - Added `EventHubConsumerGroup` parameter (default: `$Default`)
+  - Updated `function.json` to use `%EVENT_HUB_CONSUMER_GROUP%` environment variable
+  - Allows dedicated consumer groups for production workloads
+* [Feature] Add configurable Function App SKU parameter
+  - Added `FunctionAppSku` parameter (default: `EP1`)
+  - Supports EP1, EP2, EP3 for Premium plans
+* [Feature] Add configurable max elastic worker count
+  - Added `MaxElasticWorkerCount` parameter (default: 5)
+  - Allows scaling to multiple workers for high-volume workloads
+* [Update] Optimize Event Hub processing settings in `host.json`
+  - Increased `maxEventBatchSize` from 10 to 25 for better throughput
+  - Increased `prefetchCount` from 32 to 100 for larger event buffer
+  - Increased `maxDegreeOfParallelism` from 2 to 4 for more concurrent blob downloads
+  - Added `clientRetryOptions` for Event Hub resilience (exponential backoff, 3 max retries)
+* [Feature] Add error handling for large files exceeding Node.js limits
+  - Files exceeding ~500MB (Node.js `Buffer.toString()` limit) are logged and skipped
+  - Prevents function crashes on very large blobs
+
 ### 2.6.0 / 02 Feb 2026
 * [Fix] Implement double-flush pattern to ensure queue fully drains
   - Wait up to 60 seconds for large batches to complete export
