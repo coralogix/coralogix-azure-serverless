@@ -236,7 +236,6 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "siteConfig": {
           "linuxFxVersion": "Node|22",
-          "minimumElasticInstanceCount": 1,
           "appSettings": [
             {
               "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
