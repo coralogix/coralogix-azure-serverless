@@ -6,7 +6,7 @@ on:
     paths: 
       - "BlobViaEventGrid/*"
       - "DiagnosticData/*"
-      # - "EventHub/*"
+      - "EventHub/*"
       - "StorageQueue/*"
       - "BlobToOtel/*"
 
