@@ -39,13 +39,13 @@ CORALOGIX_QUERY_API_KEY="${CORALOGIX_QUERY_API_KEY:-${CORALOGIX_API_KEY}}"
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 
-# cleanup_after_failure() {
-#   log "Cleaning up after failure..."
-#   if [[ -n "${RG_NAME:-}" ]]; then
-#     az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
-#   fi
-# }
-# trap cleanup_after_failure EXIT
+cleanup_after_failure() {
+  log "Cleaning up after failure..."
+  if [[ -n "${RG_NAME:-}" ]]; then
+    az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
+  fi
+}
+trap cleanup_after_failure EXIT
 
 # --- Step 1: Provision with Terraform ---
 log "Step 1: Provisioning Azure resources with Terraform (Event Hub namespace, hub, consumer group, auth rules)..."
@@ -163,15 +163,15 @@ while true; do
 done
 
 # --- Step 5: Clean up ---
-# log "Step 5: Cleaning up resources..."
-# trap - EXIT
-# az group delete --name "$RG_NAME" --yes
-# log "Waiting for resource group deletion..."
-# while az group show -n "$RG_NAME" &>/dev/null; do sleep 10; done
-# # Clean Terraform state so next run can provision from scratch.
-# cd "$TERRAFORM_DIR"
-# while read -r state_key; do
-#   [[ -z "$state_key" ]] && continue
-#   terraform state rm "$state_key" 2>/dev/null || true
-# done < <(terraform state list 2>/dev/null || true)
+log "Step 5: Cleaning up resources..."
+trap - EXIT
+az group delete --name "$RG_NAME" --yes
+log "Waiting for resource group deletion..."
+while az group show -n "$RG_NAME" &>/dev/null; do sleep 10; done
+# Clean Terraform state so next run can provision from scratch.
+cd "$TERRAFORM_DIR"
+while read -r state_key; do
+  [[ -z "$state_key" ]] && continue
+  terraform state rm "$state_key" 2>/dev/null || true
+done < <(terraform state list 2>/dev/null || true)
 log "E2E test finished."
