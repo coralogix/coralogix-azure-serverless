@@ -189,8 +189,8 @@
               "value": "[parameters('CoralogixSubsystem')]"
             },
             {
-              "Name": "CORALOGIX_URL",
-              "Value": "[variables('CoralogixURL')]"
+              "name": "CORALOGIX_URL",
+              "value": "[variables('CoralogixURL')]"
             },
             {
               "name": "STORAGE_QUEUE_CONNECT_STRING",

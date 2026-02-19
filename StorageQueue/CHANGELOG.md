@@ -5,6 +5,10 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.0.3 / 19 Feb 2026
+[Bug] Fix the package type from `module` to `commonjs`
+[Bug] Update ARM template (parameter case matching)
+
 ### 2.0.2 / 25 Apr 2025
 [Update] Bump Node.js runtime to version 20
 
