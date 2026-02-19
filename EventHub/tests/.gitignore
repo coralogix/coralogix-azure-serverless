@@ -1,0 +1,15 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+!terraform/*.tfvars.example
+
+# Python venv (for azure-eventhub when running e2e)
+.venv/
+venv/
+
+# E2E generated
+arm-params.json
+.e2e-test-payload.tmp
