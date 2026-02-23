@@ -1,25 +1,21 @@
-# E2E Tests for all packages (StorageQueue, EventHub, DiagnosticData, BlobViaEventGrid, BlobToOtel).
-#
-# Required GitHub Secrets:
-#   Azure: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
-#   Coralogix: OTEL_ENDPOINT, CORALOGIX_API_KEY, CORALOGIX_QUERY_API_KEY (optional, falls back to CORALOGIX_API_KEY)
-#
 name: E2E Tests
 
 on:
   push:
     branches:
-      - master
-      - e2e
+    # Uncomment after Stage 2
+    #   - master
+      - e2e-stage2
     paths:
       - "StorageQueue/**"
       - "EventHub/**"
       - "DiagnosticData/**"
       - "BlobViaEventGrid/**"
       - "BlobToOtel/**"
-  schedule:
-    # Every morning 8am UTC
-    - cron: "0 8 * * *"
+# Uncomment after Stage 2
+#   schedule:
+#     # Every morning 8am UTC
+#     - cron: "0 8 * * *"
 
 jobs:
   detect-changes:
@@ -55,7 +51,8 @@ jobs:
       - name: Set packages matrix
         id: set-packages
         run: |
-          if [[ "${{ github.event_name }}" == "schedule" ]] || [[ "${{ github.ref }}" == "refs/heads/e2e" ]]; then
+          # Delete 2nd part of the if statement after Stage 2
+          if [[ "${{ github.event_name }}" == "schedule" ]] || [[ "${{ github.ref }}" == "refs/heads/e2e-stage2" ]]; then
             echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
             echo 'has-changes=true' >> $GITHUB_OUTPUT
           else
