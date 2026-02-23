@@ -17,6 +17,9 @@ on:
 #     # Every morning 8am UTC
 #     - cron: "0 8 * * *"
 
+permissions:
+  contents: read
+
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
