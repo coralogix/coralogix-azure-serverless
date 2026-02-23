@@ -1,0 +1,109 @@
+# E2E Tests for all packages (StorageQueue, EventHub, DiagnosticData, BlobViaEventGrid, BlobToOtel).
+#
+# Required GitHub Secrets:
+#   Azure: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#   Coralogix: OTEL_ENDPOINT, CORALOGIX_API_KEY, CORALOGIX_QUERY_API_KEY (optional, falls back to CORALOGIX_API_KEY)
+#
+name: E2E Tests
+
+on:
+  push:
+    branches:
+      - master
+      - e2e
+    paths:
+      - "StorageQueue/**"
+      - "EventHub/**"
+      - "DiagnosticData/**"
+      - "BlobViaEventGrid/**"
+      - "BlobToOtel/**"
+  schedule:
+    # Every morning 8am UTC
+    - cron: "0 8 * * *"
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.set-packages.outputs.packages }}
+      has-changes: ${{ steps.set-packages.outputs.has-changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        if: github.event_name != 'schedule'
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed packages
+        uses: dorny/paths-filter@v3
+        id: changes
+        if: github.event_name == 'push'
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            StorageQueue:
+              - 'StorageQueue/**'
+            EventHub:
+              - 'EventHub/**'
+            DiagnosticData:
+              - 'DiagnosticData/**'
+            BlobViaEventGrid:
+              - 'BlobViaEventGrid/**'
+            BlobToOtel:
+              - 'BlobToOtel/**'
+
+      - name: Set packages matrix
+        id: set-packages
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]] || [[ "${{ github.ref }}" == "refs/heads/e2e" ]]; then
+            echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
+            echo 'has-changes=true' >> $GITHUB_OUTPUT
+          else
+            packages='${{ steps.changes.outputs.changes }}'
+            echo "packages=$packages" >> $GITHUB_OUTPUT
+            if [[ "$packages" == "[]" ]] || [[ -z "$packages" ]]; then
+              echo 'has-changes=false' >> $GITHUB_OUTPUT
+            else
+              echo 'has-changes=true' >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  e2e:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.4"
+
+      - name: Setup Python (EventHub e2e)
+        if: matrix.package == 'EventHub'
+        run: pip install azure-eventhub
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        env:
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Run E2E test
+        working-directory: ./${{ matrix.package }}/tests
+        env:
+          OTEL_ENDPOINT: ${{ secrets.OTEL_ENDPOINT }}
+          CORALOGIX_API_KEY: ${{ secrets.CORALOGIX_API_KEY }}
+          CORALOGIX_QUERY_API_KEY: ${{ secrets.CORALOGIX_QUERY_API_KEY }}
+          CORALOGIX_DIRECT_MODE: "true"
+        run: ./e2e.sh
