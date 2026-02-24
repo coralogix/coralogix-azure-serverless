@@ -93,17 +93,17 @@ resource "azurerm_storage_account" "diag_source" {
 
 resource "azurerm_storage_container" "uploads" {
   name                  = "uploads"
-  storage_account_name   = azurerm_storage_account.diag_source.name
+  storage_account_name  = azurerm_storage_account.diag_source.name
   container_access_type = "private"
 }
 
 # Diagnostic setting on the storage account: stream Transaction metric to the Event Hub.
 # Uploading blobs generates transactions that Azure will stream to the hub.
 resource "azurerm_monitor_diagnostic_setting" "storage_to_eventhub" {
-  name                       = "diagdata-e2e-stream-to-eventhub"
-  target_resource_id         = azurerm_storage_account.diag_source.id
+  name                           = "diagdata-e2e-stream-to-eventhub"
+  target_resource_id             = azurerm_storage_account.diag_source.id
   eventhub_authorization_rule_id = azurerm_eventhub_namespace_authorization_rule.send.id
-  eventhub_name              = azurerm_eventhub.hub.name
+  eventhub_name                  = azurerm_eventhub.hub.name
 
   metric {
     category = "Transaction"

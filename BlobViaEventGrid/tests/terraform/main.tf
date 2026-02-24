@@ -48,6 +48,6 @@ resource "azurerm_storage_account" "blob" {
 
 resource "azurerm_storage_container" "logs" {
   name                  = "logs"
-  storage_account_name   = azurerm_storage_account.blob.name
+  storage_account_name  = azurerm_storage_account.blob.name
   container_access_type = "private"
 }

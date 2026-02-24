@@ -49,5 +49,5 @@ resource "azurerm_storage_account" "queue" {
 
 resource "azurerm_storage_queue" "logs" {
   name                 = "coralogix-logs"
-  storage_account_name  = azurerm_storage_account.queue.name
+  storage_account_name = azurerm_storage_account.queue.name
 }

@@ -71,10 +71,10 @@ resource "azurerm_eventhub" "hub" {
 
 # Route blob-created events from storage to Event Hub
 resource "azurerm_eventgrid_event_subscription" "storage_to_eventhub" {
-  name                  = "${local.name_prefix}-storage-to-eh"
-  scope                 = azurerm_storage_account.blob.id
-  eventhub_endpoint_id  = azurerm_eventhub.hub.id
-  included_event_types  = ["Microsoft.Storage.BlobCreated"]
+  name                 = "${local.name_prefix}-storage-to-eh"
+  scope                = azurerm_storage_account.blob.id
+  eventhub_endpoint_id = azurerm_eventhub.hub.id
+  included_event_types = ["Microsoft.Storage.BlobCreated"]
 }
 
 # Consumer group for the ARM-deployed BlobToOtel function
