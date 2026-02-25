@@ -1,0 +1,2 @@
+# For send_event.py (E2E test)
+azure-eventhub>=5.0.0

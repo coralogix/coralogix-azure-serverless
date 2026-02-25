@@ -1,0 +1,11 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+!terraform/*.tfvars.example
+
+# E2E generated
+arm-params.json
+.e2e-test-payload.tmp

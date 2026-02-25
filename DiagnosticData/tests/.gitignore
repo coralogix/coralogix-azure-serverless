@@ -1,0 +1,14 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
+
+# E2E generated
+arm-params.json
+*.tmp
+.venv/
+
+# Local env (do not commit secrets)
+env.json
+testenv.json

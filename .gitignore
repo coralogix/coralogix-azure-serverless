@@ -43,3 +43,11 @@ venv.bak/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Terraform (e2e tests per Azure function)
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/crash.log
+**/crash.*.log
+**/.terraform.lock.hcl
