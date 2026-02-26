@@ -21,7 +21,7 @@ provider "azurerm" {
 
 locals {
   name_prefix = "storagequeue-e2e"
-  location    = "eastus"
+  location    = "canadacentral"
 }
 
 # Single resource group for the e2e test (prereqs; function is deployed via ARM into this RG)

@@ -27,7 +27,7 @@ provider "azurerm" {
 
 locals {
   name_prefix = "cx-diagdata-e2e"
-  location    = "eastus"
+  location    = "canadacentral"
 }
 
 # Single resource group for the e2e test (prereqs; function is deployed via ARM)
