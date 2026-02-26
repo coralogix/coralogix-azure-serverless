@@ -40,9 +40,6 @@ err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 
 cleanup_after_failure() {
   log "Cleaning up after failure..."
-  if [[ -d "${TERRAFORM_DIR:-}" ]]; then
-    (cd "$TERRAFORM_DIR" && terraform destroy -input=false -auto-approve 2>/dev/null) || true
-  fi
   if [[ -n "${RG_NAME:-}" ]]; then
     az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
   fi
