@@ -8,7 +8,7 @@
 #   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
 #   3. Upload 5–10 blobs to the storage account to generate transactions; diagnostic setting
 #      streams data to Event Hub; function reads and forwards to Coralogix.
-#   4. Wait 2 min, then poll Coralogix Data Usage API until subsystem units > 0 (retry every 30s, up to 15 times).
+#   4. Wait 2 min, then poll Coralogix Data Usage API until subsystem units > 0 (retry every 30s, up to 30 times).
 #   5. Clean up all resources.
 #
 # Prerequisites:
@@ -161,7 +161,7 @@ fetch_data_usage_units() {
 
 # Diagnostic data can take 1–2 minutes (or more) to flow: storage → Event Hub → function → Coralogix
 WAIT_INITIAL="${WAIT_INITIAL:-120}"
-MAX_ATTEMPTS="${MAX_ATTEMPTS:-15}"
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-30}"
 
 log "Step 4: Waiting ${WAIT_INITIAL}s for diagnostic data to flow, then verifying data in Coralogix (subsystem=$CX_SUBSYS, data usage units)..."
 sleep "$WAIT_INITIAL"

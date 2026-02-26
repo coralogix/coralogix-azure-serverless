@@ -6,7 +6,7 @@
 #   1. Provision Azure resources with Terraform (Event Hub namespace, hub, consumer group, auth rules).
 #   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
 #   3. Send test events to the Event Hub to trigger the function.
-#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 10 times).
+#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 20 times).
 #   5. Clean up all resources.
 #
 # Prerequisites:
@@ -153,11 +153,11 @@ while true; do
     log "Step 4: Logs verified in Coralogix (count=$count)."
     break
   fi
-  if [[ $attempt -ge 10 ]]; then
-    err "Step 4: No logs received in Coralogix after 10 attempts (last count=${count:-unknown})."
+  if [[ $attempt -ge 20 ]]; then
+    err "Step 4: No logs received in Coralogix after 20 attempts (last count=${count:-unknown})."
     exit 1
   fi
-  log "Step 4: No logs yet (attempt $attempt/10), retrying in 30s..."
+  log "Step 4: No logs yet (attempt $attempt/20), retrying in 30s..."
   sleep 30
 done
 
