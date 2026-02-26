@@ -1,6 +1,7 @@
 name: E2E Tests
 
 on:
+  workflow_dispatch:
   push:
     branches:
     # Uncomment after Stage 2
@@ -33,40 +34,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect changed packages
-        uses: dorny/paths-filter@v3
-        id: changes
-        if: github.event_name == 'push'
-        with:
-          base: ${{ github.ref }}
-          filters: |
-            StorageQueue:
-              - 'StorageQueue/**'
-            EventHub:
-              - 'EventHub/**'
-            DiagnosticData:
-              - 'DiagnosticData/**'
-            BlobViaEventGrid:
-              - 'BlobViaEventGrid/**'
-            BlobToOtel:
-              - 'BlobToOtel/**'
+      # Temporarily disabled: always run all packages to verify tests on GitHub
+      # - name: Detect changed packages
+      #   uses: dorny/paths-filter@v3
+      #   id: changes
+      #   if: github.event_name == 'push'
+      #   with:
+      #     base: ${{ github.ref }}
+      #     filters: |
+      #       StorageQueue:
+      #         - 'StorageQueue/**'
+      #       EventHub:
+      #         - 'EventHub/**'
+      #       DiagnosticData:
+      #         - 'DiagnosticData/**'
+      #       BlobViaEventGrid:
+      #         - 'BlobViaEventGrid/**'
+      #       BlobToOtel:
+      #         - 'BlobToOtel/**'
 
       - name: Set packages matrix
         id: set-packages
         run: |
-          # Delete 2nd part of the if statement after Stage 2
-          if [[ "${{ github.event_name }}" == "schedule" ]] || [[ "${{ github.ref }}" == "refs/heads/e2e-stage2" ]]; then
-            echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
-            echo 'has-changes=true' >> $GITHUB_OUTPUT
-          else
-            packages='${{ steps.changes.outputs.changes }}'
-            echo "packages=$packages" >> $GITHUB_OUTPUT
-            if [[ "$packages" == "[]" ]] || [[ -z "$packages" ]]; then
-              echo 'has-changes=false' >> $GITHUB_OUTPUT
-            else
-              echo 'has-changes=true' >> $GITHUB_OUTPUT
-            fi
-          fi
+          # For now: always run all packages (detect-changes commented out)
+          echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
+          echo 'has-changes=true' >> $GITHUB_OUTPUT
 
   e2e:
     needs: detect-changes
