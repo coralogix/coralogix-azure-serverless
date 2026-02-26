@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write   # required for Azure OIDC / federated login
 
 jobs:
   detect-changes:
