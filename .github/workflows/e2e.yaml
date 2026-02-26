@@ -8,6 +8,7 @@ on:
     #   - master
       - e2e-stage2
     paths:
+      - ".github/**"
       - "StorageQueue/**"
       - "EventHub/**"
       - "DiagnosticData/**"
