@@ -37,6 +37,8 @@ ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-se
 
 # For Step 4 verification
 CORALOGIX_QUERY_API_KEY="${CORALOGIX_QUERY_API_KEY:-${CORALOGIX_API_KEY}}"
+CX_APP="${CORALOGIX_APPLICATION:-azure}"
+CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-storage-queue-e2e}"
 
 # Coralogix logs API URL (ARM CustomURL expects full URL, e.g. https://ingress.XXX/api/v1/logs)
 if [[ "$OTEL_ENDPOINT" == *"/api/v1/logs" ]]; then
@@ -83,8 +85,8 @@ build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"
   echo '  "CoralogixRegion": { "value": "Custom" },'
   echo "  $(build_param 'CustomURL' "$CORALOGIX_LOGS_URL"),"
   echo "  $(build_param 'CoralogixPrivateKey' "$CORALOGIX_API_KEY"),"
-  echo "  $(build_param 'CoralogixApplication' "${CORALOGIX_APPLICATION:-azure}"),"
-  echo "  $(build_param 'CoralogixSubsystem' "${CORALOGIX_SUBSYSTEM:-storage-queue-e2e}"),"
+  echo "  $(build_param 'CoralogixApplication' "$CX_APP"),"
+  echo "  $(build_param 'CoralogixSubsystem' "$CX_SUBSYS"),"
   echo "  $(build_param 'StorageAccountName' "$STORAGE_ACCOUNT"),"
   echo "  $(build_param 'StorageAccountResourceGroup' "$STORAGE_RG"),"
   echo "  $(build_param 'StorageQueueName' "$STORAGE_QUEUE_NAME"),"
@@ -119,9 +121,6 @@ CX_API_HOST="${CX_API_HOST%%:*}"
 CX_API_HOST="${CX_API_HOST/#ingress./api.}"
 CX_LOGS_COUNT_URL="https://${CX_API_HOST}/mgmt/openapi/latest/dataplans/data-usage/v2/logs:count"
 
-# Subsystem used in ARM parameters (must match build_param above)
-CX_SUBSYSTEM="${CORALOGIX_SUBSYSTEM:-storage-queue-e2e}"
-
 now_minus_10m() {
   if date -u -d '10 min ago' +%Y-%m-%dT%H:%M:%S.000Z 2>/dev/null; then
     return
@@ -137,13 +136,13 @@ fetch_logs_count() {
     --data-urlencode "date_range.fromDate=$from" \
     --data-urlencode "date_range.toDate=$to" \
     --data-urlencode "resolution=10m" \
-    --data-urlencode "filters.application=azure" \
-    --data-urlencode "filters.subsystem=$CX_SUBSYSTEM" \
+    --data-urlencode "filters.application=$CX_APP" \
+    --data-urlencode "filters.subsystem=$CX_SUBSYS" \
     --data-urlencode "subsystem_aggregation=true" \
     -H "Authorization: Bearer $CORALOGIX_QUERY_API_KEY" | head -1 | jq -r '(.result.logsCount // []) | map(.logsCount | tonumber) | add // 0'
 }
 
-log "Step 4: Waiting 30s, then verifying logs in Coralogix (app=azure, subsystem=$CX_SUBSYSTEM)..."
+log "Step 4: Waiting 30s, then verifying logs in Coralogix (app=$CX_APP, subsystem=$CX_SUBSYS)..."
 sleep 30
 
 attempt=0
