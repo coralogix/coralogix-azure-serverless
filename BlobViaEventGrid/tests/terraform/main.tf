@@ -20,7 +20,7 @@ provider "azurerm" {
 
 locals {
   name_prefix = "blobviaeg-e2e"
-  location    = "canadacentral"
+  location    = "westeurope"
 }
 
 # Single resource group for the e2e test (prereqs; function is deployed via ARM)
