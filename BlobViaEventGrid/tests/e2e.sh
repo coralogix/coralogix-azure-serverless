@@ -7,7 +7,7 @@
 #   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
 #      The ARM template creates the Event Grid system topic and subscription to the function.
 #   3. Send a test payload (upload a blob to trigger Event Grid → function).
-#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 20 times).
+#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 30 times).
 #   5. Clean up all resources.
 #
 # Prerequisites:
@@ -147,6 +147,7 @@ fetch_logs_count() {
 log "Step 4: Waiting 30s, then verifying logs in Coralogix (app=$CX_APP, subsystem=$CX_SUBSYS)..."
 sleep 30
 
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-30}"
 attempt=0
 while true; do
   attempt=$((attempt + 1))
@@ -155,11 +156,11 @@ while true; do
     log "Step 4: Logs verified in Coralogix (count=$count)."
     break
   fi
-  if [[ $attempt -ge 20 ]]; then
-    err "Step 4: No logs received in Coralogix after 20 attempts (last count=${count:-unknown})."
+  if [[ $attempt -ge "$MAX_ATTEMPTS" ]]; then
+    err "Step 4: No logs received in Coralogix after $MAX_ATTEMPTS attempts (last count=${count:-unknown})."
     exit 1
   fi
-  log "Step 4: No logs yet (attempt $attempt/20), retrying in 30s..."
+  log "Step 4: No logs yet (attempt $attempt/$MAX_ATTEMPTS), retrying in 30s..."
   sleep 30
 done
 
