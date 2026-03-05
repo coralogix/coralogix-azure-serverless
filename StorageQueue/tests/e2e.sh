@@ -101,7 +101,11 @@ rm -f "$PARAMS_FILE"
 log "ARM deployment completed."
 
 # --- Step 2c: Sync function triggers, then wait before sending data ---
-FUNCTION_APP_NAME=$(az webapp list --resource-group "$RG_NAME" --query "[0].name" -o tsv)
+FUNCTION_APP_NAME=$(az functionapp list --resource-group "$RG_NAME" --query "[0].name" -o tsv)
+if [[ -z "${FUNCTION_APP_NAME:-}" ]]; then
+  err "Step 2c: No function app found in resource group $RG_NAME."
+  exit 1
+fi
 log "Step 2c: Syncing function triggers..."
 az resource invoke-action -g "$RG_NAME" -n "$FUNCTION_APP_NAME" --action syncfunctiontriggers --resource-type Microsoft.Web/sites
 log "Step 2c: Waiting 15s for triggers to register..."
