@@ -4,8 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-    # Uncomment after Stage 2
-    #   - master
+      - master
       - e2e-stage2
     paths:
       - ".github/**"
@@ -14,10 +13,6 @@ on:
       - "DiagnosticData/**"
       - "BlobViaEventGrid/**"
       - "BlobToOtel/**"
-# Uncomment after Stage 2
-#   schedule:
-#     # Every morning 8am UTC
-#     - cron: "0 8 * * *"
 
 permissions:
   contents: read
@@ -32,35 +27,54 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        if: github.event_name != 'schedule'
         with:
           fetch-depth: 0
 
-      # Temporarily disabled: always run all packages to verify tests on GitHub
-      # - name: Detect changed packages
-      #   uses: dorny/paths-filter@v3
-      #   id: changes
-      #   if: github.event_name == 'push'
-      #   with:
-      #     base: ${{ github.ref }}
-      #     filters: |
-      #       StorageQueue:
-      #         - 'StorageQueue/**'
-      #       EventHub:
-      #         - 'EventHub/**'
-      #       DiagnosticData:
-      #         - 'DiagnosticData/**'
-      #       BlobViaEventGrid:
-      #         - 'BlobViaEventGrid/**'
-      #       BlobToOtel:
-      #         - 'BlobToOtel/**'
+      - name: Detect changed packages
+        uses: dorny/paths-filter@v3
+        id: changes
+        if: github.event_name == 'push'
+        with:
+          base: ${{ github.event.before }}
+          filters: |
+            StorageQueue:
+              - 'StorageQueue/**'
+            EventHub:
+              - 'EventHub/**'
+            DiagnosticData:
+              - 'DiagnosticData/**'
+            BlobViaEventGrid:
+              - 'BlobViaEventGrid/**'
+            BlobToOtel:
+              - 'BlobToOtel/**'
 
       - name: Set packages matrix
         id: set-packages
+        env:
+          EVENT: ${{ github.event_name }}
+          SQ: ${{ steps.changes.outputs.StorageQueue }}
+          EH: ${{ steps.changes.outputs.EventHub }}
+          DD: ${{ steps.changes.outputs.DiagnosticData }}
+          BVE: ${{ steps.changes.outputs.BlobViaEventGrid }}
+          BTO: ${{ steps.changes.outputs.BlobToOtel }}
         run: |
-          # For now: always run all packages (detect-changes commented out)
-          echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
-          echo 'has-changes=true' >> $GITHUB_OUTPUT
+          if [[ "$EVENT" == "push" && ("$SQ" == "true" || "$EH" == "true" || "$DD" == "true" || "$BVE" == "true" || "$BTO" == "true") ]]; then
+            packages=()
+            [[ "$SQ" == "true" ]] && packages+=("StorageQueue")
+            [[ "$EH" == "true" ]] && packages+=("EventHub")
+            [[ "$DD" == "true" ]] && packages+=("DiagnosticData")
+            [[ "$BVE" == "true" ]] && packages+=("BlobViaEventGrid")
+            [[ "$BTO" == "true" ]] && packages+=("BlobToOtel")
+            pk_json=$(printf '%s\n' "${packages[@]}" | jq -R . | jq -s -c .)
+            echo "packages=$pk_json" >> $GITHUB_OUTPUT
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+          elif [[ "$EVENT" == "workflow_dispatch" ]]; then
+            echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
+            echo 'has-changes=true' >> $GITHUB_OUTPUT
+          else
+            echo 'packages=[]' >> $GITHUB_OUTPUT
+            echo 'has-changes=false' >> $GITHUB_OUTPUT
+          fi
 
   e2e:
     needs: detect-changes

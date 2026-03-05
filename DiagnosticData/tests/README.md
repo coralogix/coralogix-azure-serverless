@@ -2,6 +2,8 @@
 
 End-to-end test for the **Diagnostic Data** Azure Function using real diagnostic settings: a storage account streams its **Transaction** metric to an Event Hub, the function reads from the Event Hub and forwards to Coralogix.
 
+**Note:** These tests are **unstable** by nature. Azure Diagnostic Settings for storage (metrics streamed to Event Hub) can take a long time to populate—sometimes **up to 1 hour**—so runs may succeed or fail intermittently depending on timing.
+
 ## Flow
 
 1. **Provision** – Terraform creates:
