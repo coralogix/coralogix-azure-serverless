@@ -6,6 +6,7 @@
 #   1. Provision Azure resources with Terraform (resource group, StorageV2 account, container).
 #   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
 #      The ARM template creates the Event Grid system topic and subscription to the function.
+#   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Send a test payload (upload a blob to trigger Event Grid → function).
 #   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 30 times).
 #   5. Clean up all resources.
@@ -99,6 +100,13 @@ az deployment group create \
 
 rm -f "$PARAMS_FILE"
 log "ARM deployment completed."
+
+# --- Step 2c: Sync function triggers, then wait before sending data ---
+FUNCTION_APP_NAME=$(az webapp list --resource-group "$RG_NAME" --query "[0].name" -o tsv)
+log "Step 2c: Syncing function triggers..."
+az resource invoke-action -g "$RG_NAME" -n "$FUNCTION_APP_NAME" --action syncfunctiontriggers --resource-type Microsoft.Web/sites
+log "Step 2c: Waiting 15s for triggers to register..."
+sleep 15
 
 # --- Step 3: Send test payload (upload blob to trigger Event Grid → function) ---
 log "Step 3: Uploading test blob to trigger Event Grid and the function..."

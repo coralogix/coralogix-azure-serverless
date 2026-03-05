@@ -6,6 +6,7 @@
 #   1. Provision Azure resources with Terraform (RG, Event Hub, storage account with
 #      diagnostic setting that streams Transaction metric to Event Hub).
 #   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Upload 5–10 blobs to the storage account to generate transactions; diagnostic setting
 #      streams data to Event Hub; function reads and forwards to Coralogix.
 #   4. Wait 2 min, then poll Coralogix Data Usage API until subsystem units > 0 (retry every 30s, up to 30 times).
@@ -102,6 +103,13 @@ az deployment group create \
 
 rm -f "$PARAMS_FILE"
 log "ARM deployment completed."
+
+# --- Step 2c: Sync function triggers, then wait before sending data ---
+FUNCTION_APP_NAME=$(az webapp list --resource-group "$RG_NAME" --query "[0].name" -o tsv)
+log "Step 2c: Syncing function triggers..."
+az resource invoke-action -g "$RG_NAME" -n "$FUNCTION_APP_NAME" --action syncfunctiontriggers --resource-type Microsoft.Web/sites
+log "Step 2c: Waiting 15s for triggers to register..."
+sleep 15
 
 # --- Step 3: Upload blobs to generate storage transactions (diagnostic setting streams to Event Hub) ---
 log "Step 3: Uploading $NUM_BLOBS blobs to container $CONTAINER_NAME to trigger diagnostic data..."
