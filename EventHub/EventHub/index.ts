@@ -10,7 +10,6 @@
  * @since       1.0.0
  */
 
-// Dumb comment to trigger a build
 import { InvocationContext } from "@azure/functions";
 import { Logger } from "@opentelemetry/api-logs";
 import { LoggerProvider, BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
