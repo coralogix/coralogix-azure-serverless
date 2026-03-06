@@ -1,18 +1,13 @@
 name: E2E Tests
 
 on:
-  workflow_dispatch:
-  push:
+  workflow_run:
+    workflows:
+      - "Build, Test & Release"
     branches:
       - master
-      - e2e-stage2
-    paths:
-      - ".github/**"
-      - "StorageQueue/**"
-      - "EventHub/**"
-      - "DiagnosticData/**"
-      - "BlobViaEventGrid/**"
-      - "BlobToOtel/**"
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -21,6 +16,8 @@ permissions:
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
+    # For workflow_run: only proceed if the release workflow succeeded
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       packages: ${{ steps.set-packages.outputs.packages }}
       has-changes: ${{ steps.set-packages.outputs.has-changes }}
@@ -68,7 +65,7 @@ jobs:
             pk_json=$(printf '%s\n' "${packages[@]}" | jq -R . | jq -s -c .)
             echo "packages=$pk_json" >> $GITHUB_OUTPUT
             echo "has-changes=true" >> $GITHUB_OUTPUT
-          elif [[ "$EVENT" == "workflow_dispatch" ]]; then
+          elif [[ "$EVENT" == "workflow_dispatch" || "$EVENT" == "workflow_run" ]]; then
             echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
             echo 'has-changes=true' >> $GITHUB_OUTPUT
           else
