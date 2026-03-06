@@ -5,8 +5,9 @@
 # Order of execution:
 #   1. Provision Azure resources with Terraform (Event Hub namespace, hub, consumer group, auth rules).
 #   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Send test events to the Event Hub to trigger the function.
-#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 10 times).
+#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 30 times).
 #   5. Clean up all resources.
 #
 # Prerequisites:
@@ -35,6 +36,8 @@ ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-se
 
 # For Step 4 verification
 CORALOGIX_QUERY_API_KEY="${CORALOGIX_QUERY_API_KEY:-${CORALOGIX_API_KEY}}"
+CX_APP="${CORALOGIX_APPLICATION:-azure}"
+CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-eventhub-e2e}"
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
@@ -79,8 +82,8 @@ build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"
   echo '  "CoralogixRegion": { "value": "Custom" },'
   echo "  $(build_param 'CustomURL' "$CUSTOM_URL"),"
   echo "  $(build_param 'CoralogixPrivateKey' "$CORALOGIX_API_KEY"),"
-  echo "  $(build_param 'CoralogixApplication' "${CORALOGIX_APPLICATION:-azure}"),"
-  echo "  $(build_param 'CoralogixSubsystem' "${CORALOGIX_SUBSYSTEM:-eventhub-e2e}"),"
+  echo "  $(build_param 'CoralogixApplication' "$CX_APP"),"
+  echo "  $(build_param 'CoralogixSubsystem' "$CX_SUBSYS"),"
   echo "  $(build_param 'EventhubResourceGroup' "$EVENTHUB_RG"),"
   echo "  $(build_param 'EventhubNamespace' "$EVENTHUB_NAMESPACE"),"
   echo "  $(build_param 'EventhubInstanceName' "$EVENTHUB_NAME"),"
@@ -101,6 +104,17 @@ az deployment group create \
 
 rm -f "$PARAMS_FILE"
 log "ARM deployment completed."
+
+# --- Step 2c: Sync function triggers, then wait before sending data ---
+FUNCTION_APP_NAME=$(az functionapp list --resource-group "$RG_NAME" --query "[0].name" -o tsv)
+if [[ -z "${FUNCTION_APP_NAME:-}" ]]; then
+  err "Step 2c: No function app found in resource group $RG_NAME."
+  exit 1
+fi
+log "Step 2c: Syncing function triggers..."
+az resource invoke-action -g "$RG_NAME" -n "$FUNCTION_APP_NAME" --action syncfunctiontriggers --resource-type Microsoft.Web/sites
+log "Step 2c: Waiting 15s for triggers to register..."
+sleep 15
 
 # --- Step 3: Send test events to Event Hub to trigger the function ---
 log "Step 3: Sending test event (JSON payload) to Event Hub..."
@@ -126,9 +140,6 @@ now_minus_10m() {
   date -u -v-10M +%Y-%m-%dT%H:%M:%S.000Z
 }
 
-CX_APP="${CORALOGIX_APPLICATION:-azure}"
-CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-eventhub-e2e}"
-
 fetch_logs_count() {
   local from to
   from=$(now_minus_10m)
@@ -146,6 +157,7 @@ fetch_logs_count() {
 log "Step 4: Waiting 30s, then verifying logs in Coralogix (app=$CX_APP, subsystem=$CX_SUBSYS)..."
 sleep 30
 
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-30}"
 attempt=0
 while true; do
   attempt=$((attempt + 1))
@@ -154,11 +166,11 @@ while true; do
     log "Step 4: Logs verified in Coralogix (count=$count)."
     break
   fi
-  if [[ $attempt -ge 10 ]]; then
-    err "Step 4: No logs received in Coralogix after 10 attempts (last count=${count:-unknown})."
+  if [[ $attempt -ge "$MAX_ATTEMPTS" ]]; then
+    err "Step 4: No logs received in Coralogix after $MAX_ATTEMPTS attempts (last count=${count:-unknown})."
     exit 1
   fi
-  log "Step 4: No logs yet (attempt $attempt/10), retrying in 30s..."
+  log "Step 4: No logs yet (attempt $attempt/$MAX_ATTEMPTS), retrying in 30s..."
   sleep 30
 done
 

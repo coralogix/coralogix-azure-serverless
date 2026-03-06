@@ -6,9 +6,10 @@
 #   1. Provision Azure resources with Terraform (RG, Event Hub, storage account with
 #      diagnostic setting that streams Transaction metric to Event Hub).
 #   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Upload 5–10 blobs to the storage account to generate transactions; diagnostic setting
 #      streams data to Event Hub; function reads and forwards to Coralogix.
-#   4. Wait 2 min, then poll Coralogix Data Usage API until subsystem units > 0 (retry every 30s, up to 15 times).
+#   4. Wait 2 min, then poll Coralogix Data Usage API until subsystem units > 0 (retry every 30s, up to 30 times).
 #   5. Clean up all resources.
 #
 # Prerequisites:
@@ -42,6 +43,9 @@ NUM_BLOBS="${NUM_BLOBS:-8}"
 
 # For Step 4 verification
 CORALOGIX_QUERY_API_KEY="${CORALOGIX_QUERY_API_KEY:-${CORALOGIX_API_KEY}}"
+
+CX_APP="${CORALOGIX_APPLICATION:-azure}"
+CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-diagnosticdata-e2e}"
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
@@ -82,8 +86,8 @@ build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"
   echo '  "CoralogixRegion": { "value": "Custom" },'
   echo "  $(build_param 'CustomURL' "$CORALOGIX_EVENTS_URL"),"
   echo "  $(build_param 'CoralogixPrivateKey' "$CORALOGIX_API_KEY"),"
-  echo "  $(build_param 'CoralogixApplication' "${CORALOGIX_APPLICATION:-azure}"),"
-  echo "  $(build_param 'CoralogixSubsystem' "${CORALOGIX_SUBSYSTEM:-diagnosticdata-e2e}"),"
+  echo "  $(build_param 'CoralogixApplication' "$CX_APP"),"
+  echo "  $(build_param 'CoralogixSubsystem' "$CX_SUBSYS"),"
   echo "  $(build_param 'EventhubResourceGroup' "$EVENTHUB_RG"),"
   echo "  $(build_param 'EventhubNamespace' "$EVENTHUB_NAMESPACE"),"
   echo "  $(build_param 'EventhubInstanceName' "$EVENTHUB_NAME"),"
@@ -99,6 +103,17 @@ az deployment group create \
 
 rm -f "$PARAMS_FILE"
 log "ARM deployment completed."
+
+# --- Step 2c: Sync function triggers, then wait before sending data ---
+FUNCTION_APP_NAME=$(az functionapp list --resource-group "$RG_NAME" --query "[0].name" -o tsv)
+if [[ -z "${FUNCTION_APP_NAME:-}" ]]; then
+  err "Step 2c: No function app found in resource group $RG_NAME."
+  exit 1
+fi
+log "Step 2c: Syncing function triggers..."
+az resource invoke-action -g "$RG_NAME" -n "$FUNCTION_APP_NAME" --action syncfunctiontriggers --resource-type Microsoft.Web/sites
+log "Step 2c: Waiting 15s for triggers to register..."
+sleep 15
 
 # --- Step 3: Upload blobs to generate storage transactions (diagnostic setting streams to Event Hub) ---
 log "Step 3: Uploading $NUM_BLOBS blobs to container $CONTAINER_NAME to trigger diagnostic data..."
@@ -136,8 +151,6 @@ CX_API_HOST="${CX_API_HOST%%/*}"
 CX_API_HOST="${CX_API_HOST/#ingress./api.}"
 CX_DATA_USAGE_URL="https://${CX_API_HOST}/mgmt/openapi/latest/dataplans/data-usage/v2"
 
-CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-diagnosticdata-e2e}"
-
 now_minus_60m() {
   if date -u -d '60 min ago' +%Y-%m-%dT%H:%M:%S.000Z 2>/dev/null; then
     return
@@ -160,7 +173,7 @@ fetch_data_usage_units() {
 
 # Diagnostic data can take 1–2 minutes (or more) to flow: storage → Event Hub → function → Coralogix
 WAIT_INITIAL="${WAIT_INITIAL:-120}"
-MAX_ATTEMPTS="${MAX_ATTEMPTS:-15}"
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-30}"
 
 log "Step 4: Waiting ${WAIT_INITIAL}s for diagnostic data to flow, then verifying data in Coralogix (subsystem=$CX_SUBSYS, data usage units)..."
 sleep "$WAIT_INITIAL"

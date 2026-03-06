@@ -5,8 +5,9 @@
 # Order of execution:
 #   1. Provision Azure resources with Terraform (prereqs + Event Hub consumer group).
 #   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Send a test payload (upload a blob to trigger the function).
-#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 10 times).
+#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 30 times).
 #   5. Clean up all resources.
 #
 # Prerequisites:
@@ -30,6 +31,10 @@ ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-se
 
 # Required
 : "${OTEL_ENDPOINT:?Set OTEL_ENDPOINT (e.g. https://ingress.coralogix.com)}"
+
+CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-blob-storage-eventhub-e2e}"
+CORALOGIX_QUERY_API_KEY="${CORALOGIX_QUERY_API_KEY:-${CORALOGIX_API_KEY}}"
+CX_APP="${CORALOGIX_APPLICATION:-azure}"
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
@@ -70,8 +75,8 @@ build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"
   echo "  $(build_param 'OtelEndpoint' "$OTEL_ENDPOINT"),"
   echo "  $(build_param 'CoralogixDirectMode' "${CORALOGIX_DIRECT_MODE:-false}"),"
   echo "  $(build_param 'CoralogixApiKey' "${CORALOGIX_API_KEY:-}"),"
-  echo "  $(build_param 'CoralogixApplication' "${CORALOGIX_APPLICATION:-azure}"),"
-  echo "  $(build_param 'CoralogixSubsystem' "${CORALOGIX_SUBSYSTEM:-blob-storage-eventhub-e2e}"),"
+  echo "  $(build_param 'CoralogixApplication' "$CX_APP"),"
+  echo "  $(build_param 'CoralogixSubsystem' "$CX_SUBSYS"),"
   echo '  "NewlinePattern": { "value": "(?:\\r\\n|\\r|\\n)" },'
   echo "  $(build_param 'EventHubNamespace' "$EVENTHUB_NAMESPACE"),"
   echo "  $(build_param 'EventHubName' "$EVENTHUB_NAME"),"
@@ -98,6 +103,17 @@ az deployment group create \
 
 rm -f "$PARAMS_FILE"
 log "ARM deployment completed."
+
+# --- Step 2c: Sync function triggers, then wait before sending data ---
+FUNCTION_APP_NAME=$(az functionapp list --resource-group "$RG_NAME" --query "[0].name" -o tsv)
+if [[ -z "${FUNCTION_APP_NAME:-}" ]]; then
+  err "Step 2c: No function app found in resource group $RG_NAME."
+  exit 1
+fi
+log "Step 2c: Syncing function triggers..."
+az resource invoke-action -g "$RG_NAME" -n "$FUNCTION_APP_NAME" --action syncfunctiontriggers --resource-type Microsoft.Web/sites
+log "Step 2c: Waiting 15s for triggers to register..."
+sleep 15
 
 # --- Step 3: Send test payload (upload blob to trigger function) ---
 log "Step 3: Uploading test blob to trigger the function..."
@@ -137,15 +153,16 @@ fetch_logs_count() {
     --data-urlencode "date_range.fromDate=$from" \
     --data-urlencode "date_range.toDate=$to" \
     --data-urlencode "resolution=10m" \
-    --data-urlencode "filters.application=azure" \
-    --data-urlencode "filters.subsystem=blob-storage-logs" \
+    --data-urlencode "filters.application=$CX_APP" \
+    --data-urlencode "filters.subsystem=$CX_SUBSYS" \
     --data-urlencode "subsystem_aggregation=true" \
     -H "Authorization: Bearer $CORALOGIX_QUERY_API_KEY" | head -1 | jq -r '(.result.logsCount // []) | map(.logsCount | tonumber) | add // 0'
 }
 
-log "Step 4: Waiting 30s, then verifying logs in Coralogix (app=azure, subsystem=blob-storage-logs)..."
+log "Step 4: Waiting 30s, then verifying logs in Coralogix (app=$CX_APP, subsystem=$CX_SUBSYS)..."
 sleep 30
 
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-30}"
 attempt=0
 while true; do
   attempt=$((attempt + 1))
@@ -154,11 +171,11 @@ while true; do
     log "Step 4: Logs verified in Coralogix (count=$count)."
     break
   fi
-  if [[ $attempt -ge 10 ]]; then
-    err "Step 4: No logs received in Coralogix after 10 attempts (last count=${count:-unknown})."
+  if [[ $attempt -ge "$MAX_ATTEMPTS" ]]; then
+    err "Step 4: No logs received in Coralogix after $MAX_ATTEMPTS attempts (last count=${count:-unknown})."
     exit 1
   fi
-  log "Step 4: No logs yet (attempt $attempt/10), retrying in 30s..."
+  log "Step 4: No logs yet (attempt $attempt/$MAX_ATTEMPTS), retrying in 30s..."
   sleep 30
 done
 

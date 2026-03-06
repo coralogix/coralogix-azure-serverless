@@ -21,7 +21,7 @@ provider "azurerm" {
 
 locals {
   name_prefix = "blobtootel-e2e"
-  location    = "eastus"
+  location    = "westeurope"
 }
 
 # Single resource group for the e2e test (prereqs; function is deployed via ARM)

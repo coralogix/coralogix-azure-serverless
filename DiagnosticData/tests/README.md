@@ -2,6 +2,8 @@
 
 End-to-end test for the **Diagnostic Data** Azure Function using real diagnostic settings: a storage account streams its **Transaction** metric to an Event Hub, the function reads from the Event Hub and forwards to Coralogix.
 
+**Note:** These tests are **unstable** by nature. Azure Diagnostic Settings for storage (metrics streamed to Event Hub) can take a long time to populate—sometimes **up to 1 hour**—so runs may succeed or fail intermittently depending on timing.
+
 ## Flow
 
 1. **Provision** – Terraform creates:
@@ -53,7 +55,7 @@ Dependent resources are deployed via Terraform; the function is deployed via the
 ## Troubleshooting
 
 - **No logs in Coralogix** – Data is sent to `/azure/events/v1`; it may appear as logs (app/subsystem) or in another product area. Check the function’s Application Insights for `Sent messages. Response: 200` vs `4xx` to see if Coralogix accepted the request.
-- **Diagnostic data delay** – New diagnostic settings can take 1–2 minutes (or up to 90 in rare cases). Increase `WAIT_INITIAL` (e.g. 180) and `MAX_ATTEMPTS` if needed.
+- **Diagnostic data delay** – Diagnostic Settings for blob storage can take a long time to populate (from a few minutes **up to 1 hour**). The tests are inherently unstable for this reason. Increase `WAIT_INITIAL` and `MAX_ATTEMPTS` if needed; occasional failures are expected.
 - **Region** – Ensure `OTEL_ENDPOINT` matches your Coralogix region (e.g. `https://ingress.eu2.coralogix.com`).
 
 ## References

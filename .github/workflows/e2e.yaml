@@ -1,35 +1,29 @@
 name: E2E Tests
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - "Build, Test & Release"
     branches:
-    # Uncomment after Stage 2
-    #   - master
-      - e2e-stage2
-    paths:
-      - "StorageQueue/**"
-      - "EventHub/**"
-      - "DiagnosticData/**"
-      - "BlobViaEventGrid/**"
-      - "BlobToOtel/**"
-# Uncomment after Stage 2
-#   schedule:
-#     # Every morning 8am UTC
-#     - cron: "0 8 * * *"
+      - master
+    types:
+      - completed
 
 permissions:
   contents: read
+  id-token: write   # required for Azure OIDC / federated login
 
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
+    # For workflow_run: only proceed if the release workflow succeeded
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       packages: ${{ steps.set-packages.outputs.packages }}
       has-changes: ${{ steps.set-packages.outputs.has-changes }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        if: github.event_name != 'schedule'
         with:
           fetch-depth: 0
 
@@ -38,7 +32,7 @@ jobs:
         id: changes
         if: github.event_name == 'push'
         with:
-          base: ${{ github.ref }}
+          base: ${{ github.event.before }}
           filters: |
             StorageQueue:
               - 'StorageQueue/**'
@@ -53,19 +47,30 @@ jobs:
 
       - name: Set packages matrix
         id: set-packages
+        env:
+          EVENT: ${{ github.event_name }}
+          SQ: ${{ steps.changes.outputs.StorageQueue }}
+          EH: ${{ steps.changes.outputs.EventHub }}
+          DD: ${{ steps.changes.outputs.DiagnosticData }}
+          BVE: ${{ steps.changes.outputs.BlobViaEventGrid }}
+          BTO: ${{ steps.changes.outputs.BlobToOtel }}
         run: |
-          # Delete 2nd part of the if statement after Stage 2
-          if [[ "${{ github.event_name }}" == "schedule" ]] || [[ "${{ github.ref }}" == "refs/heads/e2e-stage2" ]]; then
+          if [[ "$EVENT" == "push" && ("$SQ" == "true" || "$EH" == "true" || "$DD" == "true" || "$BVE" == "true" || "$BTO" == "true") ]]; then
+            packages=()
+            [[ "$SQ" == "true" ]] && packages+=("StorageQueue")
+            [[ "$EH" == "true" ]] && packages+=("EventHub")
+            [[ "$DD" == "true" ]] && packages+=("DiagnosticData")
+            [[ "$BVE" == "true" ]] && packages+=("BlobViaEventGrid")
+            [[ "$BTO" == "true" ]] && packages+=("BlobToOtel")
+            pk_json=$(printf '%s\n' "${packages[@]}" | jq -R . | jq -s -c .)
+            echo "packages=$pk_json" >> $GITHUB_OUTPUT
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+          elif [[ "$EVENT" == "workflow_dispatch" || "$EVENT" == "workflow_run" ]]; then
             echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
             echo 'has-changes=true' >> $GITHUB_OUTPUT
           else
-            packages='${{ steps.changes.outputs.changes }}'
-            echo "packages=$packages" >> $GITHUB_OUTPUT
-            if [[ "$packages" == "[]" ]] || [[ -z "$packages" ]]; then
-              echo 'has-changes=false' >> $GITHUB_OUTPUT
-            else
-              echo 'has-changes=true' >> $GITHUB_OUTPUT
-            fi
+            echo 'packages=[]' >> $GITHUB_OUTPUT
+            echo 'has-changes=false' >> $GITHUB_OUTPUT
           fi
 
   e2e:

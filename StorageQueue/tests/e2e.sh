@@ -5,8 +5,9 @@
 # Order of execution:
 #   1. Provision Azure resources with Terraform (resource group, StorageV2 account, queue).
 #   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Send a test payload (put a JSON message into the storage queue to trigger the function).
-#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 10 times).
+#   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 30 times).
 #   5. Clean up all resources.
 #
 # Prerequisites:
@@ -37,6 +38,8 @@ ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-se
 
 # For Step 4 verification
 CORALOGIX_QUERY_API_KEY="${CORALOGIX_QUERY_API_KEY:-${CORALOGIX_API_KEY}}"
+CX_APP="${CORALOGIX_APPLICATION:-azure}"
+CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-storage-queue-e2e}"
 
 # Coralogix logs API URL (ARM CustomURL expects full URL, e.g. https://ingress.XXX/api/v1/logs)
 if [[ "$OTEL_ENDPOINT" == *"/api/v1/logs" ]]; then
@@ -48,13 +51,13 @@ fi
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 
-# cleanup_after_failure() {
-#   log "Cleaning up after failure..."
-#   if [[ -n "${RG_NAME:-}" ]]; then
-#     az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
-#   fi
-# }
-# trap cleanup_after_failure EXIT
+cleanup_after_failure() {
+  log "Cleaning up after failure..."
+  if [[ -n "${RG_NAME:-}" ]]; then
+    az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
+  fi
+}
+trap cleanup_after_failure EXIT
 
 # --- Step 1: Provision with Terraform ---
 log "Step 1: Provisioning Azure resources with Terraform (RG, StorageV2, queue)..."
@@ -80,8 +83,8 @@ build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"
   echo '  "CoralogixRegion": { "value": "Custom" },'
   echo "  $(build_param 'CustomURL' "$CORALOGIX_LOGS_URL"),"
   echo "  $(build_param 'CoralogixPrivateKey' "$CORALOGIX_API_KEY"),"
-  echo "  $(build_param 'CoralogixApplication' "${CORALOGIX_APPLICATION:-azure}"),"
-  echo "  $(build_param 'CoralogixSubsystem' "${CORALOGIX_SUBSYSTEM:-storage-queue-e2e}"),"
+  echo "  $(build_param 'CoralogixApplication' "$CX_APP"),"
+  echo "  $(build_param 'CoralogixSubsystem' "$CX_SUBSYS"),"
   echo "  $(build_param 'StorageAccountName' "$STORAGE_ACCOUNT"),"
   echo "  $(build_param 'StorageAccountResourceGroup' "$STORAGE_RG"),"
   echo "  $(build_param 'StorageQueueName' "$STORAGE_QUEUE_NAME"),"
@@ -96,6 +99,17 @@ az deployment group create \
 
 rm -f "$PARAMS_FILE"
 log "ARM deployment completed."
+
+# --- Step 2c: Sync function triggers, then wait before sending data ---
+FUNCTION_APP_NAME=$(az functionapp list --resource-group "$RG_NAME" --query "[0].name" -o tsv)
+if [[ -z "${FUNCTION_APP_NAME:-}" ]]; then
+  err "Step 2c: No function app found in resource group $RG_NAME."
+  exit 1
+fi
+log "Step 2c: Syncing function triggers..."
+az resource invoke-action -g "$RG_NAME" -n "$FUNCTION_APP_NAME" --action syncfunctiontriggers --resource-type Microsoft.Web/sites
+log "Step 2c: Waiting 15s for triggers to register..."
+sleep 15
 
 # --- Step 3: Send test payload (put JSON message into queue to trigger function) ---
 # Storage Queue messages are base64-encoded. Function expects JSON-formatted queue messages.
@@ -116,9 +130,6 @@ CX_API_HOST="${CX_API_HOST%%:*}"
 CX_API_HOST="${CX_API_HOST/#ingress./api.}"
 CX_LOGS_COUNT_URL="https://${CX_API_HOST}/mgmt/openapi/latest/dataplans/data-usage/v2/logs:count"
 
-# Subsystem used in ARM parameters (must match build_param above)
-CX_SUBSYSTEM="${CORALOGIX_SUBSYSTEM:-storage-queue-e2e}"
-
 now_minus_10m() {
   if date -u -d '10 min ago' +%Y-%m-%dT%H:%M:%S.000Z 2>/dev/null; then
     return
@@ -134,15 +145,16 @@ fetch_logs_count() {
     --data-urlencode "date_range.fromDate=$from" \
     --data-urlencode "date_range.toDate=$to" \
     --data-urlencode "resolution=10m" \
-    --data-urlencode "filters.application=azure" \
-    --data-urlencode "filters.subsystem=$CX_SUBSYSTEM" \
+    --data-urlencode "filters.application=$CX_APP" \
+    --data-urlencode "filters.subsystem=$CX_SUBSYS" \
     --data-urlencode "subsystem_aggregation=true" \
     -H "Authorization: Bearer $CORALOGIX_QUERY_API_KEY" | head -1 | jq -r '(.result.logsCount // []) | map(.logsCount | tonumber) | add // 0'
 }
 
-log "Step 4: Waiting 30s, then verifying logs in Coralogix (app=azure, subsystem=$CX_SUBSYSTEM)..."
+log "Step 4: Waiting 30s, then verifying logs in Coralogix (app=$CX_APP, subsystem=$CX_SUBSYS)..."
 sleep 30
 
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-30}"
 attempt=0
 while true; do
   attempt=$((attempt + 1))
@@ -151,24 +163,24 @@ while true; do
     log "Step 4: Logs verified in Coralogix (count=$count)."
     break
   fi
-  if [[ $attempt -ge 10 ]]; then
-    err "Step 4: No logs received in Coralogix after 10 attempts (last count=${count:-unknown})."
+  if [[ $attempt -ge "$MAX_ATTEMPTS" ]]; then
+    err "Step 4: No logs received in Coralogix after $MAX_ATTEMPTS attempts (last count=${count:-unknown})."
     exit 1
   fi
-  log "Step 4: No logs yet (attempt $attempt/10), retrying in 30s..."
+  log "Step 4: No logs yet (attempt $attempt/$MAX_ATTEMPTS), retrying in 30s..."
   sleep 30
 done
 
 # --- Step 5: Clean up ---
-# log "Step 5: Cleaning up resources..."
-# trap - EXIT
-# az group delete --name "$RG_NAME" --yes
-# log "Waiting for resource group deletion..."
-# while az group show -n "$RG_NAME" &>/dev/null; do sleep 10; done
-# # Clean Terraform state so next run can provision from scratch.
-# cd "$TERRAFORM_DIR"
-# while read -r state_key; do
-#   [[ -z "$state_key" ]] && continue
-#   terraform state rm "$state_key" 2>/dev/null || true
-# done < <(terraform state list 2>/dev/null || true)
+log "Step 5: Cleaning up resources..."
+trap - EXIT
+az group delete --name "$RG_NAME" --yes
+log "Waiting for resource group deletion..."
+while az group show -n "$RG_NAME" &>/dev/null; do sleep 10; done
+# Clean Terraform state so next run can provision from scratch.
+cd "$TERRAFORM_DIR"
+while read -r state_key; do
+  [[ -z "$state_key" ]] && continue
+  terraform state rm "$state_key" 2>/dev/null || true
+done < <(terraform state list 2>/dev/null || true)
 log "E2E test finished."
