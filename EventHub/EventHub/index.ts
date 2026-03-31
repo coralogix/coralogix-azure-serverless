@@ -6,11 +6,11 @@
  * @link        https://coralogix.com/
  * @copyright   Coralogix Ltd.
  * @licence     Apache-2.0
- * @version     3.6.1
+ * @version     3.7.0
  * @since       1.0.0
  */
 
-import { InvocationContext } from "@azure/functions";
+import { app, InvocationContext } from "@azure/functions";
 import { Logger } from "@opentelemetry/api-logs";
 import { LoggerProvider, BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
@@ -60,7 +60,6 @@ function createLoggerProvider(resourceAttributes: Record<string, any>): LoggerPr
   return loggerProvider;
 }
 
-// Get or create a logger for a specific app/subsystem combination.
 function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logger {
   const cacheKey = `${appName}::${subsystemName}`;
   const cached = loggerCache.get(cacheKey);
@@ -89,12 +88,17 @@ export enum LogFormat {
   JSON_STRING = "json-string",
   JSON_OBJECT = "json-object",
   JSON_ARRAY = "json-array",
+  BUFFER = "buffer",
   INVALID = "invalid",
 }
 
 export function detectLogFormat(log: unknown): LogFormat {
   if (log === null || log === undefined) {
     return LogFormat.INVALID;
+  }
+
+  if (Buffer.isBuffer(log)) {
+    return LogFormat.BUFFER;
   }
 
   if (typeof log === "string") {
@@ -214,6 +218,13 @@ export function handleLogEntries(
   let entries: LogHandlerResult[];
 
   switch (format) {
+    case LogFormat.BUFFER: {
+      const str = (raw as Buffer).toString("utf8");
+      // Re-detect format from the decoded string
+      const innerFormat = detectLogFormat(str);
+      return handleLogEntries(str, innerFormat, context);
+    }
+
     case LogFormat.JSON_OBJECT:
       entries = [
         {
@@ -244,22 +255,18 @@ export function handleLogEntries(
     case LogFormat.STRING: {
       const text = String(raw);
 
-      // If no newline pattern configured - treat as single log
       if (!NEWLINE_REGEX) {
         entries = [{ body: text, parsedBody: null }];
         break;
       }
 
-      // Split text using the configured regex
       const parts = text.split(NEWLINE_REGEX).filter((p) => p.trim() !== "");
 
-      // Keep original as single log if the regex matches nothing
       if (parts.length <= 1) {
         entries = [{ body: text, parsedBody: null }];
         break;
       }
 
-      // Create multiple log records for each part
       entries = parts.map((p) => ({
         body: p,
         parsedBody: null,
@@ -276,7 +283,6 @@ export function handleLogEntries(
       return [];
   }
 
-  // filter out blocked logs
   if (BLOCKING_REGEX) {
     return entries.filter((entry) => {
       const bodyToCheck = entry.parsedBody != null ? JSON.stringify(entry.parsedBody) : entry.body;
@@ -293,10 +299,19 @@ export function handleLogEntries(
 
 /**
  * @description Unwrap an EventHub message into individual log entries.
- * @param message - Raw EventHub message (string, object, or any)
+ * @param message - Raw EventHub message (string, object, Buffer, or any)
  * @returns Array of individual log entries to process
  */
 export function unwrapEventHubMessage(message: any): any[] {
+  // Decode Buffer to string before unwrapping
+  if (Buffer.isBuffer(message)) {
+    try {
+      message = JSON.parse(message.toString("utf8"));
+    } catch {
+      message = message.toString("utf8");
+    }
+  }
+
   let parsed = message;
   if (typeof message === "string") {
     try {
@@ -323,30 +338,29 @@ export function unwrapEventHubMessage(message: any): any[] {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Azure Function entrypoint                                                 */
+/*  Azure Function entrypoint (v4 programming model)                          */
 /* -------------------------------------------------------------------------- */
-/**
- * @description Function entrypoint
- * @param {InvocationContext} context - Function context
- * @param {array} events - event hub messages
- */
-const eventHubTrigger = async function (context: InvocationContext, events: any): Promise<void> {
+
+export async function eventHubTrigger(events: unknown[], context: InvocationContext): Promise<void> {
+  const batch = Array.isArray(events) ? events : [events];
+
   try {
-    if (!Array.isArray(events) || events.length === 0) return;
+    if (batch.length === 0) return;
+
     const threadId = context.invocationId;
 
-    events.forEach((event, index) => {
+    batch.forEach((event, index) => {
       try {
         const entries = unwrapEventHubMessage(event);
         entries.forEach((entry, idx) => {
           writeLog(context, entry, threadId, idx);
         });
       } catch (msgError: any) {
-        context.log(`Failed to process message ${index}: ${msgError.message}`);
+        context.error(`Failed to process message ${index}: ${msgError.message}`, msgError.stack);
       }
     });
 
-    // Add delay before force flush to allow batch to accumulate
+    // Allow batch to accumulate before flushing
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const flushPromises = Array.from(loggerCache.values()).map((entry) =>
@@ -355,10 +369,15 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
 
     await Promise.all(flushPromises);
   } catch (error: any) {
-    context.log(`Function error: ${error.message}`);
+    context.error(`Function error: ${error.message}`, error.stack);
     throw error;
   }
-};
+}
 
-// Main function entry point
-export { eventHubTrigger };
+app.eventHub("EventHub", {
+  connection: "EVENTHUB_CONNECTION",
+  eventHubName: "%EVENTHUB_INSTANCE_NAME%",
+  cardinality: "many",
+  consumerGroup: "%EVENTHUB_CONSUMER_GROUP%",
+  handler: eventHubTrigger,
+});
