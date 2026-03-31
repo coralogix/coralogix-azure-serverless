@@ -78,8 +78,23 @@
     },
     "EventhubSharedAccessKeyName": {
       "type": "string",
+      "defaultValue": "RootManageSharedAccessKey",
       "metadata": {
-        "description": "The name of the EventHub Shared Access Key."
+        "description": "The name of the EventHub Shared Access Key. Only required when UseManagedIdentity is false."
+      }
+    },
+    "UseManagedIdentity": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "When true, the Function App uses its System-Assigned Managed Identity to connect to EventHub instead of a SAS connection string."
+      }
+    },
+    "CreateRoleAssignment": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Only applies when UseManagedIdentity is true. When true, the deployment automatically grants the Function App the 'Azure Event Hubs Data Receiver' role on the EventHub namespace — requires Owner or User Access Administrator on the namespace. When false, the role assignment is skipped and must be done manually after deployment: go to the EventHub namespace → Access Control (IAM) → Add role assignment → Azure Event Hubs Data Receiver → assign to the Function App identity."
       }
     },
     "EventhubConsumerGroup": {
@@ -129,7 +144,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.6.1/EventHub-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.7.0/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
@@ -192,6 +207,9 @@
       "name": "[variables('functionAppName')]",
       "location": "[variables('location')]",
       "kind": "functionapp,linux",
+      "identity": {
+        "type": "[if(parameters('UseManagedIdentity'), 'SystemAssigned', 'None')]"
+      },
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "siteConfig": {
@@ -250,8 +268,16 @@
               "value": "[concat('Authorization=Bearer ', parameters('CoralogixPrivateKey'))]"
             },
             {
-              "name": "EVENTHUB_CONNECT_STRING",
-              "value": "[concat('Endpoint=sb://', parameters('eventHubNamespace'), '.servicebus.windows.net/;SharedAccessKeyName=', parameters('EventhubSharedAccessKeyName'), ';SharedAccessKey=', listKeys(resourceId(parameters('EventhubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventhubNamespace'), parameters('EventhubSharedAccessKeyName')), '2017-04-01').primaryKey, ';EntityPath=', parameters('EventhubInstanceName'))]"
+              "name": "EVENTHUB_CONNECTION",
+              "value": "[if(parameters('UseManagedIdentity'), '', concat('Endpoint=sb://', parameters('EventhubNamespace'), '.servicebus.windows.net/;SharedAccessKeyName=', parameters('EventhubSharedAccessKeyName'), ';SharedAccessKey=', listKeys(resourceId(parameters('EventhubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventhubNamespace'), parameters('EventhubSharedAccessKeyName')), '2017-04-01').primaryKey, ';EntityPath=', parameters('EventhubInstanceName')))]"
+            },
+            {
+              "name": "EVENTHUB_CONNECTION__fullyQualifiedNamespace",
+              "value": "[if(parameters('UseManagedIdentity'), concat(parameters('EventhubNamespace'), '.servicebus.windows.net'), '')]"
+            },
+            {
+              "name": "EVENTHUB_CONNECTION__credential",
+              "value": "[if(parameters('UseManagedIdentity'), 'managedidentity', '')]"
             },
             {
               "name": "EVENTHUB_INSTANCE_NAME",
@@ -288,6 +314,46 @@
         "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]",
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('UseManagedIdentity'), parameters('CreateRoleAssignment'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "eventhub-mi-role-assignment",
+      "resourceGroup": "[parameters('EventhubResourceGroup')]",
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "parameters": {
+          "eventhubNamespace": { "value": "[parameters('EventhubNamespace')]" },
+          "principalId": { "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2022-03-01', 'Full').identity.principalId]" }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "eventhubNamespace": { "type": "string" },
+            "principalId": { "type": "string" }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.EventHub/namespaces/providers/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[concat(parameters('eventhubNamespace'), '/Microsoft.Authorization/', guid(parameters('eventhubNamespace'), parameters('principalId'), 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde'))]",
+              "properties": {
+                "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/a638d3c7-ab3a-418d-83e6-5f17a39d4fde')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
     }
   ]

@@ -1,3 +1,11 @@
+### 3.7.0 / 31 Mar 2026
+[FEATURE] Azure Functions v4 programming model migration and Managed Identity support:
+* Migrated to Azure Functions Node.js v4 programming model (`app.eventHub()`)
+* Added Managed Identity support via `EVENTHUB_CONNECTION__fullyQualifiedNamespace` and `EVENTHUB_CONNECTION__credential=managedidentity`
+* Added `Buffer` format detection — raw binary events are decoded and processed natively
+* Removed `function.json` — trigger is now registered in code
+* Added end-to-end tests covering all supported event formats (JSON object, JSON string, JSON array, Azure envelope, Buffer)
+
 ### 3.6.1 / 16 Dec 2024
 [REFACTOR]
 * Remove `handleEventHubMessage` wrapper function

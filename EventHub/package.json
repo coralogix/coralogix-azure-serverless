@@ -1,11 +1,12 @@
 {
   "name": "coralogix-azure-serverless",
   "title": "Azure Functions for integration with Coralogix",
-  "version": "3.6.1",
+  "version": "3.7.0",
   "description": "Azure Functions Set for integration with Coralogix",
   "homepage": "https://coralogix.com",
   "license": "Apache-2.0",
   "private": true,
+  "main": "dist/EventHub/index.js",
   "scripts": {
     "format": "prettier --write \"**/*.ts\"",
     "lint": "eslint . --ext .ts --config eslint.config.mjs",

@@ -286,8 +286,15 @@ export function getNestedValue(source: unknown, path: string): string | undefine
  * - The captured value if regex matches with non-empty capture
  * - undefined if regex doesn't match or captures empty string (triggers default fallback)
  */
+const MAX_REGEX_INPUT_LENGTH = 1000;
+
 export function applyRegex(value: string | undefined, pattern?: RegExp): string | undefined {
   if (!value || !pattern) return value;
+
+  // Guard against ReDoS: user-supplied patterns applied to long strings can cause
+  // catastrophic backtracking. Field values used as app/subsystem names are never
+  // legitimately this long, so treat oversized input as non-matching.
+  if (value.length > MAX_REGEX_INPUT_LENGTH) return undefined;
 
   const match = pattern.exec(value);
 
