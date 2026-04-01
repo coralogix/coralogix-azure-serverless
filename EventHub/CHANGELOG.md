@@ -1,3 +1,15 @@
+### 3.8.0 / 01 Apr 2026
+[FEATURE] Optional metadata attributes via `IncludeMetadata` parameter:
+* Added `IncludeMetadata` ARM template parameter (default: `false`) to opt-in to additional OTel attributes per log record
+* When enabled, attaches `threadId`, `message.index`, `azure.subscription_id`, `azure.resource_group`, and `azure.provider` to each log
+* `function.name` is always included regardless of the setting
+
+### 3.7.1
+[CI] E2E test pipeline improvements
+
+### 3.7.0
+[TEST] Initial E2E test setup
+
 ### 3.6.1 / 16 Dec 2024
 [REFACTOR]
 * Remove `handleEventHubMessage` wrapper function
