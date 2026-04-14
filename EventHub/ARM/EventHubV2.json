@@ -120,6 +120,13 @@
       "metadata": {
         "description": "Optional: Regex pattern to block/filter logs. Logs matching this pattern will not be sent to Coralogix. Example: 'healthcheck|heartbeat' to filter health checks."
       }
+    },
+    "IncludeMetadata": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Optional: When enabled, attaches additional metadata to each log record: invocation thread ID, message index, and Azure resource attributes (subscription ID, resource group, provider) parsed from the log payload."
+      }
     }
   },
   "variables": {
@@ -129,7 +136,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.6.1/EventHub-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.8.0/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
@@ -280,6 +287,10 @@
             {
               "name": "CORALOGIX_SUBSYSTEM_SELECTOR",
               "value": "[parameters('CoralogixSubsystemSelector')]"
+            },
+            {
+              "name": "INCLUDE_METADATA",
+              "value": "[string(parameters('IncludeMetadata'))]"
             }
           ]
         }

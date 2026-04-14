@@ -524,3 +524,153 @@ describe("Log processing + blocking + splitting behaviour", () => {
     });
   });
 });
+
+describe("INCLUDE_METADATA behaviour", () => {
+  let emittedRecords: Array<{ body: any; attributes: Record<string, any> }>;
+  let mockContext: InvocationContext;
+
+  function loadWithMockedOtel(env: Record<string, string> = {}) {
+    emittedRecords = [];
+    const originalEnv = { ...process.env };
+    for (const [key, value] of Object.entries(env)) {
+      process.env[key] = value;
+    }
+
+    let mod: any;
+    jest.isolateModules(() => {
+      jest.doMock("@opentelemetry/sdk-logs", () => {
+        const emit = jest.fn((record: any) => emittedRecords.push(record));
+        const logger = { emit };
+        const provider = {
+          getLogger: jest.fn().mockReturnValue(logger),
+          addLogRecordProcessor: jest.fn(),
+          forceFlush: jest.fn().mockResolvedValue(undefined),
+        };
+        return {
+          LoggerProvider: jest.fn().mockReturnValue(provider),
+          BatchLogRecordProcessor: jest.fn(),
+        };
+      });
+      jest.doMock("@opentelemetry/exporter-logs-otlp-grpc", () => ({
+        OTLPLogExporter: jest.fn(),
+      }));
+      mod = require("../EventHub/index");
+    });
+
+    Object.keys(process.env).forEach((k) => {
+      if (!(k in originalEnv)) delete process.env[k];
+    });
+    Object.assign(process.env, originalEnv);
+
+    return mod;
+  }
+
+  beforeEach(() => {
+    mockContext = createMockContext();
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.resetModules();
+  });
+
+  it("omits extra metadata by default (INCLUDE_METADATA not set)", async () => {
+    const { eventHubTrigger } = loadWithMockedOtel({ FUNCTION_APP_NAME: "my-func" });
+    const event = {
+      resourceId:
+        "/subscriptions/sub-abc/resourceGroups/prod-rg/providers/Microsoft.Storage/storageAccounts/mystorage",
+    };
+
+    const trigger = eventHubTrigger(mockContext, [event]);
+    jest.runAllTimers();
+    await trigger;
+
+    expect(emittedRecords).toHaveLength(1);
+    const attrs = emittedRecords[0].attributes;
+    expect(attrs["function.name"]).toBe("my-func");
+    expect(attrs).not.toHaveProperty("threadId");
+    expect(attrs).not.toHaveProperty("message.index");
+    expect(attrs).not.toHaveProperty("azure.subscription_id");
+    expect(attrs).not.toHaveProperty("azure.resource_group");
+    expect(attrs).not.toHaveProperty("azure.provider");
+  });
+
+  it("omits extra metadata when INCLUDE_METADATA=false", async () => {
+    const { eventHubTrigger } = loadWithMockedOtel({
+      FUNCTION_APP_NAME: "my-func",
+      INCLUDE_METADATA: "false",
+    });
+
+    const trigger = eventHubTrigger(mockContext, ["plain log"]);
+    jest.runAllTimers();
+    await trigger;
+
+    expect(emittedRecords).toHaveLength(1);
+    const attrs = emittedRecords[0].attributes;
+    expect(attrs["function.name"]).toBe("my-func");
+    expect(attrs).not.toHaveProperty("threadId");
+    expect(attrs).not.toHaveProperty("message.index");
+  });
+
+  it("includes all metadata attributes when INCLUDE_METADATA=true", async () => {
+    const { eventHubTrigger } = loadWithMockedOtel({
+      FUNCTION_APP_NAME: "my-func",
+      INCLUDE_METADATA: "true",
+    });
+    const event = {
+      resourceId:
+        "/subscriptions/sub-abc/resourceGroups/prod-rg/providers/Microsoft.Storage/storageAccounts/mystorage",
+    };
+
+    const trigger = eventHubTrigger(mockContext, [event]);
+    jest.runAllTimers();
+    await trigger;
+
+    expect(emittedRecords).toHaveLength(1);
+    const attrs = emittedRecords[0].attributes;
+    expect(attrs["function.name"]).toBe("my-func");
+    expect(attrs.threadId).toBe("test-id");
+    expect(attrs["message.index"]).toBe(0);
+    expect(attrs["azure.subscription_id"]).toBe("sub-abc");
+    expect(attrs["azure.resource_group"]).toBe("prod-rg");
+    expect(attrs["azure.provider"]).toBe("microsoft.storage");
+  });
+
+  it("does not include azure attributes when INCLUDE_METADATA=false even if resourceId is present", async () => {
+    const { eventHubTrigger } = loadWithMockedOtel({
+      FUNCTION_APP_NAME: "my-func",
+      INCLUDE_METADATA: "false",
+    });
+    const event = {
+      resourceId:
+        "/subscriptions/sub-abc/resourceGroups/prod-rg/providers/Microsoft.Storage",
+    };
+
+    const trigger = eventHubTrigger(mockContext, [event]);
+    jest.runAllTimers();
+    await trigger;
+
+    expect(emittedRecords).toHaveLength(1);
+    const attrs = emittedRecords[0].attributes;
+    expect(attrs).not.toHaveProperty("azure.subscription_id");
+    expect(attrs).not.toHaveProperty("azure.resource_group");
+    expect(attrs).not.toHaveProperty("azure.provider");
+  });
+
+  it("always includes function.name regardless of INCLUDE_METADATA value", async () => {
+    for (const metadataVal of [undefined, "false", "true"]) {
+      emittedRecords = [];
+      const env: Record<string, string> = { FUNCTION_APP_NAME: "always-present-func" };
+      if (metadataVal !== undefined) env.INCLUDE_METADATA = metadataVal;
+
+      const { eventHubTrigger } = loadWithMockedOtel(env);
+      const trigger = eventHubTrigger(mockContext, ["some log"]);
+      jest.runAllTimers();
+      await trigger;
+
+      expect(emittedRecords.length).toBeGreaterThan(0);
+      expect(emittedRecords[0].attributes["function.name"]).toBe("always-present-func");
+    }
+  });
+});

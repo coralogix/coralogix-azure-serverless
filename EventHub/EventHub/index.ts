@@ -6,7 +6,7 @@
  * @link        https://coralogix.com/
  * @copyright   Coralogix Ltd.
  * @licence     Apache-2.0
- * @version     3.6.1
+ * @version     3.8.0
  * @since       1.0.0
  */
 
@@ -25,6 +25,7 @@ const APPLICATION_SELECTOR = process.env.CORALOGIX_APPLICATION_SELECTOR;
 const SUBSYSTEM_SELECTOR = process.env.CORALOGIX_SUBSYSTEM_SELECTOR;
 
 const FUNCTION_NAME = process.env.FUNCTION_APP_NAME || "unknown";
+const INCLUDE_METADATA = process.env.INCLUDE_METADATA === "true";
 
 const NEWLINE_PATTERN = process.env.NEWLINE_PATTERN;
 const NEWLINE_REGEX = NEWLINE_PATTERN ? new RegExp(NEWLINE_PATTERN, "g") : null;
@@ -175,9 +176,8 @@ const writeLog = function (
 ): void {
   if (!text) return;
   const attributes: Record<string, any> = {
-    threadId,
     "function.name": FUNCTION_NAME,
-    "message.index": idx,
+    ...(INCLUDE_METADATA && { threadId, "message.index": idx }),
   };
 
   try {
@@ -185,7 +185,7 @@ const writeLog = function (
     const logEntries = handleLogEntries(text, format, context);
 
     for (const { body, parsedBody } of logEntries) {
-      if (parsedBody) {
+      if (INCLUDE_METADATA && parsedBody) {
         enrichAzureMetadata(attributes, parsedBody);
       }
 
