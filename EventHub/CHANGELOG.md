@@ -3,7 +3,6 @@
 * Added `IncludeMetadata` ARM template parameter (default: `false`) to opt-in to additional OTel attributes per log record
 * When enabled, attaches `threadId`, `message.index`, `azure.subscription_id`, `azure.resource_group`, and `azure.provider` to each log
 * `function.name` is always included regardless of the setting
-* Fixed `INCLUDE_METADATA` env var conversion: use `if(parameters('IncludeMetadata'), 'true', 'false')` instead of `string()` which produced capital `"True"`/`"False"`
 
 ### 3.7.1
 [CI] E2E test pipeline improvements
