@@ -290,7 +290,7 @@
             },
             {
               "name": "INCLUDE_METADATA",
-              "value": "[string(parameters('IncludeMetadata'))]"
+              "value": "[if(parameters('IncludeMetadata'), 'true', 'false')]"
             }
           ]
         }

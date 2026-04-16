@@ -1,3 +1,7 @@
+### 3.8.1 / 15 Apr 2026
+[FIX] `INCLUDE_METADATA` env var being set to `"True"`/`"False"` (capital) instead of `"true"`/`"false"`
+* Replaced `string(parameters('IncludeMetadata'))` with `if(parameters('IncludeMetadata'), 'true', 'false')` in `EventHubV2.json`
+
 ### 3.8.0 / 01 Apr 2026
 [FEATURE] Optional metadata attributes via `IncludeMetadata` parameter:
 * Added `IncludeMetadata` ARM template parameter (default: `false`) to opt-in to additional OTel attributes per log record
