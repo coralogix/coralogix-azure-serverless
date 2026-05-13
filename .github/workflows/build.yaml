@@ -14,8 +14,8 @@ on:
         options:
         - "BlobViaEventGrid"
         - "DiagnosticData"
-        # - "EventHub"
-        # - "BlobToOtel"
+        - "EventHub"
+        - "BlobToOtel"
         - "StorageQueue"
 jobs:
   check:
