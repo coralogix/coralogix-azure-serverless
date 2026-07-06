@@ -5,6 +5,10 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.1.3
+* [Update] fix(deps): Override @grpc/grpc-js and protobufjs versions to resolve HIGH severity CVEs
+
+
 ### 2.1.2 / 05 Jan 2026
 [Bug] fix: replace `context.error` by `context.log` to avoid runtime errors.
 
