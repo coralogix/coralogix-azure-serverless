@@ -1,6 +1,3 @@
-### 3.8.1
-* [Update] fix(deps): Override @grpc/grpc-js and protobufjs versions to resolve HIGH severity CVEs
-
 ### 3.8.0 / 01 Apr 2026
 [FEATURE] Optional metadata attributes via `IncludeMetadata` parameter:
 * Added `IncludeMetadata` ARM template parameter (default: `false`) to opt-in to additional OTel attributes per log record
