@@ -69,5 +69,9 @@
     "LICENSE",
     "README.md"
   ],
-  "type": "commonjs"
+  "type": "commonjs",
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.4",
+    "protobufjs": "^7.6.1"
+  }
 }
