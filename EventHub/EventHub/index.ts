@@ -46,19 +46,14 @@ const loggerCache = new Map<string, LoggerCacheEntry>();
 
 function createLoggerProvider(resourceAttributes: Record<string, any>): LoggerProvider {
   const resource = resourceFromAttributes(resourceAttributes);
-  const loggerProvider = new LoggerProvider({ resource });
-
   const otlpExporter = new OTLPLogExporter();
+  const logRecordProcessor = new BatchLogRecordProcessor(otlpExporter, {
+    maxExportBatchSize: 512,
+    scheduledDelayMillis: 1000,
+    exportTimeoutMillis: 30000,
+  });
 
-  loggerProvider.addLogRecordProcessor(
-    new BatchLogRecordProcessor(otlpExporter, {
-      maxExportBatchSize: 512,
-      scheduledDelayMillis: 1000,
-      exportTimeoutMillis: 30000,
-    })
-  );
-
-  return loggerProvider;
+  return new LoggerProvider({ resource, processors: [logRecordProcessor] });
 }
 
 // Get or create a logger for a specific app/subsystem combination.

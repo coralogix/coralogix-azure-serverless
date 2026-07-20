@@ -23,6 +23,7 @@ project.lock.json
 appsettings.json
 package-lock.json
 local.settings.json
+eventhub-parameters.json
 
 node_modules
 dist
