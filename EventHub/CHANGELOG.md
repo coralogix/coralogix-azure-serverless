@@ -1,3 +1,6 @@
+### 3.8.3 / 20 Jul 2026
+[FIX] Upgrade OpenTelemetry dependencies for CVE-2026-54285
+
 ### 3.8.0 / 01 Apr 2026
 [FEATURE] Optional metadata attributes via `IncludeMetadata` parameter:
 * Added `IncludeMetadata` ARM template parameter (default: `false`) to opt-in to additional OTel attributes per log record
