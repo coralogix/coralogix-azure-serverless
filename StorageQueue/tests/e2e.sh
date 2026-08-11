@@ -19,6 +19,10 @@
 #     - CORALOGIX_QUERY_API_KEY or CORALOGIX_API_KEY – for Step 4 verification (Data Usage read permission).
 #     - CORALOGIX_API_KEY or CORALOGIX_PRIVATE_KEY – used as Coralogix Private Key for the function.
 #     - Optional: CORALOGIX_APPLICATION, CORALOGIX_SUBSYSTEM
+#     - Optional: ARM_TEMPLATE_REF – branch/tag/SHA to fetch the ARM template from
+#       (default: master). CI sets this to the commit under test.
+#     - Optional: ARM_TEMPLATE_URI – full template URL, overrides ARM_TEMPLATE_REF.
+#     - Optional: RG_NAME – override the e2e resource group name.
 #
 # Usage:
 #   export OTEL_ENDPOINT="https://ingress.eu2.coralogix.com"
@@ -30,7 +34,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERRAFORM_DIR="${SCRIPT_DIR}/terraform"
-ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-serverless/master/StorageQueue/ARM/StorageQueue.json"
+# Defaults to master so a local run needs no setup; CI overrides ARM_TEMPLATE_REF
+# with the commit under test so the template being validated is the one changed.
+ARM_TEMPLATE_REF="${ARM_TEMPLATE_REF:-master}"
+ARM_TEMPLATE_URI="${ARM_TEMPLATE_URI:-https://raw.githubusercontent.com/coralogix/coralogix-azure-serverless/${ARM_TEMPLATE_REF}/StorageQueue/ARM/StorageQueue.json}"
 
 # Required
 : "${OTEL_ENDPOINT:?Set OTEL_ENDPOINT (e.g. https://ingress.coralogix.com)}"
@@ -51,6 +58,11 @@ fi
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 
+# Known up front (not read from terraform output) so the cleanup trap below can
+# still tear down the resource group when `terraform apply` fails part-way.
+# Must match the default of var.resource_group_name in tests/terraform.
+RG_NAME="${RG_NAME:-storagequeue-e2e-rg}"
+
 cleanup_after_failure() {
   log "Cleaning up after failure..."
   if [[ -n "${RG_NAME:-}" ]]; then
@@ -60,12 +72,19 @@ cleanup_after_failure() {
 trap cleanup_after_failure EXIT
 
 # --- Step 1: Provision with Terraform ---
+# An aborted earlier run can leave the resource group behind, and because the
+# name is deterministic that makes every later `terraform apply` fail with
+# "already exists". Clear it first, blocking, so the run starts clean.
+if [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; then
+  log "Pre-flight: removing stale resource group $RG_NAME left by an earlier run..."
+  az group delete --name "$RG_NAME" --yes
+fi
+
 log "Step 1: Provisioning Azure resources with Terraform (RG, StorageV2, queue)..."
 cd "$TERRAFORM_DIR"
 terraform init -input=false
-terraform apply -input=false -auto-approve
+terraform apply -input=false -auto-approve -var="resource_group_name=${RG_NAME}"
 
-RG_NAME=$(terraform output -raw resource_group_name)
 STORAGE_ACCOUNT=$(terraform output -raw storage_account_name)
 STORAGE_RG=$(terraform output -raw storage_account_resource_group)
 STORAGE_QUEUE_NAME=$(terraform output -raw storage_queue_name)

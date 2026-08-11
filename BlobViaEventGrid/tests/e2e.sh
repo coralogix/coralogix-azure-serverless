@@ -20,6 +20,10 @@
 #     - CORALOGIX_QUERY_API_KEY or CORALOGIX_API_KEY – for Step 4 verification (Data Usage read permission).
 #     - CORALOGIX_API_KEY or CORALOGIX_PRIVATE_KEY – used as Coralogix Private Key for the function.
 #     - Optional: CORALOGIX_APPLICATION, CORALOGIX_SUBSYSTEM
+#     - Optional: ARM_TEMPLATE_REF – branch/tag/SHA to fetch the ARM template from
+#       (default: master). CI sets this to the commit under test.
+#     - Optional: ARM_TEMPLATE_URI – full template URL, overrides ARM_TEMPLATE_REF.
+#     - Optional: RG_NAME – override the e2e resource group name.
 #
 # Usage:
 #   export OTEL_ENDPOINT="https://ingress.eu1.coralogix.com"
@@ -31,7 +35,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERRAFORM_DIR="${SCRIPT_DIR}/terraform"
-ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-serverless/master/BlobViaEventGrid/ARM/BlobViaEventGrid.json"
+# Defaults to master so a local run needs no setup; CI overrides ARM_TEMPLATE_REF
+# with the commit under test so the template being validated is the one changed.
+ARM_TEMPLATE_REF="${ARM_TEMPLATE_REF:-master}"
+ARM_TEMPLATE_URI="${ARM_TEMPLATE_URI:-https://raw.githubusercontent.com/coralogix/coralogix-azure-serverless/${ARM_TEMPLATE_REF}/BlobViaEventGrid/ARM/BlobViaEventGrid.json}"
 
 # Required
 : "${OTEL_ENDPOINT:?Set OTEL_ENDPOINT (e.g. https://ingress.coralogix.com)}"
@@ -46,6 +53,11 @@ CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-blob-storage-eventgrid-e2e}"
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 
+# Known up front (not read from terraform output) so the cleanup trap below can
+# still tear down the resource group when `terraform apply` fails part-way.
+# Must match the default of var.resource_group_name in tests/terraform.
+RG_NAME="${RG_NAME:-blobviaeg-e2e-rg}"
+
 cleanup_after_failure() {
   log "Cleaning up after failure..."
   if [[ -n "${RG_NAME:-}" ]]; then
@@ -55,12 +67,19 @@ cleanup_after_failure() {
 trap cleanup_after_failure EXIT
 
 # --- Step 1: Provision with Terraform ---
+# An aborted earlier run can leave the resource group behind, and because the
+# name is deterministic that makes every later `terraform apply` fail with
+# "already exists". Clear it first, blocking, so the run starts clean.
+if [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; then
+  log "Pre-flight: removing stale resource group $RG_NAME left by an earlier run..."
+  az group delete --name "$RG_NAME" --yes
+fi
+
 log "Step 1: Provisioning Azure resources with Terraform (RG, StorageV2, container)..."
 cd "$TERRAFORM_DIR"
 terraform init -input=false
-terraform apply -input=false -auto-approve
+terraform apply -input=false -auto-approve -var="resource_group_name=${RG_NAME}"
 
-RG_NAME=$(terraform output -raw resource_group_name)
 STORAGE_ACCOUNT=$(terraform output -raw storage_account_name)
 STORAGE_RG=$(terraform output -raw storage_account_resource_group)
 CONTAINER_NAME=$(terraform output -raw blob_container_name)
@@ -93,10 +112,27 @@ build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"
   echo '} }'
 } > "$PARAMS_FILE"
 
-az deployment group create \
-  --resource-group "$RG_NAME" \
-  --template-uri "$ARM_TEMPLATE_URI" \
-  --parameters "@${PARAMS_FILE}"
+# The template creates the Event Grid subscription in the same deployment as the
+# function app. Event Grid validates the webhook endpoint immediately, and if the
+# app has not finished pulling its package yet that probe 404s and the whole
+# deployment fails with "Webhook endpoint validation failed". Retrying is enough:
+# the app is warm by the second attempt, and the deployment is idempotent.
+ARM_DEPLOY_ATTEMPTS="${ARM_DEPLOY_ATTEMPTS:-3}"
+for attempt in $(seq 1 "$ARM_DEPLOY_ATTEMPTS"); do
+  if az deployment group create \
+      --resource-group "$RG_NAME" \
+      --template-uri "$ARM_TEMPLATE_URI" \
+      --parameters "@${PARAMS_FILE}"; then
+    break
+  fi
+  if [[ "$attempt" -eq "$ARM_DEPLOY_ATTEMPTS" ]]; then
+    err "ARM deployment failed after ${ARM_DEPLOY_ATTEMPTS} attempts."
+    rm -f "$PARAMS_FILE"
+    exit 1
+  fi
+  log "ARM deployment attempt ${attempt} failed (likely Event Grid webhook validation); retrying in 60s..."
+  sleep 60
+done
 
 rm -f "$PARAMS_FILE"
 log "ARM deployment completed."

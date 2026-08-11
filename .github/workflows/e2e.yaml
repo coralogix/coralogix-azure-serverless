@@ -8,6 +8,36 @@ on:
       - master
     types:
       - completed
+  # EventHub/BlobToOtel arrive via workflow_run above (after their release publishes).
+  # The other three have no release workflow, so they need their own push trigger.
+  push:
+    branches:
+      - master
+    paths:
+      - "BlobViaEventGrid/**"
+      - "DiagnosticData/**"
+      - "StorageQueue/**"
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to test (all = every package)"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - BlobViaEventGrid
+          - BlobToOtel
+          - DiagnosticData
+          - EventHub
+          - StorageQueue
+
+# Serialise every e2e run. The resource group names are deterministic and the
+# pre-flight sweep in e2e.sh deletes a stale group by name, so two overlapping
+# runs would tear down each other's resources mid-test.
+concurrency:
+  group: e2e-tests
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -54,6 +84,7 @@ jobs:
           DD: ${{ steps.changes.outputs.DiagnosticData }}
           BVE: ${{ steps.changes.outputs.BlobViaEventGrid }}
           BTO: ${{ steps.changes.outputs.BlobToOtel }}
+          INPUT_PACKAGE: ${{ github.event.inputs.package }}
         run: |
           if [[ "$EVENT" == "push" && ("$SQ" == "true" || "$EH" == "true" || "$DD" == "true" || "$BVE" == "true" || "$BTO" == "true") ]]; then
             packages=()
@@ -64,6 +95,9 @@ jobs:
             [[ "$BTO" == "true" ]] && packages+=("BlobToOtel")
             pk_json=$(printf '%s\n' "${packages[@]}" | jq -R . | jq -s -c .)
             echo "packages=$pk_json" >> $GITHUB_OUTPUT
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+          elif [[ "$EVENT" == "workflow_dispatch" && -n "${INPUT_PACKAGE:-}" && "$INPUT_PACKAGE" != "all" ]]; then
+            echo "packages=[\"$INPUT_PACKAGE\"]" >> $GITHUB_OUTPUT
             echo "has-changes=true" >> $GITHUB_OUTPUT
           elif [[ "$EVENT" == "workflow_dispatch" || "$EVENT" == "workflow_run" ]]; then
             echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
@@ -85,6 +119,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # workflow_run checks out the default branch by default; pin to the
+          # commit that triggered the release so we test that exact code.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Resolve template ref
+        id: ref
+        env:
+          REF: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: echo "sha=$REF" >> "$GITHUB_OUTPUT"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -111,4 +155,6 @@ jobs:
           CORALOGIX_API_KEY: ${{ secrets.CORALOGIX_API_KEY }}
           CORALOGIX_QUERY_API_KEY: ${{ secrets.CORALOGIX_QUERY_API_KEY }}
           CORALOGIX_DIRECT_MODE: "true"
+          # Deploy the ARM template from the commit under test, not master.
+          ARM_TEMPLATE_REF: ${{ steps.ref.outputs.sha }}
         run: ./e2e.sh
