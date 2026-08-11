@@ -1,3 +1,8 @@
+### 3.9.0 / 11 Aug 2026
+[FEATURE] Add the `US3` Coralogix region
+* `CoralogixRegion` now accepts `US3`, mapped to `ingress.us3.coralogix.com:443`
+* `EventHub/ARM/EventHub.json` (legacy v1 template) additionally accepts the region codes `EU1`-`AP3` alongside its existing legacy region names, and now resolves to `ingress.<region>.coralogix.com`
+
 ### 3.8.3 / 20 Jul 2026
 [FIX] Upgrade OpenTelemetry dependencies for CVE-2026-54285
 

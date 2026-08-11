@@ -17,7 +17,7 @@
 #   - Terraform >= 1.7.4.
 #   - jq (for parsing Coralogix API response).
 #   - Environment variables (or export before running):
-#     - OTEL_ENDPOINT (required) – OTLP/ingress endpoint URL, e.g. https://ingress.coralogix.com
+#     - OTEL_ENDPOINT (required) – OTLP/ingress endpoint URL, e.g. https://ingress.eu1.coralogix.com
 #     - CORALOGIX_QUERY_API_KEY or CORALOGIX_API_KEY – for Step 4 (Data Usage API read permission).
 #     - CORALOGIX_API_KEY or CORALOGIX_PRIVATE_KEY – used as Coralogix Private Key for the function.
 #     - Optional: CORALOGIX_APPLICATION, CORALOGIX_SUBSYSTEM
@@ -38,7 +38,7 @@ ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-se
 NUM_BLOBS="${NUM_BLOBS:-8}"
 
 # Required
-: "${OTEL_ENDPOINT:?Set OTEL_ENDPOINT (e.g. https://ingress.coralogix.com)}"
+: "${OTEL_ENDPOINT:?Set OTEL_ENDPOINT (e.g. https://ingress.eu1.coralogix.com)}"
 : "${CORALOGIX_API_KEY:?Set CORALOGIX_API_KEY (Send your data / Private key for the function)}"
 
 # For Step 4 verification

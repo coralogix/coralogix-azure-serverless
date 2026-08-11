@@ -41,7 +41,7 @@ export CORALOGIX_API_KEY="..."
 For Coralogix direct mode (OTLP to Coralogix):
 
 ```bash
-export OTEL_ENDPOINT="https://ingress.coralogix.com"
+export OTEL_ENDPOINT="https://ingress.eu1.coralogix.com"
 export CORALOGIX_DIRECT_MODE=true
 export CORALOGIX_API_KEY="your-send-your-data-api-key"
 export CORALOGIX_QUERY_API_KEY="your-query-api-key" # – for Step 4 (Data Usage read)

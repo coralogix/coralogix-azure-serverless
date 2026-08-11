@@ -26,7 +26,7 @@ The Diagnostic Data integration can also be deployed using our Terraform module 
 
 **Resource Group** - The Resource Group into which you wish to deploy the integration.
 
-**Coralogix Region** - The region of the Coralogix account.
+**Coralogix Region** - The region of the Coralogix account (EU1, EU2, US1, US2, US3, AP1, AP2, AP3, or Custom). The legacy region names are still accepted and map to the same endpoints. For more details see [Account Settings / Coralogix Domains](https://coralogix.com/docs/user-guides/account-management/account-settings/coralogix-domain/).
 
 **Coralogix Private Key** – Can be found in your Coralogix account under Settings -> Send your logs. It is located in the upper left corner.
 

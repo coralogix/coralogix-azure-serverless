@@ -4,14 +4,17 @@ export AZURE_REGION ?= westeurope
 export CORALOGIX_APP_NAME ?= Azure
 export CORALOGIX_SUB_SYSTEM ?= StorageQueue
 
-#  Cluster	                API Endpoint
-#  .com	                    https://api.coralogix.com:443/api/v1/logs
-#  .us	                    https://api.coralogix.us:443/api/v1/logs
-#  .in	                    https://api.app.coralogix.in:443/api/v1/logs
-#  .app.eu2.coralogix.com	https://api.eu2.coralogix.com:443/api/v1/logs
-#  .app.coralogixsg.com	    https://api.coralogixsg.com:443/api/v1/logs
+#  Region	Endpoint
+#  EU1	https://api.eu1.coralogix.com:443/api/v1/logs
+#  EU2	https://api.eu2.coralogix.com:443/api/v1/logs
+#  US1	https://api.us1.coralogix.com:443/api/v1/logs
+#  US2	https://api.us2.coralogix.com:443/api/v1/logs
+#  US3	https://api.us3.coralogix.com:443/api/v1/logs
+#  AP1	https://api.ap1.coralogix.com:443/api/v1/logs
+#  AP2	https://api.ap2.coralogix.com:443/api/v1/logs
+#  AP3	https://api.ap3.coralogix.com:443/api/v1/logs
 
-export CORALOGIX_URL ?= "https://api.coralogix.com:443/api/v1/logs"
+export CORALOGIX_URL ?= "https://api.eu1.coralogix.com:443/api/v1/logs"
 
 # Fixed exports
 

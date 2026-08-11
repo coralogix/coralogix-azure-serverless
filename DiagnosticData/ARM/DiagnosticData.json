@@ -4,8 +4,16 @@
   "parameters": {
     "CoralogixRegion": {
       "type": "string",
-      "defaultValue": "Europe(eu-west-1)",
+      "defaultValue": "EU1",
       "allowedValues": [
+        "EU1",
+        "EU2",
+        "US1",
+        "US2",
+        "US3",
+        "AP1",
+        "AP2",
+        "AP3",
         "Europe(eu-west-1)",
         "US(us-east-2)",
         "US2(us-west-2)",
@@ -15,7 +23,7 @@
         "Custom"
       ],
       "metadata": {
-        "description": "The region of the Coralogix account."
+        "description": "The Coralogix region: EU1 (Ireland), EU2 (Stockholm), US1 (Ohio), US2 (Oregon), US3 (Iowa), AP1 (Mumbai), AP2 (Singapore), AP3 (Jakarta). The legacy region names are still accepted and map to the same endpoints."
       }
     },
     "CustomURL": {
@@ -80,7 +88,8 @@
     }
   },
   "variables": {
-    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'Europe(eu-west-1)'), 'https://ingress.coralogix.com/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'US(us-east-2)'), 'https://ingress.coralogix.us/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'US2(us-west-2)'), 'https://ingress.cx498.coralogix.com/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'Europe2(eu-north-1)'), 'https://ingress.eu2.coralogix.com/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'India(ap-south-1)'), 'https://ingress.coralogix.in/azure/events/v1', if(equals(parameters('CoralogixRegion'), 'Singapore(ap-southeast-1)'), 'https://ingress.coralogixsg.com/azure/events/v1', 'NULL')))))))]",
+    "CoralogixRegionCode": "[if(equals(parameters('CoralogixRegion'), 'Europe(eu-west-1)'), 'EU1', if(equals(parameters('CoralogixRegion'), 'US(us-east-2)'), 'US1', if(equals(parameters('CoralogixRegion'), 'US2(us-west-2)'), 'US2', if(equals(parameters('CoralogixRegion'), 'Europe2(eu-north-1)'), 'EU2', if(equals(parameters('CoralogixRegion'), 'India(ap-south-1)'), 'AP1', if(equals(parameters('CoralogixRegion'), 'Singapore(ap-southeast-1)'), 'AP2', parameters('CoralogixRegion')))))))]",
+    "CoralogixURL": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(variables('CoralogixRegionCode'), 'EU1'), 'https://ingress.eu1.coralogix.com/azure/events/v1', if(equals(variables('CoralogixRegionCode'), 'EU2'), 'https://ingress.eu2.coralogix.com/azure/events/v1', if(equals(variables('CoralogixRegionCode'), 'US1'), 'https://ingress.us1.coralogix.com/azure/events/v1', if(equals(variables('CoralogixRegionCode'), 'US2'), 'https://ingress.us2.coralogix.com/azure/events/v1', if(equals(variables('CoralogixRegionCode'), 'US3'), 'https://ingress.us3.coralogix.com/azure/events/v1', if(equals(variables('CoralogixRegionCode'), 'AP1'), 'https://ingress.ap1.coralogix.com/azure/events/v1', if(equals(variables('CoralogixRegionCode'), 'AP2'), 'https://ingress.ap2.coralogix.com/azure/events/v1', if(equals(variables('CoralogixRegionCode'), 'AP3'), 'https://ingress.ap3.coralogix.com/azure/events/v1', 'NULL')))))))))]",
     "functionAppName": "[format('DiagnosticData-{0}', uniqueString(concat(resourceGroup().id, parameters('EventhubNamespace'), parameters('EventhubInstanceName'))))]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",

@@ -10,13 +10,14 @@
         "EU2",
         "US1",
         "US2",
+        "US3",
         "AP1",
         "AP2",
         "AP3",
         "Custom"
       ],
       "metadata": {
-        "description": "The Coralogix region: EU1 (Ireland), EU2 (Stockholm), US1 (Ohio), US2 (Oregon), AP1 (Mumbai), AP2 (Singapore), AP3 (Jakarta)."
+        "description": "The Coralogix region: EU1 (Ireland), EU2 (Stockholm), US1 (Ohio), US2 (Oregon), US3 (Iowa), AP1 (Mumbai), AP2 (Singapore), AP3 (Jakarta)."
       }
     },
     "CustomURL": {
@@ -130,13 +131,13 @@
     }
   },
   "variables": {
-    "CoralogixOtlpEndpoint": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'EU1'), 'ingress.eu1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'EU2'), 'ingress.eu2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US1'), 'ingress.us1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US2'), 'ingress.us2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP1'), 'ingress.ap1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP2'), 'ingress.ap2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP3'), 'ingress.ap3.coralogix.com:443', 'NULL'))))))))]",
+    "CoralogixOtlpEndpoint": "[if(equals(parameters('CoralogixRegion'), 'Custom'), parameters('CustomURL'), if(equals(parameters('CoralogixRegion'), 'EU1'), 'ingress.eu1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'EU2'), 'ingress.eu2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US1'), 'ingress.us1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US2'), 'ingress.us2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'US3'), 'ingress.us3.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP1'), 'ingress.ap1.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP2'), 'ingress.ap2.coralogix.com:443', if(equals(parameters('CoralogixRegion'), 'AP3'), 'ingress.ap3.coralogix.com:443', 'NULL')))))))))]",
     "functionAppName": "[parameters('functionAppName')]",
     "hostingPlanName": "[variables('functionAppName')]",
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.8.3/EventHub-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.9.0/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [

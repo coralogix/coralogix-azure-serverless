@@ -5,6 +5,10 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 3.2.0 / 11 Aug 2026
+* [Update] Use the regional Coralogix domain in the e2e test docs and script defaults (`ingress.eu1.coralogix.com`)
+* [Update] Point the ARM `packageUri` at `BlobToOtel-v3.2.0` (it referenced a release that was never published)
+
 ### 3.0.1 / 06 Feb 2026 
 * [Update] Use GitHub releases for ARM template deployment instead of S3
   - Updated ARM template to download function app from GitHub releases

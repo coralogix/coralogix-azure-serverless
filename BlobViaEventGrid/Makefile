@@ -5,14 +5,17 @@ export CORALOGIX_APP_NAME ?= Azure
 export CORALOGIX_SUB_SYSTEM ?= "BlobViaEventGrid"
 export NEWLINE_PATTERN ?= (?:\r\n|\r|\n)
 
-#  Cluster	                API Endpoint
-#  .com	                    https://ingress.coralogix.com:443/api/v1/logs
-#  .us	                    https://ingress.coralogix.us:443/api/v1/logs
-#  .in	                    https://ingress.app.coralogix.in:443/api/v1/logs
-#  .app.eu2.coralogix.com	https://ingress.eu2.coralogix.com:443/api/v1/logs
-#  .app.coralogixsg.com	    https://ingress.coralogixsg.com:443/api/v1/logs
+#  Region	Endpoint
+#  EU1	https://ingress.eu1.coralogix.com:443/api/v1/logs
+#  EU2	https://ingress.eu2.coralogix.com:443/api/v1/logs
+#  US1	https://ingress.us1.coralogix.com:443/api/v1/logs
+#  US2	https://ingress.us2.coralogix.com:443/api/v1/logs
+#  US3	https://ingress.us3.coralogix.com:443/api/v1/logs
+#  AP1	https://ingress.ap1.coralogix.com:443/api/v1/logs
+#  AP2	https://ingress.ap2.coralogix.com:443/api/v1/logs
+#  AP3	https://ingress.ap3.coralogix.com:443/api/v1/logs
 
-export CORALOGIX_URL ?= "https://ingress.coralogixsg.com/api/v1/logs"
+export CORALOGIX_URL ?= "https://ingress.ap2.coralogix.com/api/v1/logs"
 
 # Fixed exports
 export AZURE_RESOURCE_GROUP ?= CrlgxRG$(UUID)
