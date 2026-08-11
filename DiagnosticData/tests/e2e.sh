@@ -5,7 +5,8 @@
 # Order of execution:
 #   1. Provision Azure resources with Terraform (RG, Event Hub, storage account with
 #      diagnostic setting that streams Transaction metric to Event Hub).
-#   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2. Deploy the ARM template at ARM_TEMPLATE_REF (default master) via Azure CLI,
+#      with explicit parameters from step 1.
 #   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Upload 5–10 blobs to the storage account to generate transactions; diagnostic setting
 #      streams data to Event Hub; function reads and forwards to Coralogix.
@@ -73,10 +74,24 @@ trap cleanup_after_failure EXIT
 # --- Step 1: Provision with Terraform ---
 # An aborted earlier run can leave the resource group behind, and because the
 # name is deterministic that makes every later `terraform apply` fail with
-# "already exists". Clear it first, blocking, so the run starts clean.
+# "already exists". The failure path deletes with --no-wait, so the group may
+# also still be mid-delete from that run: request deletion (ignoring an error if
+# one is already in flight) and then wait until it has actually gone, rather than
+# assuming a blocking delete can start.
+PREFLIGHT_TIMEOUT_SECS="${PREFLIGHT_TIMEOUT_SECS:-600}"
 if [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; then
-  log "Pre-flight: removing stale resource group $RG_NAME left by an earlier run..."
-  az group delete --name "$RG_NAME" --yes
+  log "Pre-flight: resource group $RG_NAME is left over from an earlier run; removing it..."
+  az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
+  waited=0
+  while [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; do
+    if [[ "$waited" -ge "$PREFLIGHT_TIMEOUT_SECS" ]]; then
+      err "Pre-flight: $RG_NAME still present after ${PREFLIGHT_TIMEOUT_SECS}s. Delete it manually and re-run."
+      exit 1
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+  log "Pre-flight: $RG_NAME removed after ${waited}s."
 fi
 
 log "Step 1: Provisioning Azure resources with Terraform (RG, Event Hub, storage account + diagnostic setting)..."
@@ -93,11 +108,11 @@ CONTAINER_NAME=$(terraform output -raw blob_container_name)
 
 log "Terraform outputs: RG=$RG_NAME, EventHub=$EVENTHUB_NAMESPACE/$EVENTHUB_NAME, Storage container=$CONTAINER_NAME"
 
-# --- Step 2: Deploy ARM template (latest master) with explicit parameters ---
+# --- Step 2: Deploy the ARM template at ARM_TEMPLATE_REF with explicit parameters ---
 # DiagnosticData ARM expects CustomURL as the full Coralogix events URL (e.g. https://ingress.xxx/azure/events/v1)
 CORALOGIX_EVENTS_URL="${OTEL_ENDPOINT%/}/azure/events/v1"
 
-log "Step 2: Deploying ARM template from master (DiagnosticData function)..."
+log "Step 2: Deploying ARM template (ref: ${ARM_TEMPLATE_REF}) (DiagnosticData function)..."
 PARAMS_FILE="${SCRIPT_DIR}/arm-params.json"
 build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"/\\"/g')\" }"; }
 {

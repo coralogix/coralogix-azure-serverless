@@ -4,7 +4,8 @@
 #
 # Order of execution:
 #   1. Provision Azure resources with Terraform (prereqs + Event Hub consumer group).
-#   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2. Deploy the ARM template at ARM_TEMPLATE_REF (default master) via Azure CLI,
+#      with explicit parameters from step 1.
 #   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Send a test payload (upload a blob to trigger the function).
 #   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 30 times).
@@ -58,10 +59,24 @@ trap cleanup_after_failure EXIT
 # --- Step 1: Provision with Terraform ---
 # An aborted earlier run can leave the resource group behind, and because the
 # name is deterministic that makes every later `terraform apply` fail with
-# "already exists". Clear it first, blocking, so the run starts clean.
+# "already exists". The failure path deletes with --no-wait, so the group may
+# also still be mid-delete from that run: request deletion (ignoring an error if
+# one is already in flight) and then wait until it has actually gone, rather than
+# assuming a blocking delete can start.
+PREFLIGHT_TIMEOUT_SECS="${PREFLIGHT_TIMEOUT_SECS:-600}"
 if [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; then
-  log "Pre-flight: removing stale resource group $RG_NAME left by an earlier run..."
-  az group delete --name "$RG_NAME" --yes
+  log "Pre-flight: resource group $RG_NAME is left over from an earlier run; removing it..."
+  az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
+  waited=0
+  while [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; do
+    if [[ "$waited" -ge "$PREFLIGHT_TIMEOUT_SECS" ]]; then
+      err "Pre-flight: $RG_NAME still present after ${PREFLIGHT_TIMEOUT_SECS}s. Delete it manually and re-run."
+      exit 1
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+  log "Pre-flight: $RG_NAME removed after ${waited}s."
 fi
 
 log "Step 1: Provisioning Azure resources with Terraform (prereqs + Event Hub consumer group)..."
@@ -80,8 +95,8 @@ STORAGE_CONNECTION_STRING=$(terraform output -raw storage_account_connection_str
 
 log "Terraform outputs: RG=$RG_NAME, Storage=$STORAGE_ACCOUNT, Container=$CONTAINER_NAME, EventHub=$EVENTHUB_NAMESPACE/$EVENTHUB_NAME, ConsumerGroup=$EVENTHUB_CONSUMER_GROUP"
 
-# --- Step 2: Deploy ARM template (latest master) with explicit parameters ---
-log "Step 2: Deploying ARM template from master with explicit parameters..."
+# --- Step 2: Deploy the ARM template at ARM_TEMPLATE_REF with explicit parameters ---
+log "Step 2: Deploying ARM template (ref: ${ARM_TEMPLATE_REF}) with explicit parameters..."
 PARAMS_FILE="${SCRIPT_DIR}/arm-params.json"
 # Build parameters JSON with explicit values (no defaults); escape quotes in values.
 build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"/\\"/g')\" }"; }

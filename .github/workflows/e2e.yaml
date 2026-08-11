@@ -1,22 +1,20 @@
 name: E2E Tests
 
 on:
+  # Both build workflows publish the artifact the ARM templates deploy from, so
+  # e2e must always run *after* one of them, never alongside. On a plain `push`
+  # trigger the three S3-backed packages would race the zip upload and test
+  # whichever artifact happened to be in the bucket at that moment.
+  #   "Build, Test & Release" (release.yaml) -> EventHub, BlobToOtel
+  #   "Build & Release"       (build.yaml)   -> BlobViaEventGrid, DiagnosticData, StorageQueue
   workflow_run:
     workflows:
       - "Build, Test & Release"
+      - "Build & Release"
     branches:
       - master
     types:
       - completed
-  # EventHub/BlobToOtel arrive via workflow_run above (after their release publishes).
-  # The other three have no release workflow, so they need their own push trigger.
-  push:
-    branches:
-      - master
-    paths:
-      - "BlobViaEventGrid/**"
-      - "DiagnosticData/**"
-      - "StorageQueue/**"
   workflow_dispatch:
     inputs:
       package:
@@ -46,66 +44,57 @@ permissions:
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
-    # For workflow_run: only proceed if the release workflow succeeded
+    # For workflow_run: only proceed if the upstream build/release succeeded.
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       packages: ${{ steps.set-packages.outputs.packages }}
       has-changes: ${{ steps.set-packages.outputs.has-changes }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Detect changed packages
-        uses: dorny/paths-filter@v3
-        id: changes
-        if: github.event_name == 'push'
-        with:
-          base: ${{ github.event.before }}
-          filters: |
-            StorageQueue:
-              - 'StorageQueue/**'
-            EventHub:
-              - 'EventHub/**'
-            DiagnosticData:
-              - 'DiagnosticData/**'
-            BlobViaEventGrid:
-              - 'BlobViaEventGrid/**'
-            BlobToOtel:
-              - 'BlobToOtel/**'
-
       - name: Set packages matrix
         id: set-packages
         env:
           EVENT: ${{ github.event_name }}
-          SQ: ${{ steps.changes.outputs.StorageQueue }}
-          EH: ${{ steps.changes.outputs.EventHub }}
-          DD: ${{ steps.changes.outputs.DiagnosticData }}
-          BVE: ${{ steps.changes.outputs.BlobViaEventGrid }}
-          BTO: ${{ steps.changes.outputs.BlobToOtel }}
+          UPSTREAM: ${{ github.event.workflow_run.name }}
           INPUT_PACKAGE: ${{ github.event.inputs.package }}
         run: |
-          if [[ "$EVENT" == "push" && ("$SQ" == "true" || "$EH" == "true" || "$DD" == "true" || "$BVE" == "true" || "$BTO" == "true") ]]; then
-            packages=()
-            [[ "$SQ" == "true" ]] && packages+=("StorageQueue")
-            [[ "$EH" == "true" ]] && packages+=("EventHub")
-            [[ "$DD" == "true" ]] && packages+=("DiagnosticData")
-            [[ "$BVE" == "true" ]] && packages+=("BlobViaEventGrid")
-            [[ "$BTO" == "true" ]] && packages+=("BlobToOtel")
-            pk_json=$(printf '%s\n' "${packages[@]}" | jq -R . | jq -s -c .)
-            echo "packages=$pk_json" >> $GITHUB_OUTPUT
-            echo "has-changes=true" >> $GITHUB_OUTPUT
-          elif [[ "$EVENT" == "workflow_dispatch" && -n "${INPUT_PACKAGE:-}" && "$INPUT_PACKAGE" != "all" ]]; then
-            echo "packages=[\"$INPUT_PACKAGE\"]" >> $GITHUB_OUTPUT
-            echo "has-changes=true" >> $GITHUB_OUTPUT
-          elif [[ "$EVENT" == "workflow_dispatch" || "$EVENT" == "workflow_run" ]]; then
-            echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
-            echo 'has-changes=true' >> $GITHUB_OUTPUT
+          set -euo pipefail
+
+          # Which packages the upstream workflow is responsible for publishing.
+          # Each package's artifact is republished by exactly one of the two, so
+          # e2e only tests packages whose artifact the finished run could have
+          # changed. Both sets are fixed rather than path-filtered: these runs are
+          # infrequent, and a stale filter that skips a package is worse than
+          # occasionally testing one that did not change.
+          case "$EVENT" in
+            workflow_run)
+              case "$UPSTREAM" in
+                "Build, Test & Release") packages='["EventHub","BlobToOtel"]' ;;
+                "Build & Release")       packages='["BlobViaEventGrid","DiagnosticData","StorageQueue"]' ;;
+                *)
+                  echo "Unrecognised upstream workflow: '$UPSTREAM'" >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+            workflow_dispatch)
+              if [[ -n "${INPUT_PACKAGE:-}" && "$INPUT_PACKAGE" != "all" ]]; then
+                packages="[\"$INPUT_PACKAGE\"]"
+              else
+                packages='["EventHub","BlobToOtel","BlobViaEventGrid","DiagnosticData","StorageQueue"]'
+              fi
+              ;;
+            *)
+              packages='[]'
+              ;;
+          esac
+
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+          if [[ "$packages" == "[]" ]]; then
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
           else
-            echo 'packages=[]' >> $GITHUB_OUTPUT
-            echo 'has-changes=false' >> $GITHUB_OUTPUT
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
           fi
+          echo "Testing: $packages"
 
   e2e:
     needs: detect-changes

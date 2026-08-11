@@ -4,7 +4,8 @@
 #
 # Order of execution:
 #   1. Provision Azure resources with Terraform (Event Hub namespace, hub, consumer group, auth rules).
-#   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2. Deploy the ARM template at ARM_TEMPLATE_REF (default master) via Azure CLI,
+#      with explicit parameters from step 1.
 #   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Send test events to the Event Hub to trigger the function.
 #   4. Wait 30s, then poll Coralogix Get Logs Count API until count > 0 (retry every 30s, up to 30 times).
@@ -61,10 +62,24 @@ trap cleanup_after_failure EXIT
 # --- Step 1: Provision with Terraform ---
 # An aborted earlier run can leave the resource group behind, and because the
 # name is deterministic that makes every later `terraform apply` fail with
-# "already exists". Clear it first, blocking, so the run starts clean.
+# "already exists". The failure path deletes with --no-wait, so the group may
+# also still be mid-delete from that run: request deletion (ignoring an error if
+# one is already in flight) and then wait until it has actually gone, rather than
+# assuming a blocking delete can start.
+PREFLIGHT_TIMEOUT_SECS="${PREFLIGHT_TIMEOUT_SECS:-600}"
 if [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; then
-  log "Pre-flight: removing stale resource group $RG_NAME left by an earlier run..."
-  az group delete --name "$RG_NAME" --yes
+  log "Pre-flight: resource group $RG_NAME is left over from an earlier run; removing it..."
+  az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
+  waited=0
+  while [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; do
+    if [[ "$waited" -ge "$PREFLIGHT_TIMEOUT_SECS" ]]; then
+      err "Pre-flight: $RG_NAME still present after ${PREFLIGHT_TIMEOUT_SECS}s. Delete it manually and re-run."
+      exit 1
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+  log "Pre-flight: $RG_NAME removed after ${waited}s."
 fi
 
 log "Step 1: Provisioning Azure resources with Terraform (Event Hub namespace, hub, consumer group, auth rules)..."
@@ -81,7 +96,7 @@ EVENTHUB_SEND_CONNECTION_STRING=$(terraform output -raw eventhub_send_connection
 
 log "Terraform outputs: RG=$RG_NAME, EventHub=$EVENTHUB_NAMESPACE/$EVENTHUB_NAME, ConsumerGroup=$EVENTHUB_CONSUMER_GROUP"
 
-# --- Step 2: Deploy ARM template (latest master) with explicit parameters ---
+# --- Step 2: Deploy the ARM template at ARM_TEMPLATE_REF with explicit parameters ---
 # EventHubV2 expects CustomURL as host:port (e.g. ingress.eu1.coralogix.com:443)
 CUSTOM_URL="${OTEL_ENDPOINT#*://}"
 CUSTOM_URL="${CUSTOM_URL%%/*}"
@@ -89,7 +104,7 @@ if [[ "$CUSTOM_URL" != *:* ]]; then
   CUSTOM_URL="${CUSTOM_URL}:443"
 fi
 
-log "Step 2: Deploying ARM template from master (EventHub function)..."
+log "Step 2: Deploying ARM template (ref: ${ARM_TEMPLATE_REF}) (EventHub function)..."
 PARAMS_FILE="${SCRIPT_DIR}/arm-params.json"
 build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"/\\"/g')\" }"; }
 {

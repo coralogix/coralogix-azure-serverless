@@ -4,7 +4,8 @@
 #
 # Order of execution:
 #   1. Provision Azure resources with Terraform (resource group, StorageV2 account, container).
-#   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2. Deploy the ARM template at ARM_TEMPLATE_REF (default master) via Azure CLI,
+#      with explicit parameters from step 1.
 #      The ARM template creates the Event Grid system topic and subscription to the function.
 #   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Send a test payload (upload a blob to trigger Event Grid → function).
@@ -69,10 +70,24 @@ trap cleanup_after_failure EXIT
 # --- Step 1: Provision with Terraform ---
 # An aborted earlier run can leave the resource group behind, and because the
 # name is deterministic that makes every later `terraform apply` fail with
-# "already exists". Clear it first, blocking, so the run starts clean.
+# "already exists". The failure path deletes with --no-wait, so the group may
+# also still be mid-delete from that run: request deletion (ignoring an error if
+# one is already in flight) and then wait until it has actually gone, rather than
+# assuming a blocking delete can start.
+PREFLIGHT_TIMEOUT_SECS="${PREFLIGHT_TIMEOUT_SECS:-600}"
 if [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; then
-  log "Pre-flight: removing stale resource group $RG_NAME left by an earlier run..."
-  az group delete --name "$RG_NAME" --yes
+  log "Pre-flight: resource group $RG_NAME is left over from an earlier run; removing it..."
+  az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
+  waited=0
+  while [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; do
+    if [[ "$waited" -ge "$PREFLIGHT_TIMEOUT_SECS" ]]; then
+      err "Pre-flight: $RG_NAME still present after ${PREFLIGHT_TIMEOUT_SECS}s. Delete it manually and re-run."
+      exit 1
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+  log "Pre-flight: $RG_NAME removed after ${waited}s."
 fi
 
 log "Step 1: Provisioning Azure resources with Terraform (RG, StorageV2, container)..."
@@ -87,8 +102,8 @@ STORAGE_CONNECTION_STRING=$(terraform output -raw storage_account_connection_str
 
 log "Terraform outputs: RG=$RG_NAME, Storage=$STORAGE_ACCOUNT, Container=$CONTAINER_NAME"
 
-# --- Step 2: Deploy ARM template (latest master) with explicit parameters ---
-log "Step 2: Deploying ARM template from master (function + Event Grid system topic and subscription)..."
+# --- Step 2: Deploy the ARM template at ARM_TEMPLATE_REF with explicit parameters ---
+log "Step 2: Deploying ARM template (ref: ${ARM_TEMPLATE_REF}) (function + Event Grid system topic and subscription)..."
 PARAMS_FILE="${SCRIPT_DIR}/arm-params.json"
 # Build parameters JSON; escape quotes in values.
 build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"/\\"/g')\" }"; }
@@ -115,26 +130,37 @@ build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"
 # The template creates the Event Grid subscription in the same deployment as the
 # function app. Event Grid validates the webhook endpoint immediately, and if the
 # app has not finished pulling its package yet that probe 404s and the whole
-# deployment fails with "Webhook endpoint validation failed". Retrying is enough:
-# the app is warm by the second attempt, and the deployment is idempotent.
+# deployment fails with "Webhook endpoint validation failed". The app is warm by
+# the next attempt and the deployment is idempotent, so retry — but only for that
+# specific error. Anything else is a real template or parameter fault and must
+# surface immediately instead of being hidden behind two minutes of retries.
 ARM_DEPLOY_ATTEMPTS="${ARM_DEPLOY_ATTEMPTS:-3}"
+DEPLOY_LOG="${SCRIPT_DIR}/.arm-deploy.log"
 for attempt in $(seq 1 "$ARM_DEPLOY_ATTEMPTS"); do
   if az deployment group create \
       --resource-group "$RG_NAME" \
       --template-uri "$ARM_TEMPLATE_URI" \
-      --parameters "@${PARAMS_FILE}"; then
+      --parameters "@${PARAMS_FILE}" 2>&1 | tee "$DEPLOY_LOG"; then
     break
   fi
-  if [[ "$attempt" -eq "$ARM_DEPLOY_ATTEMPTS" ]]; then
-    err "ARM deployment failed after ${ARM_DEPLOY_ATTEMPTS} attempts."
-    rm -f "$PARAMS_FILE"
+
+  if ! grep -qE 'Webhook endpoint validation failed|StatusCode: NotFound' "$DEPLOY_LOG"; then
+    err "ARM deployment failed for a reason other than the Event Grid webhook race; not retrying (full output above)."
+    rm -f "$PARAMS_FILE" "$DEPLOY_LOG"
     exit 1
   fi
-  log "ARM deployment attempt ${attempt} failed (likely Event Grid webhook validation); retrying in 60s..."
+
+  if [[ "$attempt" -eq "$ARM_DEPLOY_ATTEMPTS" ]]; then
+    err "Event Grid webhook validation still failing after ${ARM_DEPLOY_ATTEMPTS} attempts."
+    rm -f "$PARAMS_FILE" "$DEPLOY_LOG"
+    exit 1
+  fi
+
+  log "Attempt ${attempt}: Event Grid webhook validation failed (function app not serving yet); retrying in 60s..."
   sleep 60
 done
 
-rm -f "$PARAMS_FILE"
+rm -f "$PARAMS_FILE" "$DEPLOY_LOG"
 log "ARM deployment completed."
 
 # --- Step 2c: Sync function triggers, then wait before sending data ---
