@@ -26,7 +26,7 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 
 **Resource Group** - The Resource Group into which you wish to deploy the integration.
 
-**Coralogix Region** - The region of the Coralogix account (EU1, EU2, US1, US2, AP1, AP2, AP3, or Custom). For more details see [Account Settings / Coralogix Domains](https://coralogix.com/docs/user-guides/account-management/account-settings/coralogix-domain/).
+**Coralogix Region** - The region of the Coralogix account (EU1, EU2, US1, US2, US3, AP1, AP2, AP3, or Custom). For more details see [Account Settings / Coralogix Domains](https://coralogix.com/docs/user-guides/account-management/account-settings/coralogix-domain/).
 
 **Custom URL** - Your Custom URL for the Coralogix account. Only required if you selected 'Custom' as the Coralogix Region.
 

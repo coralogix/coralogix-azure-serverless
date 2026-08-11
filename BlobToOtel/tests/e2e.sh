@@ -15,7 +15,7 @@
 #   - Terraform >= 1.7.4.
 #   - jq (for parsing Coralogix API response).
 #   - Environment variables (or export before running):
-#     - OTEL_ENDPOINT (required) – OTLP endpoint URL, e.g. https://ingress.coralogix.com
+#     - OTEL_ENDPOINT (required) – OTLP endpoint URL, e.g. https://ingress.eu1.coralogix.com
 #     - CORALOGIX_QUERY_API_KEY or CORALOGIX_API_KEY – for Step 4 verification (Data Usage read permission).
 #     - Optional: CORALOGIX_DIRECT_MODE, CORALOGIX_APPLICATION, CORALOGIX_SUBSYSTEM
 #
@@ -30,7 +30,7 @@ TERRAFORM_DIR="${SCRIPT_DIR}/terraform"
 ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-serverless/master/BlobToOtel/ARM/BlobToOtel.json"
 
 # Required
-: "${OTEL_ENDPOINT:?Set OTEL_ENDPOINT (e.g. https://ingress.coralogix.com)}"
+: "${OTEL_ENDPOINT:?Set OTEL_ENDPOINT (e.g. https://ingress.eu1.coralogix.com)}"
 
 CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-blob-storage-eventhub-e2e}"
 CORALOGIX_QUERY_API_KEY="${CORALOGIX_QUERY_API_KEY:-${CORALOGIX_API_KEY}}"

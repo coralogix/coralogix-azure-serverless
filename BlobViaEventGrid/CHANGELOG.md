@@ -5,6 +5,12 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.2.0 / 11 Aug 2026
+* [Update] Migrate legacy Coralogix domains to the regional domains
+  - `CoralogixRegion` now accepts the region codes `EU1`, `EU2`, `US1`, `US2`, `US3`, `AP1`, `AP2`, `AP3`
+  - The legacy region names (`Europe(eu-west-1)`, `US(us-east-2)`, `US2(us-west-2)`, `Europe2(eu-north-1)`, `India(ap-south-1)`, `Singapore(ap-southeast-1)`) are still accepted and map to the same endpoints
+  - Endpoints now use `ingress.<region>.coralogix.com`; default region is `EU1`
+
 ### 2.1.3 / 06 Jul 2026
 * [Update] fix(deps): Override @grpc/grpc-js and protobufjs versions to resolve HIGH severity CVEs
 
