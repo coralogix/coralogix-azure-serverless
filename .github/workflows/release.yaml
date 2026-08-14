@@ -1,26 +1,44 @@
 name: Build, Test & Release
 
+# One workflow for all five packages. They previously split across two:
+# release.yaml (EventHub, BlobToOtel -> GitHub Releases) and build.yaml (the
+# other three -> a fixed S3 key). That meant two sets of build steps, two
+# release models, and downstream workflows having to branch on which one
+# finished. With S3 frozen and every package publishing to GitHub Releases,
+# there is nothing left for a second workflow to do.
+
 on:
-  push:
-    branches:
-      - "master"
-    paths:
-      - "EventHub/**"
-      - "BlobToOtel/**"
   pull_request:
-    branches:
-      - "master"
-    paths:
-      - "EventHub/**"
-      - "BlobToOtel/**"
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to build and release"
+        required: true
+        default: "none"
+        type: choice
+        options:
+          - none
+          - BlobToOtel
+          - BlobViaEventGrid
+          - DiagnosticData
+          - EventHub
+          - StorageQueue
+
+# Two pushes arriving close together would otherwise start two runs that both
+# compute a version for the same package and race to create the same tag.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  contents: write 
-  pull-requests: write
-  issues: write
+  contents: write        # create releases and tags
+  pull-requests: read    # dorny/paths-filter reads changed files via the PR API
 
 jobs:
   detect-changes:
+    name: Check
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.set-packages.outputs.packages }}
@@ -31,41 +49,71 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Explicit per-package filters rather than deriving directory names from
+      # the changed paths: a derived name turns any new top-level directory
+      # (scripts/, docs/) into a matrix entry that fails on a missing
+      # package.json.
+      #
+      # tests/ and markdown are included deliberately. They cannot cause a
+      # release -- the commit type and the scoped analysis decide that -- but a
+      # change to them should still be built and tested.
       - name: Detect changed packages
         uses: dorny/paths-filter@v3
         id: changes
         with:
-          list-files: json
           filters: |
-            EventHub:
-              - 'EventHub/**'
             BlobToOtel:
               - 'BlobToOtel/**'
+            BlobViaEventGrid:
+              - 'BlobViaEventGrid/**'
+            DiagnosticData:
+              - 'DiagnosticData/**'
+            EventHub:
+              - 'EventHub/**'
+            StorageQueue:
+              - 'StorageQueue/**'
 
       - name: Set packages matrix
         id: set-packages
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const changes = ${{ steps.changes.outputs.changes }};
-            console.log('Changed packages:', changes);
-            
-            core.setOutput('packages', JSON.stringify(changes));
-            core.setOutput('has-changes', changes.length > 0 ? 'true' : 'false');
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_PACKAGE: ${{ github.event.inputs.package }}
+          CHANGED: ${{ toJSON(steps.changes.outputs.changes) }}
+        run: |
+          set -euo pipefail
 
-  build-and-test:
+          if [[ "$EVENT" == "workflow_dispatch" && "${INPUT_PACKAGE:-none}" != "none" ]]; then
+            packages="[\"$INPUT_PACKAGE\"]"
+          else
+            packages=$(echo "$CHANGED" | jq -c 'fromjson')
+          fi
+
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+          if [[ "$packages" == "[]" ]]; then
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Packages: $packages"
+
+  build:
+    name: Build
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
     runs-on: ubuntu-latest
     strategy:
+      # One package's failure must not cancel the others: a cancelled job
+      # reports as a failure with no logs, which is needlessly hard to diagnose.
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 5
       matrix:
         package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          # semantic-release derives the version from the full tag history, and
+          # the scoped commit analysis needs the full log.
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -73,44 +121,36 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install functools
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
       - name: Install dependencies
         working-directory: ./${{ matrix.package }}
         run: npm install
-    
-      - name: Install functools
-        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
 
       - name: Run tests
         working-directory: ./${{ matrix.package }}
         run: npm run test
 
+      # build:production is `npm run prestart && npm prune --production`, where
+      # prestart is `npm run build && func extensions install` -- the same steps
+      # the two release-tracked packages ran as separate stages.
       - name: Build
         working-directory: ./${{ matrix.package }}
-        run: npm run build
+        run: npm run build:production
 
-      - name: Install func extensions
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        working-directory: ./${{ matrix.package }}
-        run: func extensions install
-
-      - name: Prune to production dependencies
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        working-directory: ./${{ matrix.package }}
-        run: npm prune --production
-      
       - name: Zip build artifact
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
-        run: |
-          zip -r ${{ matrix.package }}-FunctionApp.zip . -x ".*"
+        run: zip -r ${{ matrix.package }}-FunctionApp.zip . -x ".*"
 
       - name: Reinstall devDependencies for semantic-release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         run: npm install --only=dev
 
       - name: Run semantic-release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
