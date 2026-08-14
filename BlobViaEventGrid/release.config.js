@@ -16,15 +16,10 @@ module.exports = {
         // GitHub plugin uploads it, so the published template's packageUri
         // points at its own release rather than at a hand-guessed tag.
         prepareCmd: 'node ../scripts/set-package-uri.js BlobViaEventGrid ARM/BlobViaEventGrid.json ${nextRelease.version}',
-        successCmd: 'echo ${nextRelease.version} > .release_version'
-      }],
-      ['@semantic-release/git', {
-        // Commit the stamped template back. The README "Deploy to Azure" button
-        // deploys master's copy directly, so it has to name a release that
-        // exists. [skip ci] keeps this from re-triggering the workflow that
-        // produced it.
-        assets: ['ARM/BlobViaEventGrid.json'],
-        message: 'chore(release): BlobViaEventGrid ${nextRelease.version} [skip ci]'
+        // Commit-back runs here, in `success`, not via @semantic-release/git
+        // in `prepare` -- see scripts/commit-package-uri.sh for why the
+        // ordering matters.
+        successCmd: 'echo ${nextRelease.version} > .release_version && bash ../scripts/commit-package-uri.sh BlobViaEventGrid ARM/BlobViaEventGrid.json ${nextRelease.version}'
       }],
       ['@semantic-release/github', {
         assets: [

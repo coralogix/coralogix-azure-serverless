@@ -27,7 +27,8 @@ on:
           - StorageQueue
 
 permissions:
-  contents: write   # create releases, and push the packageUri commit-back
+  contents: write        # create releases, and push the packageUri commit-back
+  pull-requests: read    # dorny/paths-filter reads changed files via the PR API
 
 jobs:
   detect-changes:
@@ -36,12 +37,18 @@ jobs:
     outputs:
       packages: ${{ steps.set-packages.outputs.packages }}
       has-changes: ${{ steps.set-packages.outputs.has-changes }}
+      release-packages: ${{ steps.set-packages.outputs.release-packages }}
+      has-releases: ${{ steps.set-packages.outputs.has-releases }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
+      # Two filter sets, because "should we build and test this?" and "should
+      # this cut a release?" are different questions. A change to a package's
+      # tests must still build and run them; it just must not release.
+      #
       # Explicit per-package filters rather than deriving directory names from
       # the changed paths: a derived name turns any new top-level directory
       # (scripts/, docs/) into a matrix entry that fails on a missing
@@ -49,6 +56,22 @@ jobs:
       - name: Detect changed packages
         uses: dorny/paths-filter@v3
         id: changes
+        with:
+          filters: |
+            BlobToOtel:
+              - 'BlobToOtel/**'
+            BlobViaEventGrid:
+              - 'BlobViaEventGrid/**'
+            DiagnosticData:
+              - 'DiagnosticData/**'
+            EventHub:
+              - 'EventHub/**'
+            StorageQueue:
+              - 'StorageQueue/**'
+
+      - name: Detect releasable changes
+        uses: dorny/paths-filter@v3
+        id: releasable
         with:
           filters: |
             BlobToOtel:
@@ -78,22 +101,27 @@ jobs:
           EVENT: ${{ github.event_name }}
           INPUT_PACKAGE: ${{ github.event.inputs.package }}
           CHANGED: ${{ toJSON(steps.changes.outputs.changes) }}
+          RELEASABLE: ${{ toJSON(steps.releasable.outputs.changes) }}
         run: |
           set -euo pipefail
 
           if [[ "$EVENT" == "workflow_dispatch" && "${INPUT_PACKAGE:-none}" != "none" ]]; then
             packages="[\"$INPUT_PACKAGE\"]"
+            releasable="$packages"
           else
             packages=$(echo "$CHANGED" | jq -c 'fromjson')
+            releasable=$(echo "$RELEASABLE" | jq -c 'fromjson')
           fi
 
-          echo "packages=$packages" >> "$GITHUB_OUTPUT"
-          if [[ "$packages" == "[]" ]]; then
-            echo "has-changes=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "has-changes=true" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Building: $packages"
+          {
+            echo "packages=$packages"
+            echo "release-packages=$releasable"
+            [[ "$packages" == "[]" ]]   && echo "has-changes=false"  || echo "has-changes=true"
+            [[ "$releasable" == "[]" ]] && echo "has-releases=false" || echo "has-releases=true"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Building:  $packages"
+          echo "Releasing: $releasable"
 
   # Building is parallel. Releasing is not -- see the release job.
   build:
@@ -168,13 +196,13 @@ jobs:
   release:
     name: Release
     needs: [detect-changes, build]
-    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ needs.detect-changes.outputs.has-releases == 'true' && ((github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
-        package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
+        package: ${{ fromJson(needs.detect-changes.outputs.release-packages) }}
     steps:
       - name: Checkout master at its current tip
         uses: actions/checkout@v5
