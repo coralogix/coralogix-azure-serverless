@@ -31,6 +31,15 @@ if (!/^\d+\.\d+\.\d+/.test(version)) {
   process.exit(1);
 }
 
+// The package name is interpolated into a RegExp below. Every real package name
+// is a bare alphanumeric identifier, so require that rather than escaping: a
+// name carrying regex metacharacters would silently match the wrong URLs, and
+// there is no legitimate case for one.
+if (!/^[A-Za-z][A-Za-z0-9]*$/.test(pkg)) {
+  console.error(`refusing a package name that is not a plain identifier: "${pkg}"`);
+  process.exit(1);
+}
+
 const template = fs.readFileSync(templatePath, 'utf8');
 
 // Match this package's release-download URL whatever version it currently
