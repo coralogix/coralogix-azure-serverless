@@ -59,7 +59,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 2
+      # Serialised, not parallel. Each package's semantic-release run now pushes
+      # its own packageUri commit-back to master. Run concurrently, both jobs
+      # start from the same revision, so the first push wins and the other fails
+      # non-fast-forward -- after building, but before publishing.
+      max-parallel: 1
       matrix:
         package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
     steps:
