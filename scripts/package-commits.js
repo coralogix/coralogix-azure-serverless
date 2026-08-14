@@ -32,6 +32,13 @@ const RELEASE_TYPE_BY_TYPE = {
 
 const HEADER = /^(?<type>\w+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?: (?<subject>.+)$/;
 
+// `git revert` writes `Revert "<original subject>"`, which is not a
+// conventional header and would otherwise parse as no type and request no
+// release. This repo already has two of them (54b4335, 810f15b). Rolling back a
+// published bad release must ship a patched artifact, not leave users on the
+// bad version until some unrelated commit happens to trigger one.
+const REVERT_HEADER = /^Revert\s+"/;
+
 // A commit belongs to a package if it touches that package's directory. Tests
 // and markdown are excluded to match the workflow's trigger filters: a
 // test-only or docs-only change must not cut a release.
@@ -68,6 +75,7 @@ function commitsForPackage(pkg, sinceTag) {
       // Keep it so notes can still mention it if we ever want to, but give it
       // no release type -- guessing would be worse than ignoring.
       const groups = match ? match.groups : null;
+      const isPlainRevert = !groups && REVERT_HEADER.test((subject || '').trim());
       const breaking =
         Boolean(groups && groups.breaking) ||
         /^BREAKING[ -]CHANGE:/m.test(body || '');
@@ -75,7 +83,7 @@ function commitsForPackage(pkg, sinceTag) {
       return {
         hash: (hash || '').trim(),
         short: (hash || '').trim().slice(0, 7),
-        type: groups ? groups.type : null,
+        type: groups ? groups.type : isPlainRevert ? 'revert' : null,
         scope: groups ? groups.scope || null : null,
         subject: groups ? groups.subject : (subject || '').trim(),
         body: body || '',

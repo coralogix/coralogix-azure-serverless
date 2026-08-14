@@ -16,14 +16,10 @@ module.exports = {
         // GitHub plugin uploads it, so the published template's packageUri
         // points at its own release rather than at a hand-guessed tag.
         prepareCmd: 'node ../scripts/set-package-uri.js BlobToOtel ARM/BlobToOtel.json ${nextRelease.version}',
-        successCmd: 'echo ${nextRelease.version} > .release_version'
-      }],
-      ['@semantic-release/git', {
-        // Commit the stamped template back, so the checked-in copy names the
-        // release that actually exists. [skip ci] keeps this from re-triggering
-        // the workflow that created it.
-        assets: ['ARM/BlobToOtel.json'],
-        message: 'chore(release): BlobToOtel ${nextRelease.version} [skip ci]'
+        // Commit-back runs here, in `success`, not via @semantic-release/git
+        // in `prepare` -- see scripts/commit-package-uri.sh for why the
+        // ordering matters.
+        successCmd: 'echo ${nextRelease.version} > .release_version && bash ../scripts/commit-package-uri.sh BlobToOtel ARM/BlobToOtel.json ${nextRelease.version}'
       }],
       ['@semantic-release/github', {
         assets: [
