@@ -43,6 +43,28 @@ const pattern = new RegExp(
 
 const matches = template.match(pattern) || [];
 
+// Transitional: a package moving off the frozen S3 bucket still carries an S3
+// packageUri, so there is no release URL to bump on its first release. Rewrite
+// the S3 URL into a release URL instead. This keeps the checked-in template
+// pointing at something that actually serves the package at every moment --
+// the README "Deploy to Azure" buttons deploy master's template directly, so a
+// window where it names a release that does not exist yet is a window where
+// new customer deployments come up with no function package.
+const legacyPattern = new RegExp(
+  `https://coralogix-public\\.s3\\.[^"]*?/${pkg}\\.zip`,
+  'g'
+);
+const legacyMatches = template.match(legacyPattern) || [];
+
+if (matches.length === 0 && legacyMatches.length === 1) {
+  const releaseUrl =
+    'https://github.com/coralogix/coralogix-azure-serverless/releases/download/' +
+    `${pkg}-v${version}/${pkg}-FunctionApp.zip`;
+  fs.writeFileSync(templatePath, template.replace(legacyPattern, releaseUrl));
+  console.log(`${templatePath}: packageUri migrated from S3 -> ${pkg}-v${version}`);
+  process.exit(0);
+}
+
 // A rename, a refactor, or a template that never adopted the release URL would
 // otherwise leave the old value in place and publish a template pointing at the
 // previous version -- exactly the failure this script exists to prevent. Fail

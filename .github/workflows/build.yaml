@@ -17,6 +17,10 @@ on:
         # - "EventHub"
         # - "BlobToOtel"
         - "StorageQueue"
+
+permissions:
+  contents: write   # create releases, and push the packageUri commit-back
+
 jobs:
   check:
     name: Check
@@ -40,6 +44,9 @@ jobs:
             AUTHORS.md
             EventHub/**
             BlobToOtel/**
+            # Not a package: dir_names_max_depth 1 would otherwise put "scripts"
+            # in the build matrix and fail on a missing package.json.
+            scripts/**
           dir_names: true
           dir_names_max_depth: 1
           json: true
@@ -64,6 +71,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # semantic-release derives the version from the full tag history.
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -81,23 +91,22 @@ jobs:
         working-directory: ./${{ matrix.package }}
         run: npm run build:production
 
+      # Same build output as before, published under the name the GitHub-release
+      # packages already use. The S3 bucket is frozen: existing objects keep
+      # serving existing deployments, and nothing is uploaded to it any more.
       - name: Package
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
-        run: zip -r ${{ matrix.package }}.zip . -x ".*"
+        run: zip -r ${{ matrix.package }}-FunctionApp.zip . -x ".*"
 
-      - name: Setup AWS credentials
-        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.CS_DEVOPS_S3_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.CS_DEVOPS_S3_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
-
-      - name: Upload to S3
+      - name: Reinstall devDependencies for semantic-release
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
-        run: |
-          aws s3 cp \
-            ${{ matrix.package }}.zip \
-            s3://${{ secrets.AWS_PUBLIC_BUCKET }}/azure-functions-repo/${{ matrix.package }}.zip
+        run: npm install --only=dev
+
+      - name: Run semantic-release
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+        working-directory: ./${{ matrix.package }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
