@@ -40,8 +40,8 @@ jobs:
       - name: Detect changed packages
         uses: dorny/paths-filter@v3
         id: changes
+        if: github.event_name == 'pull_request'
         with:
-          list-files: json
           filters: |
             EventHub:
               - 'EventHub/**'
@@ -50,14 +50,47 @@ jobs:
 
       - name: Set packages matrix
         id: set-packages
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const changes = ${{ steps.changes.outputs.changes }};
-            console.log('Changed packages:', changes);
-            
-            core.setOutput('packages', JSON.stringify(changes));
-            core.setOutput('has-changes', changes.length > 0 ? 'true' : 'false');
+        env:
+          EVENT: ${{ github.event_name }}
+          CHANGED: ${{ toJSON(steps.changes.outputs.changes) }}
+        run: |
+          set -euo pipefail
+          PACKAGES=(EventHub BlobToOtel)
+
+          if [[ "$EVENT" == "pull_request" ]]; then
+            # A PR only needs to build and test what it touches.
+            packages=$(echo "$CHANGED" | jq -c 'fromjson')
+          else
+            # On master, ask which packages have unreleased work measured against
+            # their own last tag, rather than against this push's diff.
+            #
+            # GitHub keeps only one pending run per concurrency group, so a third
+            # push cancels the pending one. If that cancelled push was the only
+            # one touching a package, a diff-based matrix would never include it
+            # and its change would sit unreleased until the package happened to
+            # change again. Judging from the tag makes a run pick up whatever
+            # earlier runs missed.
+            selected=()
+            for pkg in "${PACKAGES[@]}"; do
+              tag=$(git tag -l "${pkg}-v*" | sort -V | tail -1)
+              if [[ -n "$(node scripts/analyze-package-commits.js "$pkg" "$tag" 2>/dev/null)" ]]; then
+                selected+=("$pkg")
+              fi
+            done
+            if [[ ${#selected[@]} -gt 0 ]]; then
+              packages=$(printf '%s\n' "${selected[@]}" | jq -R . | jq -sc .)
+            else
+              packages='[]'
+            fi
+          fi
+
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+          if [[ "$packages" == "[]" ]]; then
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Packages: $packages"
 
   build-and-test:
     needs: detect-changes
@@ -142,17 +175,26 @@ jobs:
   sync-package-uri:
     name: Sync packageUri
     needs: build-and-test
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    # Deliberately not gated on build-and-test succeeding. If one package
+    # publishes and a sibling fails, the published one still needs its template
+    # on master -- skipping here would leave it advertising the previous
+    # release indefinitely.
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout master at its current tip
         uses: actions/checkout@v5
         with:
+          # Not the triggering SHA: an earlier run may have merged its own sync
+          # PR since, and branching from a stale base makes this PR conflict on
+          # the same packageUri line.
+          ref: master
           token: ${{ secrets.GH_TOKEN }}
           fetch-depth: 0
 
       - name: Download stamped templates
         uses: actions/download-artifact@v4
+        continue-on-error: true   # nothing to sync if every build failed
         with:
           pattern: arm-*
           path: /tmp/arm
