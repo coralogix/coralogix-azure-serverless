@@ -95,6 +95,7 @@ jobs:
           fi
           echo "Building: $packages"
 
+  # Building is parallel. Releasing is not -- see the release job.
   build:
     name: Build
     needs: detect-changes
@@ -105,20 +106,12 @@ jobs:
       # reports as a failure with no logs, which sent an earlier investigation
       # chasing a package that had built fine.
       fail-fast: false
-      # Serialised, not parallel. Each package's semantic-release run pushes its
-      # own packageUri commit-back to master. Run concurrently, they all start
-      # from the same revision, so the first push wins and every other one fails
-      # non-fast-forward -- after building, but before publishing. Five packages
-      # take a few minutes in sequence; a lost release costs far more.
-      max-parallel: 1
+      max-parallel: 5
       matrix:
         package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          # semantic-release derives the version from the full tag history.
-          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -148,13 +141,65 @@ jobs:
         working-directory: ./${{ matrix.package }}
         run: zip -r ${{ matrix.package }}-FunctionApp.zip . -x ".*"
 
-      - name: Reinstall devDependencies for semantic-release
+      # Handed to the release job so the artifact that gets published is the one
+      # that was built and tested here, not a rebuild from a moved master.
+      - name: Upload build artifact
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}-FunctionApp
+          path: ./${{ matrix.package }}/${{ matrix.package }}-FunctionApp.zip
+          retention-days: 1
+          if-no-files-found: error
+
+  # Serialised, and separate from the build for exactly one reason: each release
+  # pushes a packageUri commit back to master.
+  #
+  # Run in parallel, every job starts from the same revision and the first push
+  # wins; the rest fail non-fast-forward. Serialising alone is not enough
+  # either -- once an earlier job has pushed, a checkout pinned to the
+  # triggering commit is *behind* the remote, and semantic-release declines with
+  # "The local branch master is behind the remote one, therefore a new version
+  # won't be published". A silent skip is worse than a loud failure.
+  #
+  # So this job checks out master as it is when the job starts, picking up any
+  # commit-back an earlier package already pushed. The zip still comes from the
+  # build job, so what ships is what was tested.
+  release:
+    name: Release
+    needs: [detect-changes, build]
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
+    steps:
+      - name: Checkout master at its current tip
+        uses: actions/checkout@v5
+        with:
+          ref: master
+          # semantic-release derives the version from the full tag history, and
+          # the scoped commit analysis needs the full log.
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.package }}-FunctionApp
+          path: ./${{ matrix.package }}
+
+      - name: Install dependencies for semantic-release
         working-directory: ./${{ matrix.package }}
-        run: npm install --only=dev
+        run: npm install
 
       - name: Run semantic-release
-        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
