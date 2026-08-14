@@ -1,20 +1,21 @@
 name: E2E Tests
 
 on:
-  # Both build workflows publish the artifact the ARM templates deploy from, so
-  # e2e must always run *after* one of them, never alongside. On a plain `push`
-  # trigger the three S3-backed packages would race the zip upload and test
-  # whichever artifact happened to be in the bucket at that moment.
-  #   "Build, Test & Release" (release.yaml) -> EventHub, BlobToOtel
-  #   "Build & Release"       (build.yaml)   -> BlobViaEventGrid, DiagnosticData, StorageQueue
-  workflow_run:
-    workflows:
-      - "Build, Test & Release"
-      - "Build & Release"
-    branches:
-      - master
-    types:
-      - completed
+  # Called by "Build, Test & Release" once it knows which packages it built.
+  # That workflow already computes the package list, so e2e is told what to test
+  # rather than inferring it -- an earlier version keyed off the name of the
+  # upstream workflow, which silently stopped covering three packages the moment
+  # the two build workflows were merged into one.
+  workflow_call:
+    inputs:
+      packages:
+        description: "JSON array of package names to test"
+        required: true
+        type: string
+      ref:
+        description: "Commit to test, and the ref the ARM templates are fetched from"
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       package:
@@ -44,8 +45,6 @@ permissions:
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
-    # For workflow_run: only proceed if the upstream build/release succeeded.
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       packages: ${{ steps.set-packages.outputs.packages }}
       has-changes: ${{ steps.set-packages.outputs.has-changes }}
@@ -54,39 +53,22 @@ jobs:
         id: set-packages
         env:
           EVENT: ${{ github.event_name }}
-          UPSTREAM: ${{ github.event.workflow_run.name }}
+          CALLER_PACKAGES: ${{ inputs.packages }}
           INPUT_PACKAGE: ${{ github.event.inputs.package }}
         run: |
           set -euo pipefail
 
-          # Which packages the upstream workflow is responsible for publishing.
-          # Each package's artifact is republished by exactly one of the two, so
-          # e2e only tests packages whose artifact the finished run could have
-          # changed. Both sets are fixed rather than path-filtered: these runs are
-          # infrequent, and a stale filter that skips a package is worse than
-          # occasionally testing one that did not change.
-          case "$EVENT" in
-            workflow_run)
-              case "$UPSTREAM" in
-                "Build, Test & Release") packages='["EventHub","BlobToOtel"]' ;;
-                "Build & Release")       packages='["BlobViaEventGrid","DiagnosticData","StorageQueue"]' ;;
-                *)
-                  echo "Unrecognised upstream workflow: '$UPSTREAM'" >&2
-                  exit 1
-                  ;;
-              esac
-              ;;
-            workflow_dispatch)
-              if [[ -n "${INPUT_PACKAGE:-}" && "$INPUT_PACKAGE" != "all" ]]; then
-                packages="[\"$INPUT_PACKAGE\"]"
-              else
-                packages='["EventHub","BlobToOtel","BlobViaEventGrid","DiagnosticData","StorageQueue"]'
-              fi
-              ;;
-            *)
-              packages='[]'
-              ;;
-          esac
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            # Manual runs test one package, or all of them.
+            if [[ -n "${INPUT_PACKAGE:-}" && "$INPUT_PACKAGE" != "all" ]]; then
+              packages="[\"$INPUT_PACKAGE\"]"
+            else
+              packages='["EventHub","BlobToOtel","BlobViaEventGrid","DiagnosticData","StorageQueue"]'
+            fi
+          else
+            # Called: test exactly what the caller built.
+            packages="${CALLER_PACKAGES:-[]}"
+          fi
 
           echo "packages=$packages" >> "$GITHUB_OUTPUT"
           if [[ "$packages" == "[]" ]]; then
@@ -109,14 +91,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # workflow_run checks out the default branch by default; pin to the
-          # commit that triggered the release so we test that exact code.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Test the commit the caller built, not whatever master is now.
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Resolve template ref
         id: ref
         env:
-          REF: ${{ github.event.workflow_run.head_sha || github.sha }}
+          REF: ${{ inputs.ref || github.sha }}
         run: echo "sha=$REF" >> "$GITHUB_OUTPUT"
 
       - name: Setup Terraform
