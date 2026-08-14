@@ -31,62 +31,61 @@ if (!/^\d+\.\d+\.\d+/.test(version)) {
   process.exit(1);
 }
 
-// The package name is interpolated into a RegExp below. Every real package name
-// is a bare alphanumeric identifier, so require that rather than escaping: a
-// name carrying regex metacharacters would silently match the wrong URLs, and
-// there is no legitimate case for one.
-if (!/^[A-Za-z][A-Za-z0-9]*$/.test(pkg)) {
-  console.error(`refusing a package name that is not a plain identifier: "${pkg}"`);
-  process.exit(1);
-}
+// Both patterns match *any* package's URL and capture the name, which is then
+// compared as a string. Interpolating the name into the pattern would be a
+// regex-injection risk, and a name carrying metacharacters would match the
+// wrong URLs rather than failing.
+const RELEASE_URL = /(releases\/download\/)([A-Za-z][A-Za-z0-9]*)(-v)(\d+\.\d+\.\d+[^/]*)(\/)/g;
+const LEGACY_S3_URL = /(https:\/\/coralogix-public\.s3\.[^"]*?\/)([A-Za-z][A-Za-z0-9]*)(\.zip)/g;
+
+const releaseUrlFor = (name, v) =>
+  'https://github.com/coralogix/coralogix-azure-serverless/releases/download/' +
+  `${name}-v${v}/${name}-FunctionApp.zip`;
 
 const template = fs.readFileSync(templatePath, 'utf8');
 
-// Match this package's release-download URL whatever version it currently
-// carries. Anchored on the package name so a template referencing several
-// artifacts cannot have the wrong one rewritten.
-const pattern = new RegExp(
-  `(releases/download/${pkg}-v)\\d+\\.\\d+\\.\\d+[^/]*(/)`,
-  'g'
+let rewritten = 0;
+let updated = template.replace(
+  RELEASE_URL,
+  (whole, prefix, name, sep, _oldVersion, suffix) => {
+    if (name !== pkg) return whole;
+    rewritten += 1;
+    return `${prefix}${name}${sep}${version}${suffix}`;
+  }
 );
-
-const matches = template.match(pattern) || [];
 
 // Transitional: a package moving off the frozen S3 bucket still carries an S3
-// packageUri, so there is no release URL to bump on its first release. Rewrite
-// the S3 URL into a release URL instead. This keeps the checked-in template
-// pointing at something that actually serves the package at every moment --
-// the README "Deploy to Azure" buttons deploy master's template directly, so a
-// window where it names a release that does not exist yet is a window where
-// new customer deployments come up with no function package.
-const legacyPattern = new RegExp(
-  `https://coralogix-public\\.s3\\.[^"]*?/${pkg}\\.zip`,
-  'g'
-);
-const legacyMatches = template.match(legacyPattern) || [];
-
-if (matches.length === 0 && legacyMatches.length === 1) {
-  const releaseUrl =
-    'https://github.com/coralogix/coralogix-azure-serverless/releases/download/' +
-    `${pkg}-v${version}/${pkg}-FunctionApp.zip`;
-  fs.writeFileSync(templatePath, template.replace(legacyPattern, releaseUrl));
-  console.log(`${templatePath}: packageUri migrated from S3 -> ${pkg}-v${version}`);
-  process.exit(0);
+// packageUri, so on its first release there is no release URL to bump. Rewrite
+// the S3 URL into a release URL instead. Ordering it this way keeps the
+// checked-in template pointing at something that actually serves the package at
+// every moment -- the README "Deploy to Azure" buttons deploy master's template
+// directly, so a window where it names a release that does not exist yet is a
+// window where new customer deployments come up with no function package.
+let migrated = 0;
+if (rewritten === 0) {
+  updated = updated.replace(LEGACY_S3_URL, (whole, _prefix, name) => {
+    if (name !== pkg) return whole;
+    migrated += 1;
+    return releaseUrlFor(name, version);
+  });
 }
 
-// A rename, a refactor, or a template that never adopted the release URL would
+// A rename, a refactor, or a template that never adopted either URL would
 // otherwise leave the old value in place and publish a template pointing at the
 // previous version -- exactly the failure this script exists to prevent. Fail
 // the release instead.
-if (matches.length !== 1) {
+if (rewritten + migrated !== 1) {
   console.error(
-    `expected exactly one ${pkg} release URL in ${templatePath}, found ${matches.length}.`
+    `expected exactly one ${pkg} package URL in ${templatePath}, ` +
+      `found ${rewritten} release and ${migrated} legacy S3.`
   );
   console.error('packageUri was not rewritten; failing rather than publishing a stale template.');
   process.exit(1);
 }
 
-const updated = template.replace(pattern, `$1${version}$2`);
-
 fs.writeFileSync(templatePath, updated);
-console.log(`${templatePath}: packageUri -> ${pkg}-v${version}`);
+console.log(
+  migrated
+    ? `${templatePath}: packageUri migrated from S3 -> ${pkg}-v${version}`
+    : `${templatePath}: packageUri -> ${pkg}-v${version}`
+);
