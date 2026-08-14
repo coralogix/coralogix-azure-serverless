@@ -31,40 +31,35 @@ if (!/^\d+\.\d+\.\d+/.test(version)) {
   process.exit(1);
 }
 
-// The package name is interpolated into a RegExp below. Every real package name
-// is a bare alphanumeric identifier, so require that rather than escaping: a
-// name carrying regex metacharacters would silently match the wrong URLs, and
-// there is no legitimate case for one.
-if (!/^[A-Za-z][A-Za-z0-9]*$/.test(pkg)) {
-  console.error(`refusing a package name that is not a plain identifier: "${pkg}"`);
-  process.exit(1);
-}
+// Matches any package's release-download URL. The package name is captured and
+// compared as a string rather than interpolated into the pattern: building a
+// regex from an argument is an injection risk, and a name carrying regex
+// metacharacters would match the wrong URLs instead of failing.
+const RELEASE_URL = /(releases\/download\/)([A-Za-z][A-Za-z0-9]*)(-v)(\d+\.\d+\.\d+[^/]*)(\/)/g;
 
 const template = fs.readFileSync(templatePath, 'utf8');
 
-// Match this package's release-download URL whatever version it currently
-// carries. Anchored on the package name so a template referencing several
-// artifacts cannot have the wrong one rewritten.
-const pattern = new RegExp(
-  `(releases/download/${pkg}-v)\\d+\\.\\d+\\.\\d+[^/]*(/)`,
-  'g'
+let rewritten = 0;
+const updated = template.replace(
+  RELEASE_URL,
+  (whole, prefix, name, sep, _oldVersion, suffix) => {
+    if (name !== pkg) return whole;
+    rewritten += 1;
+    return `${prefix}${name}${sep}${version}${suffix}`;
+  }
 );
-
-const matches = template.match(pattern) || [];
 
 // A rename, a refactor, or a template that never adopted the release URL would
 // otherwise leave the old value in place and publish a template pointing at the
 // previous version -- exactly the failure this script exists to prevent. Fail
 // the release instead.
-if (matches.length !== 1) {
+if (rewritten !== 1) {
   console.error(
-    `expected exactly one ${pkg} release URL in ${templatePath}, found ${matches.length}.`
+    `expected exactly one ${pkg} release URL in ${templatePath}, found ${rewritten}.`
   );
   console.error('packageUri was not rewritten; failing rather than publishing a stale template.');
   process.exit(1);
 }
-
-const updated = template.replace(pattern, `$1${version}$2`);
 
 fs.writeFileSync(templatePath, updated);
 console.log(`${templatePath}: packageUri -> ${pkg}-v${version}`);

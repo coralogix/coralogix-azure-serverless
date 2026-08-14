@@ -40,6 +40,10 @@ jobs:
             AUTHORS.md
             EventHub/**
             BlobToOtel/**
+            # Not a package: dir_names_max_depth 1 would otherwise put "scripts"
+            # in the build matrix, where npm install fails on a missing
+            # package.json.
+            scripts/**
           dir_names: true
           dir_names_max_depth: 1
           json: true
