@@ -16,10 +16,7 @@ module.exports = {
         // GitHub plugin uploads it, so the published template's packageUri
         // points at its own release rather than at a hand-guessed tag.
         prepareCmd: 'node ../scripts/set-package-uri.js EventHub ARM/EventHubV2.json ${nextRelease.version}',
-        // Commit-back runs here, in `success`, not via @semantic-release/git
-        // in `prepare` -- see scripts/commit-package-uri.sh for why the
-        // ordering matters.
-        successCmd: 'echo ${nextRelease.version} > .release_version && bash ../scripts/commit-package-uri.sh EventHub ARM/EventHubV2.json ${nextRelease.version}'
+        successCmd: 'echo ${nextRelease.version} > .release_version'
       }],
       ['@semantic-release/github', {
         assets: [

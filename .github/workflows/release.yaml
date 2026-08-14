@@ -14,6 +14,12 @@ on:
       - "EventHub/**"
       - "BlobToOtel/**"
 
+# Two pushes arriving close together would otherwise start two runs that both
+# compute a version for the same package and race to create the same tag.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write 
   pull-requests: write
@@ -59,24 +65,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # Serialised, not parallel. Each package's semantic-release run now pushes
-      # its own packageUri commit-back to master. Run concurrently, both jobs
-      # start from the same revision, so the first push wins and the other fails
-      # non-fast-forward -- after building, but before publishing.
-      max-parallel: 1
+      max-parallel: 2
       matrix:
         package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # On master, check out the branch tip rather than the triggering
-          # commit. Serialising the matrix stops the concurrent push, but the
-          # second package would still be checked out *behind* the remote once
-          # the first pushed its packageUri commit-back -- and semantic-release
-          # answers that with "The local branch master is behind the remote one,
-          # therefore a new version won't be published", skipping silently.
-          ref: ${{ github.event_name == 'push' && 'master' || github.ref }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -126,3 +121,83 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
+
+      # The template on disk was stamped by the prepare step and published as
+      # this release's asset. Hand it to the sync job, which puts it on master.
+      - name: Upload stamped ARM template
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm-${{ matrix.package }}
+          path: ./${{ matrix.package }}/ARM/
+          retention-days: 1
+          if-no-files-found: error
+
+  # master is protected with enforce_admins, so nothing can push to it directly.
+  # Updates arrive as a pull request that is then merged with --admin, the same
+  # way coralogix/ryu handles its automated changelog commits.
+  #
+  # Batched into one job rather than one push per package: a single commit for
+  # the whole run, so concurrent releases cannot race each other's pushes.
+  sync-package-uri:
+    name: Sync packageUri
+    needs: build-and-test
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          fetch-depth: 0
+
+      - name: Download stamped templates
+        uses: actions/download-artifact@v4
+        with:
+          pattern: arm-*
+          path: /tmp/arm
+
+      - name: Sync to master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # download-artifact lays each one out as /tmp/arm/arm-<Package>/...
+          shopt -s nullglob
+          for dir in /tmp/arm/arm-*/; do
+            pkg="$(basename "$dir")"; pkg="${pkg#arm-}"
+            cp -v "$dir"* "./${pkg}/ARM/"
+          done
+
+          if git diff --quiet; then
+            echo "packageUri already matches the published releases; nothing to sync."
+            exit 0
+          fi
+
+          BRANCH="automated/sync-package-uri-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -- '*/ARM/*'
+          git commit -m "chore: sync packageUri to the published releases [skip ci]"
+          git push origin "$BRANCH" --force
+
+          cat > /tmp/pr-body.md <<'EOF'
+          Opened automatically after a release.
+
+          Each ARM template's `packageUri` is stamped with the version just published, and the same file is attached to that release as an asset. This brings master's copies in line.
+
+          It matters because the README *Deploy to Azure* buttons deploy master's template directly. Until this lands they deploy the previous release, which exists and works; merging points them at the newest one.
+          EOF
+
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || echo "")
+          if [ -z "$PR_NUMBER" ]; then
+            PR=$(gh pr create \
+              --title "chore: sync packageUri to the published releases [skip ci]" \
+              --body-file /tmp/pr-body.md \
+              --base master \
+              --head "$BRANCH")
+            PR_NUMBER="${PR##*/}"
+          fi
+          gh pr merge "$PR_NUMBER" --admin --squash --delete-branch
