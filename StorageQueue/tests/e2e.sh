@@ -64,11 +64,22 @@ err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 # Must match the default of var.resource_group_name in tests/terraform.
 RG_NAME="${RG_NAME:-storagequeue-e2e-rg}"
 
+# Terraform state here is disposable: every run provisions from scratch into a
+# resource group whose name is fixed. Carrying it between runs is not merely
+# useless but harmful -- it pins random_string.suffix, so the "random" storage
+# account name is reused, the recreated account lands on the identical resource
+# ID, and diagnostic settings Azure orphaned when the previous group was deleted
+# resurface as "already exists". Discard it whenever the group goes away.
+discard_terraform_state() {
+  rm -f "${TERRAFORM_DIR}/terraform.tfstate" "${TERRAFORM_DIR}/terraform.tfstate.backup"
+}
+
 cleanup_after_failure() {
   log "Cleaning up after failure..."
   if [[ -n "${RG_NAME:-}" ]]; then
     az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
   fi
+  discard_terraform_state
 }
 trap cleanup_after_failure EXIT
 
@@ -94,6 +105,11 @@ if [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; then
   done
   log "Pre-flight: $RG_NAME removed after ${waited}s."
 fi
+
+# Nothing this harness provisions survives the sweep above, so any state still on
+# disk describes resources that no longer exist -- left behind by a run that died
+# before its own cleanup. Start from an empty state unconditionally.
+discard_terraform_state
 
 log "Step 1: Provisioning Azure resources with Terraform (RG, StorageV2, queue)..."
 cd "$TERRAFORM_DIR"
@@ -212,9 +228,5 @@ az group delete --name "$RG_NAME" --yes
 log "Waiting for resource group deletion..."
 while az group show -n "$RG_NAME" &>/dev/null; do sleep 10; done
 # Clean Terraform state so next run can provision from scratch.
-cd "$TERRAFORM_DIR"
-while read -r state_key; do
-  [[ -z "$state_key" ]] && continue
-  terraform state rm "$state_key" 2>/dev/null || true
-done < <(terraform state list 2>/dev/null || true)
+discard_terraform_state
 log "E2E test finished."
