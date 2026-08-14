@@ -70,6 +70,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          # On master, check out the branch tip rather than the triggering
+          # commit. Serialising the matrix stops the concurrent push, but the
+          # second package would still be checked out *behind* the remote once
+          # the first pushed its packageUri commit-back -- and semantic-release
+          # answers that with "The local branch master is behind the remote one,
+          # therefore a new version won't be published", skipping silently.
+          ref: ${{ github.event_name == 'push' && 'master' || github.ref }}
           fetch-depth: 0
 
       - name: Setup Node.js
