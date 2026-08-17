@@ -84,7 +84,7 @@ delete_e2e_rg() {
     return 0
   fi
   local tag
-  tag=$(az group show --name "$RG_NAME" --query 'tags.coralogix-e2e' -o tsv 2>/dev/null || true)
+  tag=$(az group show --name "$RG_NAME" --query 'tags."coralogix-e2e"' -o tsv 2>/dev/null || true)
   if [[ "$tag" != "true" && "$RG_NAME" != "$DEFAULT_RG_NAME" ]]; then
     err "Refusing to delete resource group '$RG_NAME': missing tag coralogix-e2e=true."
     return 1
