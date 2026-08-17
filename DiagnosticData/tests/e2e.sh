@@ -68,7 +68,15 @@ err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 # GITHUB_RUN_ID (Actions only) makes the name unique per workflow run so
 # overlapping e2e jobs cannot delete each other's groups. Local runs keep
 # the stable name and rely on the pre-flight sweep.
-RG_NAME="${RG_NAME:-cx-diagdata-e2e-rg${RUN_SUFFIX}}"
+DEFAULT_RG_NAME="cx-diagdata-e2e-rg"
+RG_NAME="${RG_NAME:-${DEFAULT_RG_NAME}${RUN_SUFFIX}}"
+# Pre-flight and the EXIT trap delete this group. Only the harness default
+# (or that name plus a run suffix) is allowed — a typo in RG_NAME must not
+# wipe an unrelated resource group.
+if [[ "$RG_NAME" != "$DEFAULT_RG_NAME" && "$RG_NAME" != "$DEFAULT_RG_NAME"-* ]]; then
+  err "Refusing to use resource group '$RG_NAME': expected '${DEFAULT_RG_NAME}' or '${DEFAULT_RG_NAME}-<run-id>'."
+  exit 1
+fi
 
 # Terraform state here is disposable: every run provisions from scratch into a
 # resource group whose name is fixed. Carrying it between runs is not merely
