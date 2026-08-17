@@ -31,12 +31,10 @@ on:
           - EventHub
           - StorageQueue
 
-# Serialise every e2e run. The resource group names are deterministic and the
-# pre-flight sweep in e2e.sh deletes a stale group by name, so two overlapping
-# runs would tear down each other's resources mid-test.
-concurrency:
-  group: e2e-tests
-  cancel-in-progress: false
+# No workflow-level concurrency group. GitHub keeps only one pending run per
+# group even with cancel-in-progress: false, so a shared group would drop
+# queued e2e runs. Resource groups are unique per GITHUB_RUN_ID, so overlapping
+# runs do not collide.
 
 permissions:
   contents: read

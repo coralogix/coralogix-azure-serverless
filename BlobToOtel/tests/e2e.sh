@@ -46,7 +46,10 @@ err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 # Known up front (not read from terraform output) so the cleanup trap below can
 # still tear down the resource group when `terraform apply` fails part-way.
 # Must match the default of var.resource_group_name in tests/terraform.
-RG_NAME="${RG_NAME:-blobtootel-e2e-rg}"
+# GITHUB_RUN_ID (Actions only) makes the name unique per workflow run so
+# overlapping e2e jobs cannot delete each other's groups. Local runs keep
+# the stable name and rely on the pre-flight sweep.
+RG_NAME="${RG_NAME:-blobtootel-e2e-rg${GITHUB_RUN_ID:+-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}}}"
 
 # Terraform state here is disposable: every run provisions from scratch into a
 # resource group whose name is fixed. Carrying it between runs is not merely
