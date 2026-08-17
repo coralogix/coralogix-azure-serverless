@@ -4,7 +4,8 @@
 #
 # Order of execution:
 #   1. Provision Azure resources with Terraform (resource group, StorageV2 account, container).
-#   2. Deploy ARM template (latest master) via Azure CLI with explicit parameters from step 1.
+#   2. Deploy the ARM template at ARM_TEMPLATE_REF (default master) via Azure CLI,
+#      with explicit parameters from step 1.
 #      The ARM template creates the Event Grid system topic and subscription to the function.
 #   2c. Sync function triggers (az resource invoke-action), then wait 15s.
 #   3. Send a test payload (upload a blob to trigger Event Grid → function).
@@ -20,6 +21,10 @@
 #     - CORALOGIX_QUERY_API_KEY or CORALOGIX_API_KEY – for Step 4 verification (Data Usage read permission).
 #     - CORALOGIX_API_KEY or CORALOGIX_PRIVATE_KEY – used as Coralogix Private Key for the function.
 #     - Optional: CORALOGIX_APPLICATION, CORALOGIX_SUBSYSTEM
+#     - Optional: ARM_TEMPLATE_REF – branch/tag/SHA to fetch the ARM template from
+#       (default: master). CI sets this to the commit under test.
+#     - Optional: ARM_TEMPLATE_URI – full template URL, overrides ARM_TEMPLATE_REF.
+#     - Optional: RG_NAME – override the e2e resource group name.
 #
 # Usage:
 #   export OTEL_ENDPOINT="https://ingress.eu1.coralogix.com"
@@ -31,7 +36,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERRAFORM_DIR="${SCRIPT_DIR}/terraform"
-ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-serverless/master/BlobViaEventGrid/ARM/BlobViaEventGrid.json"
+# Defaults to master so a local run needs no setup; CI overrides ARM_TEMPLATE_REF
+# with the commit under test so the template being validated is the one changed.
+ARM_TEMPLATE_REF="${ARM_TEMPLATE_REF:-master}"
+ARM_TEMPLATE_URI="${ARM_TEMPLATE_URI:-https://raw.githubusercontent.com/coralogix/coralogix-azure-serverless/${ARM_TEMPLATE_REF}/BlobViaEventGrid/ARM/BlobViaEventGrid.json}"
 
 # Required
 : "${OTEL_ENDPOINT:?Set OTEL_ENDPOINT (e.g. https://ingress.coralogix.com)}"
@@ -40,27 +48,102 @@ ARM_TEMPLATE_URI="https://raw.githubusercontent.com/coralogix/coralogix-azure-se
 # For Step 4 verification
 CORALOGIX_QUERY_API_KEY="${CORALOGIX_QUERY_API_KEY:-${CORALOGIX_API_KEY}}"
 
+# Actions sets GITHUB_RUN_ID; local runs leave it empty so names stay stable.
+# The same suffix goes on the resource group and the Coralogix subsystem so a
+# concurrent run of this package cannot satisfy this run's log poll.
+RUN_SUFFIX="${GITHUB_RUN_ID:+-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}}"
 CX_APP="${CORALOGIX_APPLICATION:-azure}"
-CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-blob-storage-eventgrid-e2e}"
+CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-blob-storage-eventgrid-e2e${RUN_SUFFIX}}"
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 
+# Known up front (not read from terraform output) so the cleanup trap below can
+# still tear down the resource group when `terraform apply` fails part-way.
+# Must match the default of var.resource_group_name in tests/terraform.
+# GITHUB_RUN_ID (Actions only) makes the name unique per workflow run so
+# overlapping e2e jobs cannot delete each other's groups. Local runs keep
+# the stable name and rely on the pre-flight sweep.
+DEFAULT_RG_NAME="blobviaeg-e2e-rg"
+RG_NAME="${RG_NAME:-${DEFAULT_RG_NAME}${RUN_SUFFIX}}"
+# Pre-flight and the EXIT trap delete this group. Only the harness default
+# (legacy local leftovers) or that name plus a numeric run suffix is allowed.
+if [[ "$RG_NAME" != "$DEFAULT_RG_NAME" && ! "$RG_NAME" =~ ^${DEFAULT_RG_NAME}-[0-9]+-[0-9]+$ ]]; then
+  err "Refusing to use resource group '$RG_NAME': expected '${DEFAULT_RG_NAME}' or '${DEFAULT_RG_NAME}-<run-id>-<attempt>'."
+  exit 1
+fi
+
+# Terraform state here is disposable: every run provisions from scratch into a
+# resource group whose name is fixed. Carrying it between runs is not merely
+# useless but harmful -- it pins random_string.suffix, so the "random" storage
+# account name is reused, the recreated account lands on the identical resource
+# ID, and diagnostic settings Azure orphaned when the previous group was deleted
+# resurface as "already exists". Discard it whenever the group goes away.
+discard_terraform_state() {
+  rm -f "${TERRAFORM_DIR}/terraform.tfstate" "${TERRAFORM_DIR}/terraform.tfstate.backup"
+}
+
+# Only delete groups this harness owns: tagged coralogix-e2e=true, or the
+# untagged default name left by older runs (the DiagnosticData orphan).
+delete_e2e_rg() {
+  local no_wait="${1:-}"
+  [[ -n "${RG_NAME:-}" ]] || return 0
+  if [[ "$(az group exists --name "$RG_NAME")" != "true" ]]; then
+    return 0
+  fi
+  local tag
+  tag=$(az group show --name "$RG_NAME" --query 'tags."coralogix-e2e"' -o tsv 2>/dev/null || true)
+  if [[ "$tag" != "true" && "$RG_NAME" != "$DEFAULT_RG_NAME" ]]; then
+    err "Refusing to delete resource group '$RG_NAME': missing tag coralogix-e2e=true."
+    return 1
+  fi
+  if [[ "$no_wait" == "nowait" ]]; then
+    az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
+  else
+    az group delete --name "$RG_NAME" --yes
+  fi
+}
+
 cleanup_after_failure() {
   log "Cleaning up after failure..."
-  if [[ -n "${RG_NAME:-}" ]]; then
-    az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
-  fi
+  delete_e2e_rg nowait || true
+  discard_terraform_state
 }
 trap cleanup_after_failure EXIT
 
 # --- Step 1: Provision with Terraform ---
+# An aborted earlier run can leave the resource group behind, and because the
+# name is deterministic that makes every later `terraform apply` fail with
+# "already exists". The failure path deletes with --no-wait, so the group may
+# also still be mid-delete from that run: request deletion (ignoring an error if
+# one is already in flight) and then wait until it has actually gone, rather than
+# assuming a blocking delete can start.
+PREFLIGHT_TIMEOUT_SECS="${PREFLIGHT_TIMEOUT_SECS:-600}"
+if [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; then
+  log "Pre-flight: resource group $RG_NAME is left over from an earlier run; removing it..."
+  delete_e2e_rg nowait || exit 1
+  waited=0
+  while [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; do
+    if [[ "$waited" -ge "$PREFLIGHT_TIMEOUT_SECS" ]]; then
+      err "Pre-flight: $RG_NAME still present after ${PREFLIGHT_TIMEOUT_SECS}s. Delete it manually and re-run."
+      exit 1
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+  log "Pre-flight: $RG_NAME removed after ${waited}s."
+fi
+
+# Nothing this harness provisions survives the sweep above, so any state still on
+# disk describes resources that no longer exist -- left behind by a run that died
+# before its own cleanup. Start from an empty state unconditionally.
+discard_terraform_state
+
 log "Step 1: Provisioning Azure resources with Terraform (RG, StorageV2, container)..."
 cd "$TERRAFORM_DIR"
 terraform init -input=false
-terraform apply -input=false -auto-approve
+terraform apply -input=false -auto-approve -var="resource_group_name=${RG_NAME}"
 
-RG_NAME=$(terraform output -raw resource_group_name)
 STORAGE_ACCOUNT=$(terraform output -raw storage_account_name)
 STORAGE_RG=$(terraform output -raw storage_account_resource_group)
 CONTAINER_NAME=$(terraform output -raw blob_container_name)
@@ -68,8 +151,8 @@ STORAGE_CONNECTION_STRING=$(terraform output -raw storage_account_connection_str
 
 log "Terraform outputs: RG=$RG_NAME, Storage=$STORAGE_ACCOUNT, Container=$CONTAINER_NAME"
 
-# --- Step 2: Deploy ARM template (latest master) with explicit parameters ---
-log "Step 2: Deploying ARM template from master (function + Event Grid system topic and subscription)..."
+# --- Step 2: Deploy the ARM template at ARM_TEMPLATE_REF with explicit parameters ---
+log "Step 2: Deploying ARM template (ref: ${ARM_TEMPLATE_REF}) (function + Event Grid system topic and subscription)..."
 PARAMS_FILE="${SCRIPT_DIR}/arm-params.json"
 # Build parameters JSON; escape quotes in values.
 build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"/\\"/g')\" }"; }
@@ -93,12 +176,40 @@ build_param() { echo "\"$1\": { \"value\": \"$(echo "$2" | sed 's/\\/\\\\/g; s/"
   echo '} }'
 } > "$PARAMS_FILE"
 
-az deployment group create \
-  --resource-group "$RG_NAME" \
-  --template-uri "$ARM_TEMPLATE_URI" \
-  --parameters "@${PARAMS_FILE}"
+# The template creates the Event Grid subscription in the same deployment as the
+# function app. Event Grid validates the webhook endpoint immediately, and if the
+# app has not finished pulling its package yet that probe 404s and the whole
+# deployment fails with "Webhook endpoint validation failed". The app is warm by
+# the next attempt and the deployment is idempotent, so retry — but only for that
+# specific error. Anything else is a real template or parameter fault and must
+# surface immediately instead of being hidden behind two minutes of retries.
+ARM_DEPLOY_ATTEMPTS="${ARM_DEPLOY_ATTEMPTS:-3}"
+DEPLOY_LOG="${SCRIPT_DIR}/.arm-deploy.log"
+for attempt in $(seq 1 "$ARM_DEPLOY_ATTEMPTS"); do
+  if az deployment group create \
+      --resource-group "$RG_NAME" \
+      --template-uri "$ARM_TEMPLATE_URI" \
+      --parameters "@${PARAMS_FILE}" 2>&1 | tee "$DEPLOY_LOG"; then
+    break
+  fi
 
-rm -f "$PARAMS_FILE"
+  if ! grep -qE 'Webhook endpoint validation failed|StatusCode: NotFound' "$DEPLOY_LOG"; then
+    err "ARM deployment failed for a reason other than the Event Grid webhook race; not retrying (full output above)."
+    rm -f "$PARAMS_FILE" "$DEPLOY_LOG"
+    exit 1
+  fi
+
+  if [[ "$attempt" -eq "$ARM_DEPLOY_ATTEMPTS" ]]; then
+    err "Event Grid webhook validation still failing after ${ARM_DEPLOY_ATTEMPTS} attempts."
+    rm -f "$PARAMS_FILE" "$DEPLOY_LOG"
+    exit 1
+  fi
+
+  log "Attempt ${attempt}: Event Grid webhook validation failed (function app not serving yet); retrying in 60s..."
+  sleep 60
+done
+
+rm -f "$PARAMS_FILE" "$DEPLOY_LOG"
 log "ARM deployment completed."
 
 # --- Step 2c: Sync function triggers, then wait before sending data ---
@@ -179,13 +290,9 @@ done
 # --- Step 5: Clean up ---
 log "Step 5: Cleaning up resources..."
 trap - EXIT
-az group delete --name "$RG_NAME" --yes
+delete_e2e_rg
 log "Waiting for resource group deletion..."
 while az group show -n "$RG_NAME" &>/dev/null; do sleep 10; done
 # Clean Terraform state so next run can provision from scratch.
-cd "$TERRAFORM_DIR"
-while read -r state_key; do
-  [[ -z "$state_key" ]] && continue
-  terraform state rm "$state_key" 2>/dev/null || true
-done < <(terraform state list 2>/dev/null || true)
+discard_terraform_state
 log "E2E test finished."

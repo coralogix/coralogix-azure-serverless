@@ -1,13 +1,40 @@
 name: E2E Tests
 
 on:
-  workflow_run:
-    workflows:
-      - "Build, Test & Release"
-    branches:
-      - master
-    types:
-      - completed
+  # Called by "Build, Test & Release" once it knows which packages it built.
+  # That workflow already computes the package list, so e2e is told what to test
+  # rather than inferring it -- an earlier version keyed off the name of the
+  # upstream workflow, which silently stopped covering three packages the moment
+  # the two build workflows were merged into one.
+  workflow_call:
+    inputs:
+      packages:
+        description: "JSON array of package names to test"
+        required: true
+        type: string
+      ref:
+        description: "Commit to test, and the ref the ARM templates are fetched from"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to test (all = every package)"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - BlobViaEventGrid
+          - BlobToOtel
+          - DiagnosticData
+          - EventHub
+          - StorageQueue
+
+# No workflow-level concurrency group. GitHub keeps only one pending run per
+# group even with cancel-in-progress: false, so a shared group would drop
+# queued e2e runs. Resource groups are unique per GITHUB_RUN_ID, so overlapping
+# runs do not collide.
 
 permissions:
   contents: read
@@ -16,62 +43,38 @@ permissions:
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
-    # For workflow_run: only proceed if the release workflow succeeded
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       packages: ${{ steps.set-packages.outputs.packages }}
       has-changes: ${{ steps.set-packages.outputs.has-changes }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Detect changed packages
-        uses: dorny/paths-filter@v3
-        id: changes
-        if: github.event_name == 'push'
-        with:
-          base: ${{ github.event.before }}
-          filters: |
-            StorageQueue:
-              - 'StorageQueue/**'
-            EventHub:
-              - 'EventHub/**'
-            DiagnosticData:
-              - 'DiagnosticData/**'
-            BlobViaEventGrid:
-              - 'BlobViaEventGrid/**'
-            BlobToOtel:
-              - 'BlobToOtel/**'
-
       - name: Set packages matrix
         id: set-packages
         env:
           EVENT: ${{ github.event_name }}
-          SQ: ${{ steps.changes.outputs.StorageQueue }}
-          EH: ${{ steps.changes.outputs.EventHub }}
-          DD: ${{ steps.changes.outputs.DiagnosticData }}
-          BVE: ${{ steps.changes.outputs.BlobViaEventGrid }}
-          BTO: ${{ steps.changes.outputs.BlobToOtel }}
+          CALLER_PACKAGES: ${{ inputs.packages }}
+          INPUT_PACKAGE: ${{ github.event.inputs.package }}
         run: |
-          if [[ "$EVENT" == "push" && ("$SQ" == "true" || "$EH" == "true" || "$DD" == "true" || "$BVE" == "true" || "$BTO" == "true") ]]; then
-            packages=()
-            [[ "$SQ" == "true" ]] && packages+=("StorageQueue")
-            [[ "$EH" == "true" ]] && packages+=("EventHub")
-            [[ "$DD" == "true" ]] && packages+=("DiagnosticData")
-            [[ "$BVE" == "true" ]] && packages+=("BlobViaEventGrid")
-            [[ "$BTO" == "true" ]] && packages+=("BlobToOtel")
-            pk_json=$(printf '%s\n' "${packages[@]}" | jq -R . | jq -s -c .)
-            echo "packages=$pk_json" >> $GITHUB_OUTPUT
-            echo "has-changes=true" >> $GITHUB_OUTPUT
-          elif [[ "$EVENT" == "workflow_dispatch" || "$EVENT" == "workflow_run" ]]; then
-            echo 'packages=["StorageQueue","EventHub","DiagnosticData","BlobViaEventGrid","BlobToOtel"]' >> $GITHUB_OUTPUT
-            echo 'has-changes=true' >> $GITHUB_OUTPUT
+          set -euo pipefail
+
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            # Manual runs test one package, or all of them.
+            if [[ -n "${INPUT_PACKAGE:-}" && "$INPUT_PACKAGE" != "all" ]]; then
+              packages="[\"$INPUT_PACKAGE\"]"
+            else
+              packages='["EventHub","BlobToOtel","BlobViaEventGrid","DiagnosticData","StorageQueue"]'
+            fi
           else
-            echo 'packages=[]' >> $GITHUB_OUTPUT
-            echo 'has-changes=false' >> $GITHUB_OUTPUT
+            # Called: test exactly what the caller built.
+            packages="${CALLER_PACKAGES:-[]}"
           fi
+
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+          if [[ "$packages" == "[]" ]]; then
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Testing: $packages"
 
   e2e:
     needs: detect-changes
@@ -85,6 +88,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # Test the commit the caller built, not whatever master is now.
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Resolve template ref
+        id: ref
+        env:
+          REF: ${{ inputs.ref || github.sha }}
+        run: echo "sha=$REF" >> "$GITHUB_OUTPUT"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -111,4 +123,6 @@ jobs:
           CORALOGIX_API_KEY: ${{ secrets.CORALOGIX_API_KEY }}
           CORALOGIX_QUERY_API_KEY: ${{ secrets.CORALOGIX_QUERY_API_KEY }}
           CORALOGIX_DIRECT_MODE: "true"
+          # Deploy the ARM template from the commit under test, not master.
+          ARM_TEMPLATE_REF: ${{ steps.ref.outputs.sha }}
         run: ./e2e.sh

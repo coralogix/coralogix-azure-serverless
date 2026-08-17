@@ -24,10 +24,21 @@ locals {
   location    = "westeurope"
 }
 
+# e2e.sh passes this so it knows the name before apply and can clean up a
+# partially-created group. Keep the default in sync with RG_NAME in e2e.sh.
+variable "resource_group_name" {
+  type        = string
+  description = "Name of the resource group holding the e2e prerequisites."
+  default     = "cx-eventhub-e2e-rg"
+}
+
 # Single resource group for the e2e test (prereqs; function is deployed via ARM)
 resource "azurerm_resource_group" "e2e" {
-  name     = "${local.name_prefix}-rg"
+  name     = var.resource_group_name
   location = local.location
+  tags = {
+    coralogix-e2e = "true"
+  }
 }
 
 resource "random_string" "suffix" {
