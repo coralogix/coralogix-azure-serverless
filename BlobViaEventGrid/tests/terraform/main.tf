@@ -35,6 +35,9 @@ variable "resource_group_name" {
 resource "azurerm_resource_group" "e2e" {
   name     = var.resource_group_name
   location = local.location
+  tags = {
+    coralogix-e2e = "true"
+  }
 }
 
 resource "random_string" "suffix" {

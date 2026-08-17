@@ -72,10 +72,9 @@ err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 DEFAULT_RG_NAME="storagequeue-e2e-rg"
 RG_NAME="${RG_NAME:-${DEFAULT_RG_NAME}${RUN_SUFFIX}}"
 # Pre-flight and the EXIT trap delete this group. Only the harness default
-# (or that name plus a run suffix) is allowed — a typo in RG_NAME must not
-# wipe an unrelated resource group.
-if [[ "$RG_NAME" != "$DEFAULT_RG_NAME" && "$RG_NAME" != "$DEFAULT_RG_NAME"-* ]]; then
-  err "Refusing to use resource group '$RG_NAME': expected '${DEFAULT_RG_NAME}' or '${DEFAULT_RG_NAME}-<run-id>'."
+# (legacy local leftovers) or that name plus a numeric run suffix is allowed.
+if [[ "$RG_NAME" != "$DEFAULT_RG_NAME" && ! "$RG_NAME" =~ ^${DEFAULT_RG_NAME}-[0-9]+-[0-9]+$ ]]; then
+  err "Refusing to use resource group '$RG_NAME': expected '${DEFAULT_RG_NAME}' or '${DEFAULT_RG_NAME}-<run-id>-<attempt>'."
   exit 1
 fi
 
@@ -89,11 +88,30 @@ discard_terraform_state() {
   rm -f "${TERRAFORM_DIR}/terraform.tfstate" "${TERRAFORM_DIR}/terraform.tfstate.backup"
 }
 
+# Only delete groups this harness owns: tagged coralogix-e2e=true, or the
+# untagged default name left by older runs (the DiagnosticData orphan).
+delete_e2e_rg() {
+  local no_wait="${1:-}"
+  [[ -n "${RG_NAME:-}" ]] || return 0
+  if [[ "$(az group exists --name "$RG_NAME")" != "true" ]]; then
+    return 0
+  fi
+  local tag
+  tag=$(az group show --name "$RG_NAME" --query 'tags.coralogix-e2e' -o tsv 2>/dev/null || true)
+  if [[ "$tag" != "true" && "$RG_NAME" != "$DEFAULT_RG_NAME" ]]; then
+    err "Refusing to delete resource group '$RG_NAME': missing tag coralogix-e2e=true."
+    return 1
+  fi
+  if [[ "$no_wait" == "nowait" ]]; then
+    az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
+  else
+    az group delete --name "$RG_NAME" --yes
+  fi
+}
+
 cleanup_after_failure() {
   log "Cleaning up after failure..."
-  if [[ -n "${RG_NAME:-}" ]]; then
-    az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
-  fi
+  delete_e2e_rg nowait || true
   discard_terraform_state
 }
 trap cleanup_after_failure EXIT
@@ -108,7 +126,7 @@ trap cleanup_after_failure EXIT
 PREFLIGHT_TIMEOUT_SECS="${PREFLIGHT_TIMEOUT_SECS:-600}"
 if [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; then
   log "Pre-flight: resource group $RG_NAME is left over from an earlier run; removing it..."
-  az group delete --name "$RG_NAME" --yes --no-wait 2>/dev/null || true
+  delete_e2e_rg nowait || exit 1
   waited=0
   while [[ "$(az group exists --name "$RG_NAME")" == "true" ]]; do
     if [[ "$waited" -ge "$PREFLIGHT_TIMEOUT_SECS" ]]; then
@@ -239,7 +257,7 @@ done
 # --- Step 5: Clean up ---
 log "Step 5: Cleaning up resources..."
 trap - EXIT
-az group delete --name "$RG_NAME" --yes
+delete_e2e_rg
 log "Waiting for resource group deletion..."
 while az group show -n "$RG_NAME" &>/dev/null; do sleep 10; done
 # Clean Terraform state so next run can provision from scratch.
