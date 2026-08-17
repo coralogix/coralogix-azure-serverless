@@ -36,7 +36,11 @@ ARM_TEMPLATE_URI="${ARM_TEMPLATE_URI:-https://raw.githubusercontent.com/coralogi
 # Required
 : "${OTEL_ENDPOINT:?Set OTEL_ENDPOINT (e.g. https://ingress.coralogix.com)}"
 
-CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-blob-storage-eventhub-e2e}"
+# Actions sets GITHUB_RUN_ID; local runs leave it empty so names stay stable.
+# The same suffix goes on the resource group and the Coralogix subsystem so a
+# concurrent run of this package cannot satisfy this run's log poll.
+RUN_SUFFIX="${GITHUB_RUN_ID:+-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}}"
+CX_SUBSYS="${CORALOGIX_SUBSYSTEM:-blob-storage-eventhub-e2e${RUN_SUFFIX}}"
 CORALOGIX_QUERY_API_KEY="${CORALOGIX_QUERY_API_KEY:-${CORALOGIX_API_KEY}}"
 CX_APP="${CORALOGIX_APPLICATION:-azure}"
 
@@ -49,7 +53,7 @@ err() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
 # GITHUB_RUN_ID (Actions only) makes the name unique per workflow run so
 # overlapping e2e jobs cannot delete each other's groups. Local runs keep
 # the stable name and rely on the pre-flight sweep.
-RG_NAME="${RG_NAME:-blobtootel-e2e-rg${GITHUB_RUN_ID:+-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}}}"
+RG_NAME="${RG_NAME:-blobtootel-e2e-rg${RUN_SUFFIX}}"
 
 # Terraform state here is disposable: every run provisions from scratch into a
 # resource group whose name is fixed. Carrying it between runs is not merely
