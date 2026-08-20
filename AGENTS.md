@@ -50,7 +50,9 @@ which directory changed, and cross-package edits make that harder to review and 
   `npm test` (don't leave the `echo "No tests yet..."` placeholder once there's something to test).
 - Run `npm run build` and `npm test` in the package before considering a change done.
 - End-to-end tests (`tests/e2e.sh`) deploy the real ARM template to Azure and exercise the
-  function end-to-end. They run in CI against master only.
+  function end-to-end. `.github/workflows/e2e.yaml` only runs on `workflow_dispatch` or when
+  called by another workflow — nothing currently triggers it automatically on push, so don't
+  assume master or a PR got e2e coverage unless you (or CI) ran it explicitly.
 
 ## Code style
 
