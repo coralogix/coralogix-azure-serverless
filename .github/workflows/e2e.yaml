@@ -128,7 +128,6 @@ jobs:
           ARM_TEMPLATE_REF: ${{ steps.ref.outputs.sha }}
         run: ./e2e.sh
 
-      # Incoming webhook: repo secret SLACK_WEBHOOK_URL.
       - name: Notify Slack
         if: always() && !cancelled()
         continue-on-error: true
