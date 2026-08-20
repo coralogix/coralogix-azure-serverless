@@ -49,10 +49,7 @@ which directory changed, and cross-package edits make that harder to review and 
   tests wired into `npm test` — if you add meaningful logic there, add real tests and wire up
   `npm test` (don't leave the `echo "No tests yet..."` placeholder once there's something to test).
 - Run `npm run build` and `npm test` in the package before considering a change done.
-- End-to-end tests (`tests/e2e.sh`) deploy real Azure resources and only run in CI against
-  secrets that aren't available locally in most environments — don't attempt to run them
-  unless you have Azure credentials configured for this repo. If unsure, say so rather than
-  claiming e2e coverage you didn't actually verify.
+- End-to-end tests (`tests/e2e.sh`) run in CI against master only.
 
 ## Code style
 
