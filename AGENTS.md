@@ -1,6 +1,6 @@
-# AGENTS.md
+# coralogix-azure-serverless — Agent Guide
 
-## What this repo contains
+## Overview
 
 Five independent Azure Function apps that ship telemetry from Azure to Coralogix. Each lives in
 its own top-level directory with its own `package.json`, tests, and ARM deployment template —
