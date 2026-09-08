@@ -136,7 +136,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.8.3/EventHub-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.8.4/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
@@ -205,10 +205,6 @@
           "linuxFxVersion": "Node|22",
           "appSettings": [
             {
-              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-              "value": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').InstrumentationKey]"
-            },
-            {
               "name": "AzureWebJobsStorage",
               "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value)]"
             },
@@ -231,66 +227,6 @@
             {
               "name": "FUNCTIONS_WORKER_RUNTIME",
               "value": "node"
-            },
-            {
-              "name": "WEBSITE_RUN_FROM_PACKAGE",
-              "value": "[variables('packageUri')]"
-            },
-            {
-              "name": "CORALOGIX_PRIVATE_KEY",
-              "value": "[parameters('CoralogixPrivateKey')]"
-            },
-            {
-              "name": "CORALOGIX_APPLICATION",
-              "value": "[parameters('CoralogixApplication')]"
-            },
-            {
-              "name": "CORALOGIX_SUBSYSTEM",
-              "value": "[parameters('CoralogixSubsystem')]"
-            },
-            {
-              "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
-              "value": "[variables('CoralogixOtlpEndpoint')]"
-            },
-            {
-              "name": "OTEL_EXPORTER_OTLP_HEADERS",
-              "value": "[concat('Authorization=Bearer ', parameters('CoralogixPrivateKey'))]"
-            },
-            {
-              "name": "EVENTHUB_CONNECT_STRING",
-              "value": "[concat('Endpoint=sb://', parameters('eventHubNamespace'), '.servicebus.windows.net/;SharedAccessKeyName=', parameters('EventhubSharedAccessKeyName'), ';SharedAccessKey=', listKeys(resourceId(parameters('EventhubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventhubNamespace'), parameters('EventhubSharedAccessKeyName')), '2017-04-01').primaryKey, ';EntityPath=', parameters('EventhubInstanceName'))]"
-            },
-            {
-              "name": "EVENTHUB_INSTANCE_NAME",
-              "value": "[parameters('EventhubInstanceName')]"
-            },
-            {
-              "name": "EVENTHUB_CONSUMER_GROUP",
-              "value": "[parameters('EventhubConsumerGroup')]"
-            },
-            {
-              "name": "FUNCTION_APP_NAME",
-              "value": "[parameters('functionAppName')]"
-            },
-            {
-              "name": "NEWLINE_PATTERN",
-              "value": "[parameters('NewlinePattern')]"
-            },
-            {
-              "name": "BLOCKING_PATTERN",
-              "value": "[parameters('BlockingPattern')]"
-            },
-            {
-              "name": "CORALOGIX_APPLICATION_SELECTOR",
-              "value": "[parameters('CoralogixApplicationSelector')]"
-            },
-            {
-              "name": "CORALOGIX_SUBSYSTEM_SELECTOR",
-              "value": "[parameters('CoralogixSubsystemSelector')]"
-            },
-            {
-              "name": "INCLUDE_METADATA",
-              "value": "[if(parameters('IncludeMetadata'), 'true', 'false')]"
             }
           ]
         }
@@ -299,6 +235,39 @@
         "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]",
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "comments": "Applied after the site exists. Linux Consumption refuses app CREATION when WEBSITE_RUN_FROM_PACKAGE points at a URL that redirects, and GitHub release assets 302 to a signed host, so the package URI cannot be part of the create-time siteConfig. The runtime fetch follows the redirect normally. This resource sets the complete collection, so any new app setting belongs here.",
+      "type": "Microsoft.Web/sites/config",
+      "apiVersion": "2022-03-01",
+      "name": "[concat(variables('functionAppName'), '/appsettings')]",
+      "properties": {
+        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').InstrumentationKey]",
+        "AzureWebJobsStorage": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value)]",
+        "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value)]",
+        "WEBSITE_CONTENTSHARE": "[toLower(variables('functionAppName'))]",
+        "FUNCTIONS_EXTENSION_VERSION": "~4",
+        "WEBSITE_NODE_DEFAULT_VERSION": "~22",
+        "FUNCTIONS_WORKER_RUNTIME": "node",
+        "WEBSITE_RUN_FROM_PACKAGE": "[variables('packageUri')]",
+        "CORALOGIX_PRIVATE_KEY": "[parameters('CoralogixPrivateKey')]",
+        "CORALOGIX_APPLICATION": "[parameters('CoralogixApplication')]",
+        "CORALOGIX_SUBSYSTEM": "[parameters('CoralogixSubsystem')]",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "[variables('CoralogixOtlpEndpoint')]",
+        "OTEL_EXPORTER_OTLP_HEADERS": "[concat('Authorization=Bearer ', parameters('CoralogixPrivateKey'))]",
+        "EVENTHUB_CONNECT_STRING": "[concat('Endpoint=sb://', parameters('eventHubNamespace'), '.servicebus.windows.net/;SharedAccessKeyName=', parameters('EventhubSharedAccessKeyName'), ';SharedAccessKey=', listKeys(resourceId(parameters('EventhubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventhubNamespace'), parameters('EventhubSharedAccessKeyName')), '2017-04-01').primaryKey, ';EntityPath=', parameters('EventhubInstanceName'))]",
+        "EVENTHUB_INSTANCE_NAME": "[parameters('EventhubInstanceName')]",
+        "EVENTHUB_CONSUMER_GROUP": "[parameters('EventhubConsumerGroup')]",
+        "FUNCTION_APP_NAME": "[parameters('functionAppName')]",
+        "NEWLINE_PATTERN": "[parameters('NewlinePattern')]",
+        "BLOCKING_PATTERN": "[parameters('BlockingPattern')]",
+        "CORALOGIX_APPLICATION_SELECTOR": "[parameters('CoralogixApplicationSelector')]",
+        "CORALOGIX_SUBSYSTEM_SELECTOR": "[parameters('CoralogixSubsystemSelector')]",
+        "INCLUDE_METADATA": "[if(parameters('IncludeMetadata'), 'true', 'false')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
     }
   ]

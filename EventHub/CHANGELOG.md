@@ -1,3 +1,9 @@
+### 3.8.4 / 08 Sep 2026
+[FIX] Deploy on Linux Consumption in regions that reject redirecting package URLs:
+* `WEBSITE_RUN_FROM_PACKAGE` is now applied via a `Microsoft.Web/sites/config` resource after the function app exists, instead of inline in the create-time `siteConfig`
+* Azure refuses to *create* a Linux Consumption app when that setting points at a URL that redirects, and GitHub release assets 302 to a signed host; the runtime fetch follows the redirect normally
+* Enforcement is regional, so the same template deployed successfully in some regions and failed in others
+
 ### 3.8.3 / 20 Jul 2026
 [FIX] Upgrade OpenTelemetry dependencies for CVE-2026-54285
 
