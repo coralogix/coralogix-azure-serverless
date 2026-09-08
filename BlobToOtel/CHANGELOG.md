@@ -5,6 +5,12 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 3.1.2 / 08 Sep 2026
+* [Bug fix] Deploy on Linux Consumption in regions that reject redirecting package URLs
+  - `WEBSITE_RUN_FROM_PACKAGE` is now applied via a `Microsoft.Web/sites/config` resource after the function app exists, instead of inline in the create-time `siteConfig`
+  - Azure refuses to *create* a Linux Consumption app when that setting points at a URL that redirects, and GitHub release assets 302 to a signed host; the runtime fetch follows the redirect normally
+  - Enforcement is regional, so the same template deployed successfully in some regions and failed in others
+
 ### 3.0.1 / 06 Feb 2026 
 * [Update] Use GitHub releases for ARM template deployment instead of S3
   - Updated ARM template to download function app from GitHub releases
