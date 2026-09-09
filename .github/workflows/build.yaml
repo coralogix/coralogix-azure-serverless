@@ -17,6 +17,11 @@ on:
         # - "EventHub"
         # - "BlobToOtel"
         - "StorageQueue"
+
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   check:
     name: Check
@@ -89,10 +94,10 @@ jobs:
 
       - name: Setup AWS credentials
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.CS_DEVOPS_S3_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.CS_DEVOPS_S3_AWS_SECRET_ACCESS_KEY }}
+          audience: sts.amazonaws.com
+          role-to-assume: ${{ secrets.S3_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Upload to S3
