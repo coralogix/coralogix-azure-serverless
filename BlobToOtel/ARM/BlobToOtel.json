@@ -168,7 +168,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "functionStorageAccountName": "[format('func{0}', uniqueString(resourceGroup().id))]",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', parameters('PremiumPlanSku'))]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/BlobToOtel-v3.1.0/BlobToOtel-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/BlobToOtel-v3.1.2/BlobToOtel-FunctionApp.zip",
     "vnetIntegrationEnabled": "[and(not(empty(parameters('VirtualNetworkName'))), not(empty(parameters('SubnetName'))))]"
   },
   "resources": [
@@ -238,64 +238,8 @@
           "linuxFxVersion": "Node|22",
           "appSettings": [
             {
-              "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
-              "value": "[parameters('OtelEndpoint')]"
-            },
-            {
-              "name": "CORALOGIX_DIRECT_MODE",
-              "value": "[parameters('CoralogixDirectMode')]"
-            },
-            {
-              "name": "CORALOGIX_API_KEY",
-              "value": "[parameters('CoralogixApiKey')]"
-            },
-            {
-              "name": "CORALOGIX_APPLICATION",
-              "value": "[parameters('CoralogixApplication')]"
-            },
-            {
-              "name": "CORALOGIX_SUBSYSTEM",
-              "value": "[parameters('CoralogixSubsystem')]"
-            },
-            {
-              "name": "EVENT_HUB_NAME",
-              "value": "[parameters('EventHubName')]"
-            },
-            {
-              "name": "EVENT_HUB_CONSUMER_GROUP",
-              "value": "[parameters('EventHubConsumerGroup')]"
-            },
-            {
-              "name": "NEWLINE_PATTERN",
-              "value": "[parameters('NewlinePattern')]"
-            },
-            {
-              "name": "PREFIX_FILTER",
-              "value": "[parameters('PrefixFilter')]"
-            },
-            {
-              "name": "SUFFIX_FILTER",
-              "value": "[parameters('SuffixFilter')]"
-            },
-            {
-              "name": "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('StorageAccountName'),';AccountKey=',listKeys(resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('StorageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=core.windows.net')]"
-            },
-            {
-              "name": "EVENT_HUB_NAMESPACE_CONNECTION_STRING",
-              "value": "[listkeys(resourceId(parameters('EventHubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventHubNamespace'), 'RootManageSharedAccessKey'), '2021-11-01').primaryConnectionString]"
-            },
-            {
               "name": "AzureWebJobsStorage",
               "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';EndpointSuffix=',environment().suffixes.storage,';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]"
-            },
-            {
-              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-              "value": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').InstrumentationKey]"
-            },
-            {
-              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-              "value": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').ConnectionString]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
@@ -316,14 +260,6 @@
             {
               "name": "FUNCTIONS_WORKER_RUNTIME",
               "value": "node"
-            },
-            {
-              "name": "NODE_OPTIONS",
-              "value": "[concat('--max-old-space-size=', parameters('NodeHeapSize'))]"
-            },
-            {
-              "name": "WEBSITE_RUN_FROM_PACKAGE",
-              "value": "[variables('packageUri')]"
             }
           ]
         }
@@ -343,6 +279,39 @@
         "swiftSupported": true
       },
       "condition": "[variables('vnetIntegrationEnabled')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
+      ]
+    },
+    {
+      "comments": "Applied after the site exists. Linux Consumption refuses app CREATION when WEBSITE_RUN_FROM_PACKAGE points at a URL that redirects, and GitHub release assets 302 to a signed host, so the package URI cannot be part of the create-time siteConfig. The runtime fetch follows the redirect normally. This resource sets the complete collection, so any new app setting belongs here.",
+      "type": "Microsoft.Web/sites/config",
+      "apiVersion": "2022-03-01",
+      "name": "[concat(variables('functionAppName'), '/appsettings')]",
+      "properties": {
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "[parameters('OtelEndpoint')]",
+        "CORALOGIX_DIRECT_MODE": "[parameters('CoralogixDirectMode')]",
+        "CORALOGIX_API_KEY": "[parameters('CoralogixApiKey')]",
+        "CORALOGIX_APPLICATION": "[parameters('CoralogixApplication')]",
+        "CORALOGIX_SUBSYSTEM": "[parameters('CoralogixSubsystem')]",
+        "EVENT_HUB_NAME": "[parameters('EventHubName')]",
+        "EVENT_HUB_CONSUMER_GROUP": "[parameters('EventHubConsumerGroup')]",
+        "NEWLINE_PATTERN": "[parameters('NewlinePattern')]",
+        "PREFIX_FILTER": "[parameters('PrefixFilter')]",
+        "SUFFIX_FILTER": "[parameters('SuffixFilter')]",
+        "BLOB_STORAGE_ACCOUNT_CONNECTION_STRING": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('StorageAccountName'),';AccountKey=',listKeys(resourceId(parameters('StorageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('StorageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=core.windows.net')]",
+        "EVENT_HUB_NAMESPACE_CONNECTION_STRING": "[listkeys(resourceId(parameters('EventHubResourceGroup'), 'Microsoft.EventHub/namespaces/authorizationRules', parameters('EventHubNamespace'), 'RootManageSharedAccessKey'), '2021-11-01').primaryConnectionString]",
+        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';EndpointSuffix=',environment().suffixes.storage,';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]",
+        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').InstrumentationKey]",
+        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').ConnectionString]",
+        "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';EndpointSuffix=',environment().suffixes.storage,';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName')), '2021-09-01').keys[0].value)]",
+        "WEBSITE_CONTENTSHARE": "[toLower(variables('functionAppName'))]",
+        "FUNCTIONS_EXTENSION_VERSION": "~4",
+        "WEBSITE_NODE_DEFAULT_VERSION": "~22",
+        "FUNCTIONS_WORKER_RUNTIME": "node",
+        "NODE_OPTIONS": "[concat('--max-old-space-size=', parameters('NodeHeapSize'))]",
+        "WEBSITE_RUN_FROM_PACKAGE": "[variables('packageUri')]"
+      },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
