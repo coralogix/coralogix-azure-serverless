@@ -1,138 +1,81 @@
-# Security Hardening — EventHub Integration
+# Security Hardening
 
-Reference for responding to CIS Azure Foundations benchmark scans against the
-resources this integration deploys (Function App, storage account, Log Analytics
-workspace, Application Insights).
+How to respond to CIS Azure Foundations scans against the resources this
+integration deploys. Counts are from a representative scan (4 Function Apps,
+4 storage accounts): 76 findings, 8 High / 68 Medium.
 
-Counts below are from a representative customer scan across 8 resource groups
-(4 Function Apps, 4 storage accounts) — 76 findings, 8 High and 68 Medium. Your
-totals will scale with the number of deployments.
-
-## Summary
-
-| | Findings | Severity |
-|---|---|---|
-| Addressable now | 44 | includes all 8 High |
-| Not implementable on Consumption | 24 | Medium |
-| Not applicable | 4 | Medium |
-| Partially applicable | 4 | Medium |
-
-After applying section 1: **High 8 → 0, Medium 68 → 32.**
+| | Findings |
+|---|---|
+| Addressable now | 44 (all 8 High) |
+| Not implementable on Consumption | 24 |
+| Not applicable | 4 |
+| Partially applicable | 4 |
 
 ## 1. Addressable now — 44
 
-Apply directly in the Azure portal on existing deployments. No redeploy, no
-interruption to log delivery.
+Apply in the portal on existing deployments. No redeploy, no interruption to
+log delivery. Set by the ARM templates as of 3.8.5.
 
-| CIS | Setting | Findings | Resource |
-|---|---|---|---|
-| 2.3.7 | Enable HTTPS Only | 4 (High) | Function App |
-| 2.1.4 | Disable FTP + SCM basic publishing credentials | 4 (High) | Function App |
-| 9.3.6 | Storage minimum TLS 1.2 | 4 | Storage account |
-| 9.2.1 | Blob soft delete | 4 | Storage account |
-| 9.2.2 | Container soft delete | 4 | Storage account |
-| 6.1.4 | Diagnostic settings → existing Log Analytics workspace | 24 | All |
+| CIS | Setting | # |
+|---|---|---|
+| 2.3.7 | HTTPS Only | 4 (High) |
+| 2.1.4 | Disable FTP + SCM basic publishing credentials | 4 (High) |
+| 9.3.6 | Storage minimum TLS 1.2 | 4 |
+| 9.2.1 | Blob soft delete | 4 |
+| 9.2.2 | Container soft delete — needs GPv2, free in-place upgrade | 4 |
+| 6.1.4 | Diagnostic settings to the workspace the template already deploys | 24 |
 
-Notes:
-
-- 2.3.7 and 2.1.4 are safe because the integration has **no HTTP-triggered
-  functions** and is not deployed over FTP or SCM. They remove a credential and
-  a plaintext path that nothing uses.
-- 9.2.2 requires general-purpose v2. Templates before 3.8.5 created v1 accounts;
-  the upgrade is free, in-place and non-disruptive.
-- 6.1.4 is the largest group and the cheapest to close — the template already
-  deploys a Log Analytics workspace alongside each Function App, so no new
-  resource is needed.
+2.3.7 and 2.1.4 are safe to apply live: there are no HTTP-triggered functions,
+and deployment is via `WEBSITE_RUN_FROM_PACKAGE`, not FTP or SCM.
 
 ```bash
 az webapp update -g <rg> -n <app> --set httpsOnly=true
-
 az resource update -g <rg> --namespace Microsoft.Web \
   --resource-type basicPublishingCredentialsPolicies --name scm \
   --parent sites/<app> --set properties.allow=false      # repeat for ftp
-
-az storage account update -g <rg> -n <sa> --min-tls-version TLS1_2 \
-  --set kind=StorageV2
-
+az storage account update -g <rg> -n <sa> --min-tls-version TLS1_2 --set kind=StorageV2
 az storage account blob-service-properties update -g <rg> -n <sa> \
   --enable-delete-retention true --delete-retention-days 7 \
-  --enable-container-delete-retention true \
-  --container-delete-retention-days 7
-
+  --enable-container-delete-retention true --container-delete-retention-days 7
 az monitor diagnostic-settings create --name cis-diagnostics \
   --resource <resource-id> --workspace <existing-workspace-id> \
-  --logs '[{"categoryGroup":"allLogs","enabled":true}]' \
-  --metrics '[{"category":"AllMetrics","enabled":true}]'
+  --logs '[{"categoryGroup":"allLogs","enabled":true}]'
 ```
 
-As of 3.8.5 these are set by the ARM templates, so new deployments are hardened
-by default.
+## 2. Not implementable on Consumption — 24
 
-## 2. Not implementable on the Consumption plan — 24
+`9.3.2.3` storage default-deny · `9.3.5` allow trusted services · `2.1.9` E2E TLS ·
+`2.1.14` disable public network access · `2.1.19` / `2.1.20` VNet routing — 4 each.
 
-| CIS | Control | Findings |
-|---|---|---|
-| 9.3.2.3 | Storage default network access: Deny | 4 |
-| 9.3.5 | Storage: allow trusted Azure services access | 4 |
-| 2.1.9 | End-to-end TLS encryption | 4 |
-| 2.1.14 | Disable public network access | 4 |
-| 2.1.19 | Route configuration through the virtual network | 4 |
-| 2.1.20 | Route all traffic through the virtual network | 4 |
+Not declined — impossible on this plan. On `Y1` the platform keeps the content
+share on Azure Files and needs unrestricted access to it, so default-deny stops
+the function starting (9.3.5 is moot without it). VNet integration is not
+available on Y1 at all.
 
-**Not declined — cannot be applied on this plan.**
+Mitigating: the apps expose no application endpoint, and the storage accounts
+hold Functions runtime state only — logs go Event Hub to function to Coralogix
+in memory, never to disk.
 
-On Consumption (`Y1`), the Functions platform stores the function's content
-share on Azure Files via `WEBSITE_CONTENTAZUREFILECONNECTIONSTRING` and requires
-unrestricted access to it. Setting the storage account to default-deny prevents
-the function from starting. "Allow trusted services" has no effect without a
-default-deny rule, so it is moot on the same grounds. VNet integration is not
-available on Consumption at all, which covers the remaining four.
-
-Mitigating factors for a risk assessment:
-
-- The Function Apps expose **no application endpoint** — no HTTP-triggered
-  functions, invoked solely by Event Hub messages.
-- The storage accounts hold **Azure Functions runtime state only**. No log data
-  is written to them; logs move from Event Hub through the function to Coralogix
-  in memory.
-
-Recommended treatment: **accepted risk, documented as plan-limited.**
-
-These become implementable on Elastic Premium. Flex Consumption would also cover
-them without Premium pricing — it replaces the Azure Files content share with a
-blob deployment container and supports VNet integration natively. Not currently
-supported by these templates.
+**Treatment: accepted risk, plan-limited.** Possible on Elastic Premium, or on
+Flex Consumption without Premium pricing — not supported by these templates
+today.
 
 ## 3. Not applicable — 4
 
-**`2.1.11` — Enable and require incoming client certificates.**
-
-No HTTP-triggered functions means no inbound application traffic for a client
-certificate to authenticate. The only inbound requests are Azure platform
-management calls, which do not present client certificates — setting this to
-`Required` breaks portal management and deployment without protecting any data
-path.
-
-Where the concern is exposure of the management endpoint, the relevant control
-is restricting inbound network access (`2.1.14`, section 2).
-
-Recommended treatment: **not applicable.**
+`2.1.11` require incoming client certificates. No HTTP-triggered functions, so
+there is no inbound application traffic to authenticate. The only inbound calls
+are Azure platform management, which do not present certificates — `Required`
+breaks portal management and deployment and protects nothing. For
+management-endpoint exposure the relevant control is `2.1.14`.
 
 ## 4. Partially applicable — 4
 
-**`2.1.13` — Configure managed identities.**
+`2.1.13` managed identities. A system-assigned identity satisfies the control,
+but cannot replace the storage account keys — identity-based storage
+connections are not supported on Consumption.
 
-A system-assigned managed identity can be enabled and satisfies the control as
-written. It cannot replace the storage account keys in use — identity-based
-storage connections are not supported on Consumption.
+## Note
 
-Recommended treatment: enable the identity; record the storage connection as a
-plan limitation.
-
-## Operational note
-
-If the section 2 controls are later implemented on Premium, the function makes
-outbound connections to the Event Hub and to the Coralogix ingress endpoint.
-Both must remain permitted or log delivery stops **silently** — there is no
-inbound endpoint to alert on. Validate delivery in Coralogix after any
-networking change.
+If the section 2 controls are later applied on Premium, the function needs
+outbound access to the Event Hub and the Coralogix ingress endpoint. Blocking
+either stops delivery **silently** — there is no inbound endpoint to alert on.
