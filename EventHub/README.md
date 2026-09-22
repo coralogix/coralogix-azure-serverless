@@ -132,3 +132,8 @@ BLOCKING_PATTERN="password|secret|token"
 # Block specific log levels
 BLOCKING_PATTERN="\\[DEBUG\\]|\\[TRACE\\]"
 ```
+## Security Hardening
+
+For responding to CIS Azure Foundations benchmark scans against the resources this
+integration deploys — what is addressable, what the Consumption plan prevents, and
+what does not apply — see [SECURITY-HARDENING.md](SECURITY-HARDENING.md).
