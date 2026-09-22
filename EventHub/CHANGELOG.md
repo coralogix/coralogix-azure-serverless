@@ -1,3 +1,11 @@
+### 3.8.5 / 22 Sep 2026
+[FIX] Apply security hardening defaults to the ARM templates:
+* `httpsOnly` enabled on the function app
+* FTP and SCM basic publishing credentials disabled — deployment uses `WEBSITE_RUN_FROM_PACKAGE`, so neither endpoint was in use
+* Storage account `minimumTlsVersion` set to `TLS1_2`, and `kind` upgraded to `StorageV2` (required for container soft delete)
+* Blob and container soft delete enabled with a 7-day retention
+* Diagnostic settings on the function app now forward platform logs and metrics to the Log Analytics workspace the template already creates
+
 ### 3.8.4 / 08 Sep 2026
 [FIX] Deploy on Linux Consumption in regions that reject redirecting package URLs:
 * `WEBSITE_RUN_FROM_PACKAGE` is now applied via a `Microsoft.Web/sites/config` resource after the function app exists, instead of inline in the create-time `siteConfig`
