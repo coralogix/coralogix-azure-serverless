@@ -24,24 +24,25 @@ After applying section 1: **High 8 → 0, Medium 68 → 32.**
 Apply directly in the Azure portal on existing deployments. No redeploy, no
 interruption to log delivery.
 
-| Setting | Findings | Resource |
-|---|---|---|
-| Enable HTTPS Only | 4 (High) | Function App |
-| Disable FTP + SCM basic publishing credentials | 4 (High) | Function App |
-| Storage minimum TLS 1.2 | 4 | Storage account |
-| Blob + container soft delete | 8 | Storage account |
-| Diagnostic settings → existing Log Analytics workspace | 24 | All |
+| CIS | Setting | Findings | Resource |
+|---|---|---|---|
+| 2.3.7 | Enable HTTPS Only | 4 (High) | Function App |
+| 2.1.4 | Disable FTP + SCM basic publishing credentials | 4 (High) | Function App |
+| 9.3.6 | Storage minimum TLS 1.2 | 4 | Storage account |
+| 9.2.1 | Blob soft delete | 4 | Storage account |
+| 9.2.2 | Container soft delete | 4 | Storage account |
+| 6.1.4 | Diagnostic settings → existing Log Analytics workspace | 24 | All |
 
 Notes:
 
-- The first two are safe because the integration has **no HTTP-triggered
+- 2.3.7 and 2.1.4 are safe because the integration has **no HTTP-triggered
   functions** and is not deployed over FTP or SCM. They remove a credential and
   a plaintext path that nothing uses.
-- Container soft delete requires general-purpose v2. Templates before 3.8.5
-  created v1 accounts; the upgrade is free, in-place and non-disruptive.
-- The diagnostic-settings group is the largest and the cheapest to close — the
-  template already deploys a Log Analytics workspace alongside each Function
-  App, so no new resource is needed.
+- 9.2.2 requires general-purpose v2. Templates before 3.8.5 created v1 accounts;
+  the upgrade is free, in-place and non-disruptive.
+- 6.1.4 is the largest group and the cheapest to close — the template already
+  deploys a Log Analytics workspace alongside each Function App, so no new
+  resource is needed.
 
 ```bash
 az webapp update -g <rg> -n <app> --set httpsOnly=true
@@ -69,14 +70,14 @@ by default.
 
 ## 2. Not implementable on the Consumption plan — 24
 
-| Control | Findings |
-|---|---|
-| Storage default network access: Deny | 4 |
-| Storage: allow trusted Azure services access | 4 |
-| End-to-end TLS encryption | 4 |
-| Disable public network access | 4 |
-| Route configuration through the virtual network | 4 |
-| Route all traffic through the virtual network | 4 |
+| CIS | Control | Findings |
+|---|---|---|
+| 9.3.2.3 | Storage default network access: Deny | 4 |
+| 9.3.5 | Storage: allow trusted Azure services access | 4 |
+| 2.1.9 | End-to-end TLS encryption | 4 |
+| 2.1.14 | Disable public network access | 4 |
+| 2.1.19 | Route configuration through the virtual network | 4 |
+| 2.1.20 | Route all traffic through the virtual network | 4 |
 
 **Not declined — cannot be applied on this plan.**
 
@@ -104,7 +105,7 @@ supported by these templates.
 
 ## 3. Not applicable — 4
 
-**Enable and require incoming client certificates.**
+**`2.1.11` — Enable and require incoming client certificates.**
 
 No HTTP-triggered functions means no inbound application traffic for a client
 certificate to authenticate. The only inbound requests are Azure platform
@@ -113,13 +114,13 @@ management calls, which do not present client certificates — setting this to
 path.
 
 Where the concern is exposure of the management endpoint, the relevant control
-is restricting inbound network access (section 2).
+is restricting inbound network access (`2.1.14`, section 2).
 
 Recommended treatment: **not applicable.**
 
 ## 4. Partially applicable — 4
 
-**Configure managed identities.**
+**`2.1.13` — Configure managed identities.**
 
 A system-assigned managed identity can be enabled and satisfies the control as
 written. It cannot replace the storage account keys in use — identity-based
