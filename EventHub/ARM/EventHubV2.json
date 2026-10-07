@@ -136,7 +136,7 @@
     "applicationInsightsName": "[variables('functionAppName')]",
     "storageAccountName": "[format('azfunctions{0}', uniqueString(resourceGroup().id))]",
     "location": "[resourceGroup().location]",
-    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.8.4/EventHub-FunctionApp.zip",
+    "packageUri": "https://github.com/coralogix/coralogix-azure-serverless/releases/download/EventHub-v3.8.5/EventHub-FunctionApp.zip",
     "sku": "[if(equals(parameters('FunctionAppServicePlanType'), 'Consumption'), 'Y1', 'EP1')]"
   },
   "resources": [
@@ -148,7 +148,10 @@
       "sku": {
         "name": "Standard_LRS"
       },
-      "kind": "Storage"
+      "kind": "Storage",
+      "properties": {
+        "minimumTlsVersion": "TLS1_2"
+      }
     },
     {
       "type": "Microsoft.Web/serverfarms",
@@ -199,7 +202,11 @@
       "name": "[variables('functionAppName')]",
       "location": "[variables('location')]",
       "kind": "functionapp,linux",
+      "identity": {
+        "type": "SystemAssigned"
+      },
       "properties": {
+        "httpsOnly": true,
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "siteConfig": {
           "linuxFxVersion": "Node|22",
