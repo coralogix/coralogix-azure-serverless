@@ -183,8 +183,8 @@ jobs:
       pull-requests: write   # open the stamp PR
     strategy:
       fail-fast: false
-    matrix:
-      package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
+      matrix:
+        package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
