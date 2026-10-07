@@ -98,7 +98,10 @@
       "sku": {
         "name": "Standard_LRS"
       },
-      "kind": "Storage"
+      "kind": "StorageV2",
+      "properties": {
+        "minimumTlsVersion": "TLS1_2"
+      }
     },
     {
       "type": "Microsoft.Web/serverfarms",
@@ -149,7 +152,11 @@
       "name": "[variables('functionAppName')]",
       "location": "[variables('location')]",
       "kind": "functionapp,linux",
+      "identity": {
+        "type": "SystemAssigned"
+      },
       "properties": {
+        "httpsOnly": true,
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "siteConfig": {
           "linuxFxVersion": "Node|20",

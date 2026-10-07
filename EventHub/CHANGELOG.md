@@ -1,3 +1,10 @@
+### 3.8.5 / 07 Oct 2026
+[FIX] Apply in-place security hardening defaults to the ARM templates:
+* `httpsOnly` enabled on the function app
+* Storage account `minimumTlsVersion` set to `TLS1_2`
+* System-assigned managed identity enabled on the function app
+* Storage account `kind` changed from `Storage` (GPv1) to `StorageV2`: Azure no longer allows creating GPv1 accounts, so fresh deployments failed with `AccountKindNotSupported`. Existing GPv1 accounts are upgraded in place on redeploy
+
 ### 3.8.4 / 08 Sep 2026
 [FIX] Deploy on Linux Consumption in regions that reject redirecting package URLs:
 * `WEBSITE_RUN_FROM_PACKAGE` is now applied via a `Microsoft.Web/sites/config` resource after the function app exists, instead of inline in the create-time `siteConfig`
