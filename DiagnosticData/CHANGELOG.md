@@ -5,6 +5,9 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.0.4 / 07 Oct 2026
+* [Bug] Change the storage account `kind` from `Storage` (GPv1) to `StorageV2`. Azure no longer allows creating GPv1 accounts, so fresh deployments failed with `AccountKindNotSupported`. Existing GPv1 accounts are upgraded in place on redeploy.
+
 ### 2.0.3 / 6 Aug 2025
 [Update] Fix module compatibility
 
