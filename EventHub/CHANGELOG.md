@@ -3,6 +3,7 @@
 * `httpsOnly` enabled on the function app (CIS 2.3.7)
 * Storage account `minimumTlsVersion` set to `TLS1_2` (CIS 9.3.6)
 * System-assigned managed identity enabled on the function app (CIS 2.1.13)
+* Storage account `kind` changed from `Storage` (GPv1) to `StorageV2`: Azure no longer allows creating GPv1 accounts, so fresh deployments failed with `AccountKindNotSupported`. Existing GPv1 accounts are upgraded in place on redeploy
 
 ### 3.8.4 / 08 Sep 2026
 [FIX] Deploy on Linux Consumption in regions that reject redirecting package URLs:
