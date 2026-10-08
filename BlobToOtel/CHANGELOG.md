@@ -10,6 +10,7 @@
   - `WEBSITE_RUN_FROM_PACKAGE` is now applied via a `Microsoft.Web/sites/config` resource after the function app exists, instead of inline in the create-time `siteConfig`
   - Azure refuses to *create* a Linux Consumption app when that setting points at a URL that redirects, and GitHub release assets 302 to a signed host; the runtime fetch follows the redirect normally
   - Enforcement is regional, so the same template deployed successfully in some regions and failed in others
+* [Bug fix] Change the storage account `kind` from `Storage` (GPv1) to `StorageV2`. Azure no longer allows creating GPv1 accounts, so fresh deployments failed with `AccountKindNotSupported`. Existing GPv1 accounts are upgraded in place on redeploy.
 
 ### 3.0.1 / 06 Feb 2026 
 * [Update] Use GitHub releases for ARM template deployment instead of S3
