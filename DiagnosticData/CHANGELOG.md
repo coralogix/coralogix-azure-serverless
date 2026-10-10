@@ -5,6 +5,10 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.0.4 / 07 Oct 2026
+* [Bug] Change the storage account `kind` from `Storage` (GPv1) to `StorageV2`. Azure no longer allows creating GPv1 accounts, so fresh deployments failed with `AccountKindNotSupported`. Existing GPv1 accounts are upgraded in place on redeploy.
+* [Bug] Add `"types": ["node"]` to `tsconfig.json`. TypeScript 6 no longer includes `@types/*` packages by default, so the build failed with `Cannot find name 'process'`.
+
 ### 2.0.3 / 6 Aug 2025
 [Update] Fix module compatibility
 
