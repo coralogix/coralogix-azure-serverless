@@ -87,13 +87,17 @@ jobs:
         working-directory: ./${{ matrix.package }}
         run: npm run build:production
 
+      # S3 publishing is frozen: the object key is unversioned and every existing
+      # deployment loads from it, so a push to master would roll out to all customers
+      # with no rollback. Upload only on an explicit workflow_dispatch until these
+      # packages move to versioned GitHub Releases (#123).
       - name: Package
-        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         run: zip -r ${{ matrix.package }}.zip . -x ".*"
 
       - name: Setup AWS credentials
-        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           audience: sts.amazonaws.com
@@ -101,7 +105,7 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Upload to S3
-        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         working-directory: ./${{ matrix.package }}
         run: |
           aws s3 cp \
