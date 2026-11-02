@@ -132,3 +132,11 @@ BLOCKING_PATTERN="password|secret|token"
 # Block specific log levels
 BLOCKING_PATTERN="\\[DEBUG\\]|\\[TRACE\\]"
 ```
+
+## Delivery and Retries
+
+Each invocation exports its logs to Coralogix and waits for the result. If an export fails (for example a timeout or a lost connection), the invocation fails and the Event Hub retry policy in `function.json` re-delivers the batch with exponential backoff (5s up to 5 minutes, retrying indefinitely), so the checkpoint only advances once the logs were accepted. The exporter connection is recreated after a failure.
+
+Delivery is at-least-once: a retried batch can produce duplicate logs. Records that Coralogix rejects as invalid are logged as an error and not retried.
+
+Export errors are written to the function logs. Set `OTEL_LOG_LEVEL` (`error`, `warn`, `info`, `debug`, `verbose`; default `warn`) to change how much OpenTelemetry diagnostic output is logged.

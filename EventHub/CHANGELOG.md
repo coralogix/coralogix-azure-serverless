@@ -1,3 +1,12 @@
+### 3.8.6 / 02 Nov 2026
+[FIX] Stop dropping logs silently when the export to Coralogix fails:
+* Each invocation now exports its own logs and checks the result, instead of a background batch processor whose errors were swallowed (the invocation reported success and the checkpoint advanced while logs were lost)
+* A failed export fails the invocation; a new Event Hub retry policy (`exponentialBackoff`, unlimited retries, 5s to 5 min) re-delivers the batch, so the checkpoint only advances once logs are accepted. Delivery is at-least-once
+* The exporter and its gRPC connection are recreated after a failed export, so a broken connection no longer persists until the instance is replaced
+* Records rejected as invalid (`INVALID_ARGUMENT`) are logged and not retried
+* Removed the fixed 2s wait per invocation and the 2048-record queue limit that could drop records silently
+* OpenTelemetry diagnostics are logged to the function logs; level configurable via `OTEL_LOG_LEVEL` (default `warn`)
+
 ### 3.8.5 / 07 Oct 2026
 [FIX] Apply in-place security hardening defaults to the ARM templates:
 * `httpsOnly` enabled on the function app

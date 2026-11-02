@@ -12,5 +12,11 @@
   ],
   "scriptFile": "../dist/EventHub/index.js",
   "entryPoint": "eventHubTrigger",
-  "disabled": false
+  "disabled": false,
+  "retry": {
+    "strategy": "exponentialBackoff",
+    "maxRetryCount": -1,
+    "minimumInterval": "00:00:05",
+    "maximumInterval": "00:05:00"
+  }
 }

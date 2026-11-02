@@ -11,12 +11,21 @@
  */
 
 import { InvocationContext } from "@azure/functions";
+import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { Logger } from "@opentelemetry/api-logs";
-import { LoggerProvider, BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
+import { LoggerProvider } from "@opentelemetry/sdk-logs";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 import { resolveSelector, TemplateContext } from "./nameResolution";
+import { CollectingLogRecordProcessor, ExportError, exportRecords } from "./export";
+
+// Surface OTel's internal diagnostics (exporter/connection errors) in the function
+// logs. OTEL_LOG_LEVEL is not read by the OTel packages used here, so honour it.
+const OTEL_LOG_LEVEL =
+  DiagLogLevel[(process.env.OTEL_LOG_LEVEL || "").toUpperCase() as keyof typeof DiagLogLevel] ??
+  DiagLogLevel.WARN;
+diag.setLogger(new DiagConsoleLogger(), OTEL_LOG_LEVEL);
 
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
@@ -40,21 +49,11 @@ const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
 interface LoggerCacheEntry {
   provider: LoggerProvider;
   logger: Logger;
+  collector: CollectingLogRecordProcessor;
+  exporter: OTLPLogExporter;
 }
 
 const loggerCache = new Map<string, LoggerCacheEntry>();
-
-function createLoggerProvider(resourceAttributes: Record<string, any>): LoggerProvider {
-  const resource = resourceFromAttributes(resourceAttributes);
-  const otlpExporter = new OTLPLogExporter();
-  const logRecordProcessor = new BatchLogRecordProcessor(otlpExporter, {
-    maxExportBatchSize: 512,
-    scheduledDelayMillis: 1000,
-    exportTimeoutMillis: 30000,
-  });
-
-  return new LoggerProvider({ resource, processors: [logRecordProcessor] });
-}
 
 // Get or create a logger for a specific app/subsystem combination.
 function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logger {
@@ -63,16 +62,28 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logge
 
   if (cached) return cached.logger;
 
-  const loggerProvider = createLoggerProvider({
+  const resource = resourceFromAttributes({
     ...BASE_RESOURCE_ATTRIBUTES,
     "cx.application.name": appName,
     "cx.subsystem.name": subsystemName,
   });
+  const collector = new CollectingLogRecordProcessor();
+  const exporter = new OTLPLogExporter();
+  const provider = new LoggerProvider({ resource, processors: [collector] });
 
-  const logger = loggerProvider.getLogger("azure-eventhub-logs");
-  loggerCache.set(cacheKey, { provider: loggerProvider, logger });
+  const logger = provider.getLogger("azure-eventhub-logs");
+  loggerCache.set(cacheKey, { provider, logger, collector, exporter });
 
   return logger;
+}
+
+// Drop a cache entry whose export failed so the next invocation builds a fresh
+// exporter, and with it a fresh gRPC connection, instead of reusing a broken one.
+function evictLogger(cacheKey: string, entry: LoggerCacheEntry, context: InvocationContext): void {
+  if (loggerCache.get(cacheKey) === entry) loggerCache.delete(cacheKey);
+  entry.exporter
+    .shutdown()
+    .catch((e: any) => context.warn(`Failed to shut down exporter for ${cacheKey}: ${e?.message}`));
 }
 
 function isBlocked(body: string): boolean {
@@ -341,16 +352,33 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
       }
     });
 
-    // Add delay before force flush to allow batch to accumulate
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Take this invocation's records before awaiting anything (see CollectingLogRecordProcessor).
+    const pending = Array.from(loggerCache.entries())
+      .map(([cacheKey, entry]) => ({ cacheKey, entry, records: entry.collector.drain() }))
+      .filter(({ records }) => records.length > 0);
 
-    const flushPromises = Array.from(loggerCache.values()).map((entry) =>
-      entry.provider.forceFlush()
+    const results = await Promise.allSettled(
+      pending.map(({ entry, records }) => exportRecords(entry.exporter, records))
     );
 
-    await Promise.all(flushPromises);
+    let retryableFailure: ExportError | undefined;
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled") return;
+      const { cacheKey, entry } = pending[i];
+      const error: any = result.reason;
+      context.error(`Export to Coralogix failed for ${cacheKey}: ${error?.message}`);
+
+      if (error instanceof ExportError && !error.retryable) return;
+      evictLogger(cacheKey, entry, context);
+      retryableFailure ??=
+        error instanceof ExportError ? error : new ExportError(String(error?.message), true, error);
+    });
+
+    // Fail the invocation so the Event Hub retry policy re-delivers the batch
+    // instead of advancing the checkpoint past logs that never reached Coralogix.
+    if (retryableFailure) throw retryableFailure;
   } catch (error: any) {
-    context.log(`Function error: ${error.message}`);
+    context.error(`Function error: ${error.message}`);
     throw error;
   }
 };
