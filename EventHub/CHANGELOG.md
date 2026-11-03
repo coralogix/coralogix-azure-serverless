@@ -5,6 +5,7 @@
 * A retry skips records already delivered by a previous attempt of the same batch (tracked by Event Hub partition and sequence number), so only what failed is sent again
 * The exporter and its gRPC connection are recreated after a failed export, so a broken connection no longer persists until the instance is replaced
 * Records rejected as invalid (`INVALID_ARGUMENT`), or reported as rejected in an OTLP partial-success response, are logged and not retried
+* Export requests are bounded by size (4 MB) as well as record count; a request rejected as too large is split until the offending record is isolated, and a record that is too large on its own is logged and dropped instead of blocking the partition
 * Removed the fixed 2s wait per invocation and the 2048-record queue limit that could drop records silently
 * OpenTelemetry diagnostics are logged to the function logs; level configurable via `OTEL_LOG_LEVEL` (default `warn`)
 

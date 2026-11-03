@@ -529,3 +529,115 @@ describe("eventHubTrigger retries without duplicates", () => {
     expect(bodiesOf(calls)).toEqual([JSON.stringify({ sub: "y" })]);
   });
 });
+
+describe("oversized export requests", () => {
+  const { exportRecords, toBatches, MAX_EXPORT_BATCH_BYTES } = require("../EventHub/export");
+  const sized = (n: number, bytes: number, tag = "r") =>
+    Array.from(
+      { length: n },
+      (_, i) => ({ body: `${tag}${i}:`.padEnd(bytes, "x") }) as unknown as ReadableLogRecord
+    );
+  const tooLarge = () =>
+    failure("8 RESOURCE_EXHAUSTED: Received message larger than max (5000000 vs. 4194304)", 8);
+
+  it("bounds batches by estimated bytes as well as count", () => {
+    // 20 records of ~1 MB: far below 512 records, far above 4 MB.
+    const batches = toBatches(sized(20, 1024 * 1024));
+
+    expect(batches.length).toBeGreaterThan(1);
+    expect(batches.flat()).toHaveLength(20);
+    for (const batch of batches) {
+      const bytes = batch.reduce((sum: number, r: any) => sum + r.body.length, 0);
+      expect(bytes).toBeLessThanOrEqual(MAX_EXPORT_BATCH_BYTES);
+    }
+  });
+
+  it("sends a single record larger than the byte limit on its own", () => {
+    const batches = toBatches([
+      ...sized(1, 10),
+      ...sized(1, 5 * 1024 * 1024, "big"),
+      ...sized(1, 10),
+    ]);
+
+    expect(batches.map((b: any[]) => b.length)).toEqual([1, 1, 1]);
+  });
+
+  it("splits a batch rejected as too large until the offending record is isolated", async () => {
+    const records = sized(8, 100);
+    const poison = records[5];
+    const attempts: number[] = [];
+    const delivered: ReadableLogRecord[] = [];
+    const exporter = {
+      export: (batch: ReadableLogRecord[], cb: (r: ExportResult) => void) => {
+        attempts.push(batch.length);
+        if (batch.includes(poison)) return cb(tooLarge());
+        delivered.push(...batch);
+        cb(SUCCESS);
+      },
+      shutdown: () => Promise.resolve(),
+    };
+
+    const promise = exportRecords(exporter, records);
+
+    await expect(promise).rejects.toMatchObject({
+      retryable: false,
+      settled: 8,
+      message: expect.stringContaining("rejected 1 log records as invalid or too large"),
+    });
+    expect(delivered).toHaveLength(7);
+    expect(delivered).not.toContain(poison);
+    expect(attempts[0]).toBe(8);
+  });
+
+  it("does not split or drop on RESOURCE_EXHAUSTED caused by throttling", async () => {
+    const attempts: number[] = [];
+    const exporter = {
+      export: (batch: ReadableLogRecord[], cb: (r: ExportResult) => void) => {
+        attempts.push(batch.length);
+        cb(failure("8 RESOURCE_EXHAUSTED: rate limit exceeded, please retry", 8));
+      },
+      shutdown: () => Promise.resolve(),
+    };
+
+    await expect(exportRecords(exporter, sized(8, 100))).rejects.toMatchObject({
+      retryable: true,
+      settled: 0,
+    });
+    expect(attempts).toEqual([8]);
+  });
+
+  it("reports exactly the records settled before a retryable failure inside a split", async () => {
+    const records = sized(8, 100);
+    let call = 0;
+    const exporter = {
+      export: (batch: ReadableLogRecord[], cb: (r: ExportResult) => void) => {
+        call++;
+        if (call === 1) return cb(tooLarge()); // whole batch too large -> split 4 + 4
+        if (call === 2) return cb(SUCCESS); // first half delivered
+        cb(failure("14 UNAVAILABLE", 14)); // second half: connection lost
+      },
+      shutdown: () => Promise.resolve(),
+    };
+
+    await expect(exportRecords(exporter, records)).rejects.toMatchObject({
+      retryable: true,
+      settled: 4,
+      message: expect.stringContaining("Failed to export 4 log records"),
+    });
+  });
+
+  it("keeps the partition moving: an oversized record does not fail the invocation", async () => {
+    const { eventHubTrigger, calls } = loadFunction((records) =>
+      records.some((r) => String(r.body).includes("POISON")) ? tooLarge() : SUCCESS
+    );
+    const context = createMockContext("1", eventHubMetadata(3));
+
+    await expect(eventHubTrigger(context, ["a", "POISON", "b"])).resolves.toBeUndefined();
+
+    const delivered = calls
+      .filter((c) => !c.records.some((r) => String(r.body).includes("POISON")))
+      .flatMap((c) => c.records.map((r) => r.body));
+    expect(delivered.sort()).toEqual(["a", "b"]);
+    expect(errorLog(context)).toHaveBeenCalledWith(expect.stringContaining("too large"));
+  });
+});
