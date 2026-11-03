@@ -531,7 +531,7 @@ describe("eventHubTrigger retries without duplicates", () => {
 });
 
 describe("oversized export requests", () => {
-  const { exportRecords, toBatches, MAX_EXPORT_BATCH_BYTES } = require("../EventHub/export");
+  const { exportRecords, isMessageTooLarge } = require("../EventHub/export");
   const sized = (n: number, bytes: number, tag = "r") =>
     Array.from(
       { length: n },
@@ -540,26 +540,31 @@ describe("oversized export requests", () => {
   const tooLarge = () =>
     failure("8 RESOURCE_EXHAUSTED: Received message larger than max (5000000 vs. 4194304)", 8);
 
-  it("bounds batches by estimated bytes as well as count", () => {
-    // 20 records of ~1 MB: far below 512 records, far above 4 MB.
-    const batches = toBatches(sized(20, 1024 * 1024));
-
-    expect(batches.length).toBeGreaterThan(1);
-    expect(batches.flat()).toHaveLength(20);
-    for (const batch of batches) {
-      const bytes = batch.reduce((sum: number, r: any) => sum + r.body.length, 0);
-      expect(bytes).toBeLessThanOrEqual(MAX_EXPORT_BATCH_BYTES);
-    }
+  it.each([
+    [
+      "grpc-js / grpc-go",
+      "8 RESOURCE_EXHAUSTED: Received message larger than max (5000000 vs. 4194304)",
+      true,
+    ],
+    [
+      "Coralogix, uncompressed",
+      "8 RESOURCE_EXHAUSTED: decoded message length too large: found 25000000 bytes, the limit is: 20971520 bytes",
+      true,
+    ],
+    [
+      "Coralogix, compressed",
+      "8 RESOURCE_EXHAUSTED: size limit, of 10485760 bytes, exceeded while decompressing message",
+      true,
+    ],
+    ["load shedding / throttling", "8 RESOURCE_EXHAUSTED: service overloaded, please retry", false],
+  ])("recognises a size rejection: %s", (_, message, expected) => {
+    expect(isMessageTooLarge(Object.assign(new Error(message), { code: 8 }))).toBe(expected);
   });
 
-  it("sends a single record larger than the byte limit on its own", () => {
-    const batches = toBatches([
-      ...sized(1, 10),
-      ...sized(1, 5 * 1024 * 1024, "big"),
-      ...sized(1, 10),
-    ]);
-
-    expect(batches.map((b: any[]) => b.length)).toEqual([1, 1, 1]);
+  it("only treats RESOURCE_EXHAUSTED as a size rejection", () => {
+    expect(isMessageTooLarge(Object.assign(new Error("message too large"), { code: 14 }))).toBe(
+      false
+    );
   });
 
   it("splits a batch rejected as too large until the offending record is isolated", async () => {
