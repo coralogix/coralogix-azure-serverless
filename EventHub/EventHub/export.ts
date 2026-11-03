@@ -17,6 +17,12 @@ import {
 
 export const MAX_EXPORT_BATCH_SIZE = 512;
 
+// Upper bound for the estimated size of one export request. Event Hub events can be
+// up to 1 MB each, so a record-count limit alone can produce requests of hundreds of
+// MB, which are rejected or time out. Coralogix documents a hard limit of 10 MB per
+// OTLP request and recommends 2 MB.
+export const MAX_EXPORT_BATCH_BYTES = 2 * 1024 * 1024;
+
 // gRPC status codes for which retrying the same payload cannot succeed.
 const GRPC_INVALID_ARGUMENT = 3;
 // RESOURCE_EXHAUSTED is used both for "message too large" (permanent for that
@@ -31,6 +37,40 @@ const MESSAGE_TOO_LARGE =
 
 export function isMessageTooLarge(error: any): boolean {
   return error?.code === GRPC_RESOURCE_EXHAUSTED && MESSAGE_TOO_LARGE.test(String(error?.message));
+}
+
+/** Rough serialized size of a record: body plus attributes, as UTF-8 bytes. */
+export function estimateRecordBytes(record: ReadableLogRecord): number {
+  const body = typeof record.body === "string" ? record.body : JSON.stringify(record.body ?? "");
+  const attributes = record.attributes ? JSON.stringify(record.attributes) : "";
+  return Buffer.byteLength(body ?? "", "utf8") + Buffer.byteLength(attributes, "utf8") + 64;
+}
+
+/** Split records, in order, into batches bounded by both count and estimated bytes. */
+export function toBatches(
+  records: ReadableLogRecord[],
+  maxBatchSize: number = MAX_EXPORT_BATCH_SIZE,
+  maxBatchBytes: number = MAX_EXPORT_BATCH_BYTES
+): ReadableLogRecord[][] {
+  const batches: ReadableLogRecord[][] = [];
+  let current: ReadableLogRecord[] = [];
+  let currentBytes = 0;
+
+  for (const record of records) {
+    const bytes = estimateRecordBytes(record);
+    if (
+      current.length > 0 &&
+      (current.length >= maxBatchSize || currentBytes + bytes > maxBatchBytes)
+    ) {
+      batches.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(record);
+    currentBytes += bytes;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
 }
 
 export interface CollectedRecord {
@@ -161,8 +201,8 @@ async function exportChunk(
 }
 
 /**
- * Export records in batches of up to `maxBatchSize`, sequentially, and throw if
- * any batch fails.
+ * Export records in batches (bounded by count and estimated bytes), sequentially,
+ * and throw if any batch fails.
  *
  * A retryable failure throws immediately (the invocation will be retried, so there
  * is no point sending the remaining batches now). `ExportError.settled` says how
@@ -175,12 +215,12 @@ async function exportChunk(
 export async function exportRecords(
   exporter: LogRecordExporter,
   records: ReadableLogRecord[],
-  maxBatchSize: number = MAX_EXPORT_BATCH_SIZE
+  maxBatchSize: number = MAX_EXPORT_BATCH_SIZE,
+  maxBatchBytes: number = MAX_EXPORT_BATCH_BYTES
 ): Promise<void> {
   const progress: ExportProgress = { settled: 0, dropped: 0 };
 
-  for (let i = 0; i < records.length; i += maxBatchSize) {
-    const batch = records.slice(i, i + maxBatchSize);
+  for (const batch of toBatches(records, maxBatchSize, maxBatchBytes)) {
     const settledBefore = progress.settled;
     const failure = await exportChunk(exporter, batch, progress);
     if (failure) {

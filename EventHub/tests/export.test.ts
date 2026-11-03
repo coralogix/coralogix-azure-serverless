@@ -531,7 +531,12 @@ describe("eventHubTrigger retries without duplicates", () => {
 });
 
 describe("oversized export requests", () => {
-  const { exportRecords, isMessageTooLarge } = require("../EventHub/export");
+  const {
+    exportRecords,
+    isMessageTooLarge,
+    toBatches,
+    MAX_EXPORT_BATCH_BYTES,
+  } = require("../EventHub/export");
   const sized = (n: number, bytes: number, tag = "r") =>
     Array.from(
       { length: n },
@@ -539,6 +544,36 @@ describe("oversized export requests", () => {
     );
   const tooLarge = () =>
     failure("8 RESOURCE_EXHAUSTED: Received message larger than max (5000000 vs. 4194304)", 8);
+
+  it("caps requests at 2 MB, Coralogix's recommended request size", () => {
+    expect(MAX_EXPORT_BATCH_BYTES).toBe(2 * 1024 * 1024);
+  });
+
+  it("bounds batches by estimated bytes as well as count", () => {
+    // 20 records of ~512 KB: far below 512 records, far above 2 MB.
+    const batches = toBatches(sized(20, 512 * 1024));
+
+    expect(batches.length).toBeGreaterThan(1);
+    expect(batches.flat()).toHaveLength(20);
+    for (const batch of batches) {
+      const bytes = batch.reduce((sum: number, r: any) => sum + r.body.length, 0);
+      expect(bytes).toBeLessThanOrEqual(MAX_EXPORT_BATCH_BYTES);
+    }
+  });
+
+  it("still batches small records by count only", () => {
+    expect(toBatches(sized(1100, 100)).map((b: any[]) => b.length)).toEqual([512, 512, 76]);
+  });
+
+  it("sends a single record larger than the byte limit on its own", () => {
+    const batches = toBatches([
+      ...sized(1, 10),
+      ...sized(1, 3 * 1024 * 1024, "big"),
+      ...sized(1, 10),
+    ]);
+
+    expect(batches.map((b: any[]) => b.length)).toEqual([1, 1, 1]);
+  });
 
   it.each([
     [
