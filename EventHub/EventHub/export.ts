@@ -1,12 +1,3 @@
-/**
- * Synchronous, result-checked export of log records.
- *
- * The OTel BatchLogRecordProcessor exports in the background and swallows export
- * errors (they only reach the OTel diag logger), so an invocation could report
- * success while its logs were dropped. Instead, each invocation collects the
- * records it emitted and exports them itself, awaiting the exporter's result.
- */
-
 import { ExportResult, ExportResultCode } from "@opentelemetry/core";
 import {
   LogRecordExporter,
@@ -17,21 +8,13 @@ import {
 
 export const MAX_EXPORT_BATCH_SIZE = 512;
 
-// Upper bound for the estimated size of one export request. Event Hub events can be
-// up to 1 MB each, so a record-count limit alone can produce requests of hundreds of
-// MB, which are rejected or time out. Coralogix documents a hard limit of 10 MB per
-// OTLP request and recommends 2 MB.
+// Coralogix's recommended maximum OTLP request size.
 export const MAX_EXPORT_BATCH_BYTES = 2 * 1024 * 1024;
 
-// gRPC status codes for which retrying the same payload cannot succeed.
 const GRPC_INVALID_ARGUMENT = 3;
 // RESOURCE_EXHAUSTED is used both for "message too large" (permanent for that
 // payload) and for throttling / load shedding (transient); only the former is split.
 const GRPC_RESOURCE_EXHAUSTED = 8;
-// Size rejections as reported by gRPC servers and clients, e.g. Coralogix ingress:
-//   "decoded message length too large: found N bytes, the limit is: M bytes"
-//   "size limit, of N bytes, exceeded while decompressing message"
-// and grpc-js / grpc-go: "Received message larger than max (N vs. M)".
 const MESSAGE_TOO_LARGE =
   /larger than max|too large|size limit.*exceeded|exceeded while decompressing/i;
 
@@ -39,14 +22,12 @@ export function isMessageTooLarge(error: any): boolean {
   return error?.code === GRPC_RESOURCE_EXHAUSTED && MESSAGE_TOO_LARGE.test(String(error?.message));
 }
 
-/** Rough serialized size of a record: body plus attributes, as UTF-8 bytes. */
 export function estimateRecordBytes(record: ReadableLogRecord): number {
   const body = typeof record.body === "string" ? record.body : JSON.stringify(record.body ?? "");
   const attributes = record.attributes ? JSON.stringify(record.attributes) : "";
   return Buffer.byteLength(body ?? "", "utf8") + Buffer.byteLength(attributes, "utf8") + 64;
 }
 
-/** Split records, in order, into batches bounded by both count and estimated bytes. */
 export function toBatches(
   records: ReadableLogRecord[],
   maxBatchSize: number = MAX_EXPORT_BATCH_SIZE,
@@ -81,17 +62,7 @@ export interface CollectedRecord {
   ordinal: number;
 }
 
-/**
- * Buffers emitted records until the invocation that emitted them drains the buffer.
- *
- * Records are emitted synchronously while an invocation processes its events and
- * drained synchronously right after, before the invocation awaits anything, so a
- * concurrent invocation can never interleave its records into another one's drain.
- *
- * Each record is tagged with the event it came from and its position within that
- * event, which is deterministic for the same event. This lets a retried invocation
- * recognise records it already delivered.
- */
+// onEmit and drain run synchronously before the handler's first await.
 export class CollectingLogRecordProcessor implements LogRecordProcessor {
   private records: CollectedRecord[] = [];
   private ordinals = new Map<string, number>();
@@ -126,10 +97,7 @@ export class CollectingLogRecordProcessor implements LogRecordProcessor {
 
 export class ExportError extends Error {
   readonly retryable: boolean;
-  /**
-   * Number of leading records that need no further attempt: they were accepted,
-   * or rejected as invalid (retrying them cannot succeed).
-   */
+  /** Number of leading records that need no further attempt. */
   readonly settled: number;
   readonly cause?: unknown;
 
@@ -156,18 +124,13 @@ function exportBatch(
 }
 
 interface ExportProgress {
-  /** Leading records that need no further attempt (accepted, or rejected for good). */
   settled: number;
   dropped: number;
   lastRejection?: any;
 }
 
-/**
- * Export one batch. A batch rejected as too large is split in half and each half
- * sent in turn, until the offending record is isolated; a single record that is
- * still rejected, or a batch rejected as invalid, is dropped (retrying the same
- * payload cannot succeed). Returns the error of a retryable failure, if any.
- */
+// A whole request is rejected for one bad record (invalid or too large), so split
+// rejected batches until the bad record is isolated and only that record is dropped.
 async function exportChunk(
   exporter: LogRecordExporter,
   batch: ReadableLogRecord[],
@@ -180,8 +143,9 @@ async function exportChunk(
   }
 
   const error: any = result.error ?? new Error("unknown error");
+  const payloadRejected = error.code === GRPC_INVALID_ARGUMENT || isMessageTooLarge(error);
 
-  if (isMessageTooLarge(error) && batch.length > 1) {
+  if (payloadRejected && batch.length > 1) {
     const middle = Math.ceil(batch.length / 2);
     for (const half of [batch.slice(0, middle), batch.slice(middle)]) {
       const failure = await exportChunk(exporter, half, progress);
@@ -190,7 +154,7 @@ async function exportChunk(
     return undefined;
   }
 
-  if (error.code === GRPC_INVALID_ARGUMENT || isMessageTooLarge(error)) {
+  if (payloadRejected) {
     progress.settled += batch.length;
     progress.dropped += batch.length;
     progress.lastRejection = error;
@@ -200,18 +164,6 @@ async function exportChunk(
   return error;
 }
 
-/**
- * Export records in batches (bounded by count and estimated bytes), sequentially,
- * and throw if any batch fails.
- *
- * A retryable failure throws immediately (the invocation will be retried, so there
- * is no point sending the remaining batches now). `ExportError.settled` says how
- * many leading records were already handled, so a retry can skip them.
- *
- * Records rejected for good (invalid, or too large even on their own) do not stop
- * the remaining batches; once they are sent, a non-retryable ExportError reports
- * how many records were dropped.
- */
 export async function exportRecords(
   exporter: LogRecordExporter,
   records: ReadableLogRecord[],
@@ -244,14 +196,7 @@ export async function exportRecords(
   }
 }
 
-/**
- * Remembers which records of a failed invocation were already delivered, so the
- * retry of that invocation (same events, same instance) only sends the rest.
- *
- * Kept in memory: Azure Functions retries an Event Hubs batch on the same instance.
- * If the instance is replaced, the batch is redelivered in full (Event Hubs'
- * at-least-once behaviour). Bounded so it cannot grow without limit.
- */
+// Best-effort duplicate suppression for retries on the same worker.
 export class DeliveredRecords {
   private delivered = new Map<string, Set<string>>();
 
@@ -282,7 +227,6 @@ export class DeliveredRecords {
     ids.add(DeliveredRecords.recordId(scope, item.ordinal));
   }
 
-  /** Forget events whose invocation completed; they will not be retried. */
   forget(eventKeys: Iterable<string>): void {
     for (const key of eventKeys) this.delivered.delete(key);
   }

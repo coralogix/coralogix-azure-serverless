@@ -26,8 +26,7 @@ import {
   exportRecords,
 } from "./export";
 
-// Surface OTel's internal diagnostics (exporter/connection errors) in the function
-// logs. OTEL_LOG_LEVEL is not read by the OTel packages used here, so honour it.
+// The OTel packages do not configure diagnostics from OTEL_LOG_LEVEL themselves.
 const OTEL_LOG_LEVEL =
   DiagLogLevel[(process.env.OTEL_LOG_LEVEL || "").toUpperCase() as keyof typeof DiagLogLevel] ??
   DiagLogLevel.WARN;
@@ -61,15 +60,11 @@ interface LoggerCacheEntry {
 
 const loggerCache = new Map<string, LoggerCacheEntry>();
 
-// Records already delivered by a failed invocation, skipped when it is retried.
 const deliveredRecords = new DeliveredRecords();
 
-// Event being processed while records are emitted (set synchronously per event).
 let currentEventKey: string | undefined;
 
-// The app runs on the v3 Node programming model (function.json), where the error
-// and warning loggers are context.log.error / context.log.warn; the v4 model has
-// context.error / context.warn. Support both.
+// Support both the v3 and v4 Node programming models.
 function logError(context: InvocationContext, message: string): void {
   const ctx: any = context;
   if (typeof ctx.error === "function") ctx.error(message);
@@ -84,12 +79,7 @@ function logWarn(context: InvocationContext, message: string): void {
   else ctx.log(message);
 }
 
-/**
- * Stable identity of each event in the batch, `<partitionId>:<sequenceNumber>`,
- * from the trigger metadata (v3: context.bindingData, v4: context.triggerMetadata).
- * Returns undefined when it is incomplete; retries then resend the whole batch
- * rather than risk skipping a record that was never delivered.
- */
+// Missing metadata disables duplicate suppression rather than risking skipped records.
 export function getEventKeys(context: InvocationContext, eventCount: number): string[] | undefined {
   const ctx: any = context;
   const metadata = ctx.triggerMetadata ?? ctx.bindingData;
@@ -104,7 +94,6 @@ export function getEventKeys(context: InvocationContext, eventCount: number): st
   return sequenceNumbers.map((n) => `${partitionId}:${n}`);
 }
 
-// Get or create a logger for a specific app/subsystem combination.
 function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logger {
   const cacheKey = `${appName}::${subsystemName}`;
   const cached = loggerCache.get(cacheKey);
@@ -126,8 +115,7 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logge
   return logger;
 }
 
-// Drop a cache entry whose export failed so the next invocation builds a fresh
-// exporter, and with it a fresh gRPC connection, instead of reusing a broken one.
+// Recreate the gRPC connection after a failed export.
 function evictLogger(cacheKey: string, entry: LoggerCacheEntry, context: InvocationContext): void {
   if (loggerCache.get(cacheKey) === entry) loggerCache.delete(cacheKey);
   entry.exporter
@@ -409,9 +397,7 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
       currentEventKey = undefined;
     }
 
-    // Take this invocation's records before awaiting anything (see
-    // CollectingLogRecordProcessor), minus those a failed earlier attempt of this
-    // same batch already delivered.
+    // Drain before the first await so concurrent invocations cannot mix records.
     let skipped = 0;
     const pending = Array.from(loggerCache.entries())
       .map(([cacheKey, entry]) => {
@@ -461,9 +447,7 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
           : new ExportError(String(error?.message), true, 0, error);
     });
 
-    // Fail the invocation so the Event Hub retry policy re-delivers the batch
-    // instead of advancing the checkpoint past logs that never reached Coralogix.
-    // What was delivered stays remembered so the retry only sends the rest.
+    // Throw before Event Hubs advances the checkpoint.
     if (retryableFailure) throw retryableFailure;
 
     if (eventKeys) deliveredRecords.forget(eventKeys);

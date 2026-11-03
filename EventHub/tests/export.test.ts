@@ -5,11 +5,7 @@ import { ReadableLogRecord } from "@opentelemetry/sdk-logs";
 type ExportCall = { records: ReadableLogRecord[]; exporterId: number };
 type ExportBehaviour = (records: ReadableLogRecord[], exporterId: number) => ExportResult;
 
-/**
- * A context shaped like the v3 Node programming model this app runs on
- * (function.json): no context.error/context.warn, loggers hang off context.log,
- * and trigger metadata is in context.bindingData.
- */
+// Match the v3 Node context used by function.json.
 const createMockContext = (
   invocationId = "test-id",
   bindingData?: Record<string, any>
@@ -22,7 +18,6 @@ const createMockContext = (
 
 const errorLog = (context: InvocationContext): jest.Mock => (context.log as any).error;
 
-/** Event Hubs trigger metadata for a batch of `count` events on one partition. */
 const eventHubMetadata = (count: number, partitionId = "0", firstSequenceNumber = 100) => ({
   partitionContext: { partitionId },
   sequenceNumberArray: Array.from({ length: count }, (_, i) => firstSequenceNumber + i),
@@ -34,10 +29,7 @@ const failure = (message: string, code?: number): ExportResult => ({
   error: Object.assign(new Error(message), code !== undefined ? { code } : {}),
 });
 
-/**
- * Load the function with the real OTel SDK and a fake OTLP exporter, so the tests
- * exercise the actual emit -> collect -> export path without a network.
- */
+// Exercise the real SDK path with only the network exporter replaced.
 function loadFunction(
   behaviour: ExportBehaviour = () => SUCCESS,
   env: Record<string, string> = {}
@@ -141,24 +133,42 @@ describe("exportRecords", () => {
     });
   });
 
-  it("keeps sending after an INVALID_ARGUMENT batch and reports it as non-retryable", async () => {
-    const batches: number[] = [];
-    let n = 0;
+  it("drops only the invalid record of an INVALID_ARGUMENT batch and keeps sending", async () => {
+    const records = fakeRecords(600);
+    const poison = records[100];
+    const delivered: ReadableLogRecord[] = [];
     const exporter = {
-      export: (records: ReadableLogRecord[], cb: (r: ExportResult) => void) => {
-        batches.push(records.length);
-        cb(n++ === 0 ? failure("3 INVALID_ARGUMENT: bad payload", 3) : SUCCESS);
+      export: (batch: ReadableLogRecord[], cb: (r: ExportResult) => void) => {
+        if (batch.includes(poison)) return cb(failure("3 INVALID_ARGUMENT: bad payload", 3));
+        delivered.push(...batch);
+        cb(SUCCESS);
       },
       shutdown: () => Promise.resolve(),
     };
 
-    const promise = exportRecords(exporter, fakeRecords(600), 512);
+    const promise = exportRecords(exporter, records, 512);
 
     await expect(promise).rejects.toMatchObject({
       retryable: false,
-      message: expect.stringContaining("rejected 512 log records"),
+      settled: 600,
+      message: expect.stringContaining("rejected 1 log records"),
     });
-    expect(batches).toEqual([512, 88]);
+    // All 599 valid records were delivered, in order; only the invalid one was dropped.
+    expect(delivered).toEqual(records.filter((r) => r !== poison));
+  });
+
+  it("drops a whole batch only when every record in it is invalid", async () => {
+    const exporter = {
+      export: (_: ReadableLogRecord[], cb: (r: ExportResult) => void) =>
+        cb(failure("3 INVALID_ARGUMENT: bad payload", 3)),
+      shutdown: () => Promise.resolve(),
+    };
+
+    await expect(exportRecords(exporter, fakeRecords(8))).rejects.toMatchObject({
+      retryable: false,
+      settled: 8,
+      message: expect.stringContaining("rejected 8 log records"),
+    });
   });
 
   it("does nothing for an empty record list", async () => {
