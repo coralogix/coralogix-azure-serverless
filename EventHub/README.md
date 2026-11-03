@@ -137,6 +137,6 @@ BLOCKING_PATTERN="\\[DEBUG\\]|\\[TRACE\\]"
 
 Each invocation exports its logs to Coralogix and waits for the result. If an export fails (for example a timeout or a lost connection), the invocation fails and the Event Hub retry policy in `function.json` re-delivers the batch with exponential backoff (5s up to 5 minutes, retrying indefinitely), so the checkpoint only advances once the logs were accepted. The exporter connection is recreated after a failure.
 
-Delivery is at-least-once: a retried batch can produce duplicate logs. Records that Coralogix rejects as invalid are logged as an error and not retried.
+A retry only sends the records that were not delivered yet: records already accepted by Coralogix in a previous attempt of the same batch (tracked by Event Hub partition and sequence number) are skipped. A duplicate is still possible in rare cases, for example when Coralogix accepted a request but the response was lost, or when the batch is redelivered after the function instance was replaced. Records that Coralogix rejects as invalid are logged as an error and not retried.
 
 Export errors are written to the function logs. Set `OTEL_LOG_LEVEL` (`error`, `warn`, `info`, `debug`, `verbose`; default `warn`) to change how much OpenTelemetry diagnostic output is logged.

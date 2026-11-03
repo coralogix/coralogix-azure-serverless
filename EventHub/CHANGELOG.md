@@ -1,7 +1,8 @@
-### 3.8.6 / 02 Nov 2026
+### 3.8.6 / 03 Nov 2026
 [FIX] Stop dropping logs silently when the export to Coralogix fails:
 * Each invocation now exports its own logs and checks the result, instead of a background batch processor whose errors were swallowed (the invocation reported success and the checkpoint advanced while logs were lost)
-* A failed export fails the invocation; a new Event Hub retry policy (`exponentialBackoff`, unlimited retries, 5s to 5 min) re-delivers the batch, so the checkpoint only advances once logs are accepted. Delivery is at-least-once
+* A failed export fails the invocation; a new Event Hub retry policy (`exponentialBackoff`, unlimited retries, 5s to 5 min) re-delivers the batch, so the checkpoint only advances once logs are accepted
+* A retry skips records already delivered by a previous attempt of the same batch (tracked by Event Hub partition and sequence number), so only what failed is sent again
 * The exporter and its gRPC connection are recreated after a failed export, so a broken connection no longer persists until the instance is replaced
 * Records rejected as invalid (`INVALID_ARGUMENT`) are logged and not retried
 * Removed the fixed 2s wait per invocation and the 2048-record queue limit that could drop records silently

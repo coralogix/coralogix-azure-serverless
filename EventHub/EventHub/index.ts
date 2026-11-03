@@ -18,7 +18,13 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 import { resolveSelector, TemplateContext } from "./nameResolution";
-import { CollectingLogRecordProcessor, ExportError, exportRecords } from "./export";
+import {
+  CollectedRecord,
+  CollectingLogRecordProcessor,
+  DeliveredRecords,
+  ExportError,
+  exportRecords,
+} from "./export";
 
 // Surface OTel's internal diagnostics (exporter/connection errors) in the function
 // logs. OTEL_LOG_LEVEL is not read by the OTel packages used here, so honour it.
@@ -55,6 +61,49 @@ interface LoggerCacheEntry {
 
 const loggerCache = new Map<string, LoggerCacheEntry>();
 
+// Records already delivered by a failed invocation, skipped when it is retried.
+const deliveredRecords = new DeliveredRecords();
+
+// Event being processed while records are emitted (set synchronously per event).
+let currentEventKey: string | undefined;
+
+// The app runs on the v3 Node programming model (function.json), where the error
+// and warning loggers are context.log.error / context.log.warn; the v4 model has
+// context.error / context.warn. Support both.
+function logError(context: InvocationContext, message: string): void {
+  const ctx: any = context;
+  if (typeof ctx.error === "function") ctx.error(message);
+  else if (typeof ctx.log?.error === "function") ctx.log.error(message);
+  else ctx.log(message);
+}
+
+function logWarn(context: InvocationContext, message: string): void {
+  const ctx: any = context;
+  if (typeof ctx.warn === "function") ctx.warn(message);
+  else if (typeof ctx.log?.warn === "function") ctx.log.warn(message);
+  else ctx.log(message);
+}
+
+/**
+ * Stable identity of each event in the batch, `<partitionId>:<sequenceNumber>`,
+ * from the trigger metadata (v3: context.bindingData, v4: context.triggerMetadata).
+ * Returns undefined when it is incomplete; retries then resend the whole batch
+ * rather than risk skipping a record that was never delivered.
+ */
+export function getEventKeys(context: InvocationContext, eventCount: number): string[] | undefined {
+  const ctx: any = context;
+  const metadata = ctx.triggerMetadata ?? ctx.bindingData;
+  const partitionContext = metadata?.partitionContext ?? metadata?.PartitionContext;
+  const partitionId = partitionContext?.partitionId ?? partitionContext?.PartitionId;
+  const sequenceNumbers = metadata?.sequenceNumberArray ?? metadata?.SequenceNumberArray;
+
+  if (partitionId === undefined || partitionId === null || partitionId === "") return undefined;
+  if (!Array.isArray(sequenceNumbers) || sequenceNumbers.length !== eventCount) return undefined;
+  if (sequenceNumbers.some((n) => n === undefined || n === null)) return undefined;
+
+  return sequenceNumbers.map((n) => `${partitionId}:${n}`);
+}
+
 // Get or create a logger for a specific app/subsystem combination.
 function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logger {
   const cacheKey = `${appName}::${subsystemName}`;
@@ -67,7 +116,7 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logge
     "cx.application.name": appName,
     "cx.subsystem.name": subsystemName,
   });
-  const collector = new CollectingLogRecordProcessor();
+  const collector = new CollectingLogRecordProcessor(() => currentEventKey);
   const exporter = new OTLPLogExporter();
   const provider = new LoggerProvider({ resource, processors: [collector] });
 
@@ -83,7 +132,9 @@ function evictLogger(cacheKey: string, entry: LoggerCacheEntry, context: Invocat
   if (loggerCache.get(cacheKey) === entry) loggerCache.delete(cacheKey);
   entry.exporter
     .shutdown()
-    .catch((e: any) => context.warn(`Failed to shut down exporter for ${cacheKey}: ${e?.message}`));
+    .catch((e: any) =>
+      logWarn(context, `Failed to shut down exporter for ${cacheKey}: ${e?.message}`)
+    );
 }
 
 function isBlocked(body: string): boolean {
@@ -340,45 +391,84 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
   try {
     if (!Array.isArray(events) || events.length === 0) return;
     const threadId = context.invocationId;
+    const eventKeys = getEventKeys(context, events.length);
 
-    events.forEach((event, index) => {
-      try {
-        const entries = unwrapEventHubMessage(event);
-        entries.forEach((entry, idx) => {
-          writeLog(context, entry, threadId, idx);
-        });
-      } catch (msgError: any) {
-        context.log(`Failed to process message ${index}: ${msgError.message}`);
-      }
-    });
+    try {
+      events.forEach((event, index) => {
+        currentEventKey = eventKeys?.[index];
+        try {
+          const entries = unwrapEventHubMessage(event);
+          entries.forEach((entry, idx) => {
+            writeLog(context, entry, threadId, idx);
+          });
+        } catch (msgError: any) {
+          context.log(`Failed to process message ${index}: ${msgError.message}`);
+        }
+      });
+    } finally {
+      currentEventKey = undefined;
+    }
 
-    // Take this invocation's records before awaiting anything (see CollectingLogRecordProcessor).
+    // Take this invocation's records before awaiting anything (see
+    // CollectingLogRecordProcessor), minus those a failed earlier attempt of this
+    // same batch already delivered.
+    let skipped = 0;
     const pending = Array.from(loggerCache.entries())
-      .map(([cacheKey, entry]) => ({ cacheKey, entry, records: entry.collector.drain() }))
-      .filter(({ records }) => records.length > 0);
+      .map(([cacheKey, entry]) => {
+        const items = entry.collector.drain().filter((item) => {
+          if (!deliveredRecords.has(cacheKey, item)) return true;
+          skipped++;
+          return false;
+        });
+        return { cacheKey, entry, items };
+      })
+      .filter(({ items }) => items.length > 0);
+
+    if (skipped > 0) {
+      context.log(`Skipping ${skipped} log records already delivered by a previous attempt`);
+    }
 
     const results = await Promise.allSettled(
-      pending.map(({ entry, records }) => exportRecords(entry.exporter, records))
+      pending.map(({ entry, items }) =>
+        exportRecords(
+          entry.exporter,
+          items.map((item) => item.record)
+        )
+      )
     );
 
     let retryableFailure: ExportError | undefined;
     results.forEach((result, i) => {
-      if (result.status === "fulfilled") return;
-      const { cacheKey, entry } = pending[i];
-      const error: any = result.reason;
-      context.error(`Export to Coralogix failed for ${cacheKey}: ${error?.message}`);
+      const { cacheKey, entry, items } = pending[i];
+      const markDelivered = (delivered: CollectedRecord[]) =>
+        delivered.forEach((item) => deliveredRecords.add(cacheKey, item));
 
+      if (result.status === "fulfilled") {
+        markDelivered(items);
+        return;
+      }
+
+      const error: any = result.reason;
+      logError(context, `Export to Coralogix failed for ${cacheKey}: ${error?.message}`);
+
+      if (error instanceof ExportError) markDelivered(items.slice(0, error.settled));
       if (error instanceof ExportError && !error.retryable) return;
+
       evictLogger(cacheKey, entry, context);
       retryableFailure ??=
-        error instanceof ExportError ? error : new ExportError(String(error?.message), true, error);
+        error instanceof ExportError
+          ? error
+          : new ExportError(String(error?.message), true, 0, error);
     });
 
     // Fail the invocation so the Event Hub retry policy re-delivers the batch
     // instead of advancing the checkpoint past logs that never reached Coralogix.
+    // What was delivered stays remembered so the retry only sends the rest.
     if (retryableFailure) throw retryableFailure;
+
+    if (eventKeys) deliveredRecords.forget(eventKeys);
   } catch (error: any) {
-    context.error(`Function error: ${error.message}`);
+    logError(context, `Function error: ${error.message}`);
     throw error;
   }
 };
