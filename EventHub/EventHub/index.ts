@@ -23,7 +23,7 @@ import { CollectingLogRecordProcessor, ExportError, exportRecords } from "./expo
 // The OTel packages do not configure diagnostics from OTEL_LOG_LEVEL themselves.
 const OTEL_LOG_LEVEL =
   DiagLogLevel[(process.env.OTEL_LOG_LEVEL || "").toUpperCase() as keyof typeof DiagLogLevel] ??
-  DiagLogLevel.WARN;
+  DiagLogLevel.NONE;
 diag.setLogger(new DiagConsoleLogger(), OTEL_LOG_LEVEL);
 
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;

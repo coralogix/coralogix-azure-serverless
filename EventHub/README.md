@@ -58,6 +58,8 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 
 **Blocking Pattern** (Optional) - Regex pattern to filter/block logs. Logs matching this pattern will not be sent to Coralogix. Example: `healthcheck|heartbeat` to filter health check logs, or `secret` to block logs containing sensitive data.
 
+**Otel Log Level** (Optional) - Level of OpenTelemetry diagnostic messages written to the function logs: `none` (default), `error`, `warn`, `info`, `debug` or `verbose`. Failed exports are always logged as errors regardless of this setting.
+
 ## Configuration Examples for Application and Subsystem Selectors
 
 ### JSON Logs (Template Syntax)
@@ -139,4 +141,4 @@ Each invocation exports its logs to Coralogix and waits for the result. If an ex
 
 Records that Coralogix rejects as invalid, or that are too large to send even on their own, are logged as an error and not retried, so they cannot block the partition. Each export request holds up to 512 records and about 2 MB (Coralogix accepts OTLP requests of up to 10 MB and recommends 2 MB). A request rejected as invalid or too large is split until the offending record is isolated, so only that record is dropped. Likewise, if Coralogix accepts a request but reports some of its records as rejected (an OTLP partial success), the export counts as successful: the rejection is logged as a warning and those records are not retried.
 
-Failed exports are always written to the function logs as errors. OpenTelemetry's own diagnostic messages (for example, partial-success warnings) are logged at the level set by the `OTEL_LOG_LEVEL` app setting: `none`, `error`, `warn` (default), `info`, `debug` or `verbose`. Set it to `none` or `error` to silence the warnings.
+Failed exports are always written to the function logs as errors. OpenTelemetry's own diagnostic messages (for example, partial-success warnings) are off by default; set the `Otel Log Level` parameter (app setting `OTEL_LOG_LEVEL`) to `error`, `warn`, `info`, `debug` or `verbose` to turn them on.

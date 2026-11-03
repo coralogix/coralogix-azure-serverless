@@ -127,6 +127,14 @@
       "metadata": {
         "description": "Optional: When enabled, attaches additional metadata to each log record: invocation thread ID, message index, and Azure resource attributes (subscription ID, resource group, provider) parsed from the log payload."
       }
+    },
+    "OtelLogLevel": {
+      "type": "string",
+      "defaultValue": "none",
+      "allowedValues": ["none", "error", "warn", "info", "debug", "verbose"],
+      "metadata": {
+        "description": "Optional: Level of OpenTelemetry diagnostic messages (for example, partial-success warnings) written to the function logs. Off by default. Failed exports are always logged as errors regardless of this setting."
+      }
     }
   },
   "variables": {
@@ -271,7 +279,8 @@
         "BLOCKING_PATTERN": "[parameters('BlockingPattern')]",
         "CORALOGIX_APPLICATION_SELECTOR": "[parameters('CoralogixApplicationSelector')]",
         "CORALOGIX_SUBSYSTEM_SELECTOR": "[parameters('CoralogixSubsystemSelector')]",
-        "INCLUDE_METADATA": "[if(parameters('IncludeMetadata'), 'true', 'false')]"
+        "INCLUDE_METADATA": "[if(parameters('IncludeMetadata'), 'true', 'false')]",
+        "OTEL_LOG_LEVEL": "[parameters('OtelLogLevel')]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"

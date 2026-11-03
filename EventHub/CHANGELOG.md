@@ -6,7 +6,7 @@
 * A request rejected as invalid (`INVALID_ARGUMENT`) is split until the offending record is isolated, so only that record is dropped (logged, not retried); records reported as rejected in an OTLP partial-success response are logged and not retried
 * Export requests are bounded by size (2 MB, Coralogix's recommended request size) as well as record count; a request still rejected as too large is split until the offending record is isolated, and a record that is too large on its own is logged and dropped instead of blocking the partition
 * Removed the fixed 2s wait per invocation and the 2048-record queue limit that could drop records silently
-* OpenTelemetry diagnostics are logged to the function logs; level configurable via `OTEL_LOG_LEVEL` (default `warn`)
+* New optional `OtelLogLevel` ARM parameter (`OTEL_LOG_LEVEL` app setting) to write OpenTelemetry diagnostic messages to the function logs; off (`none`) by default
 
 ### 3.8.5 / 07 Oct 2026
 [FIX] Apply in-place security hardening defaults to the ARM templates:
