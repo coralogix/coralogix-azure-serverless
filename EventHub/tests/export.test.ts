@@ -169,6 +169,25 @@ describe("exportRecords", () => {
     });
   });
 
+  it("bounds the number of requests when a whole full batch is rejected", async () => {
+    const { MAX_SPLIT_REQUESTS } = require("../EventHub/export");
+    let requests = 0;
+    const exporter = {
+      export: (_: ReadableLogRecord[], cb: (r: ExportResult) => void) => {
+        requests++;
+        cb(failure("3 INVALID_ARGUMENT: bad payload", 3));
+      },
+      shutdown: () => Promise.resolve(),
+    };
+
+    // Without a bound this would take 2 * 512 - 1 = 1023 requests.
+    await expect(exportRecords(exporter, fakeRecords(512))).rejects.toMatchObject({
+      retryable: false,
+      message: expect.stringContaining("rejected 512 log records"),
+    });
+    expect(requests).toBeLessThanOrEqual(1 + MAX_SPLIT_REQUESTS);
+  });
+
   it("does nothing for an empty record list", async () => {
     const exporter = { export: jest.fn(), shutdown: () => Promise.resolve() };
 

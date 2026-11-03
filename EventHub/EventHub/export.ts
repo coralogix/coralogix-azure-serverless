@@ -103,13 +103,20 @@ function exportBatch(
   });
 }
 
+// Extra requests allowed per export for splitting rejected batches. Isolating one bad
+// record in a 512-record batch takes ~18; a batch where most records are rejected would
+// otherwise take up to 2N-1 requests and could outlast the function timeout.
+export const MAX_SPLIT_REQUESTS = 64;
+
 interface ExportProgress {
   dropped: number;
   lastRejection?: any;
+  splitBudget: number;
 }
 
 // A whole request is rejected for one bad record (invalid or too large), so split
 // rejected batches until the bad record is isolated and only that record is dropped.
+// Once the split budget is spent, a rejected chunk is dropped as a whole.
 async function exportChunk(
   exporter: LogRecordExporter,
   batch: ReadableLogRecord[],
@@ -121,7 +128,8 @@ async function exportChunk(
   const error: any = result.error ?? new Error("unknown error");
   const payloadRejected = error.code === GRPC_INVALID_ARGUMENT || isMessageTooLarge(error);
 
-  if (payloadRejected && batch.length > 1) {
+  if (payloadRejected && batch.length > 1 && progress.splitBudget >= 2) {
+    progress.splitBudget -= 2;
     const middle = Math.ceil(batch.length / 2);
     for (const half of [batch.slice(0, middle), batch.slice(middle)]) {
       const failure = await exportChunk(exporter, half, progress);
@@ -145,7 +153,7 @@ export async function exportRecords(
   maxBatchSize: number = MAX_EXPORT_BATCH_SIZE,
   maxBatchBytes: number = MAX_EXPORT_BATCH_BYTES
 ): Promise<void> {
-  const progress: ExportProgress = { dropped: 0 };
+  const progress: ExportProgress = { dropped: 0, splitBudget: MAX_SPLIT_REQUESTS };
 
   for (const batch of toBatches(records, maxBatchSize, maxBatchBytes)) {
     const failure = await exportChunk(exporter, batch, progress);
