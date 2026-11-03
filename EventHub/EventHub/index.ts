@@ -18,13 +18,7 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 import { resolveSelector, TemplateContext } from "./nameResolution";
-import {
-  CollectedRecord,
-  CollectingLogRecordProcessor,
-  DeliveredRecords,
-  ExportError,
-  exportRecords,
-} from "./export";
+import { CollectingLogRecordProcessor, ExportError, exportRecords } from "./export";
 
 // The OTel packages do not configure diagnostics from OTEL_LOG_LEVEL themselves.
 const OTEL_LOG_LEVEL =
@@ -60,10 +54,6 @@ interface LoggerCacheEntry {
 
 const loggerCache = new Map<string, LoggerCacheEntry>();
 
-const deliveredRecords = new DeliveredRecords();
-
-let currentEventKey: string | undefined;
-
 // Support both the v3 and v4 Node programming models.
 function logError(context: InvocationContext, message: string): void {
   const ctx: any = context;
@@ -79,21 +69,6 @@ function logWarn(context: InvocationContext, message: string): void {
   else ctx.log(message);
 }
 
-// Missing metadata disables duplicate suppression rather than risking skipped records.
-export function getEventKeys(context: InvocationContext, eventCount: number): string[] | undefined {
-  const ctx: any = context;
-  const metadata = ctx.triggerMetadata ?? ctx.bindingData;
-  const partitionContext = metadata?.partitionContext ?? metadata?.PartitionContext;
-  const partitionId = partitionContext?.partitionId ?? partitionContext?.PartitionId;
-  const sequenceNumbers = metadata?.sequenceNumberArray ?? metadata?.SequenceNumberArray;
-
-  if (partitionId === undefined || partitionId === null || partitionId === "") return undefined;
-  if (!Array.isArray(sequenceNumbers) || sequenceNumbers.length !== eventCount) return undefined;
-  if (sequenceNumbers.some((n) => n === undefined || n === null)) return undefined;
-
-  return sequenceNumbers.map((n) => `${partitionId}:${n}`);
-}
-
 function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logger {
   const cacheKey = `${appName}::${subsystemName}`;
   const cached = loggerCache.get(cacheKey);
@@ -105,7 +80,7 @@ function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logge
     "cx.application.name": appName,
     "cx.subsystem.name": subsystemName,
   });
-  const collector = new CollectingLogRecordProcessor(() => currentEventKey);
+  const collector = new CollectingLogRecordProcessor();
   const exporter = new OTLPLogExporter();
   const provider = new LoggerProvider({ resource, processors: [collector] });
 
@@ -379,78 +354,43 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
   try {
     if (!Array.isArray(events) || events.length === 0) return;
     const threadId = context.invocationId;
-    const eventKeys = getEventKeys(context, events.length);
 
-    try {
-      events.forEach((event, index) => {
-        currentEventKey = eventKeys?.[index];
-        try {
-          const entries = unwrapEventHubMessage(event);
-          entries.forEach((entry, idx) => {
-            writeLog(context, entry, threadId, idx);
-          });
-        } catch (msgError: any) {
-          context.log(`Failed to process message ${index}: ${msgError.message}`);
-        }
-      });
-    } finally {
-      currentEventKey = undefined;
-    }
+    events.forEach((event, index) => {
+      try {
+        const entries = unwrapEventHubMessage(event);
+        entries.forEach((entry, idx) => {
+          writeLog(context, entry, threadId, idx);
+        });
+      } catch (msgError: any) {
+        context.log(`Failed to process message ${index}: ${msgError.message}`);
+      }
+    });
 
     // Drain before the first await so concurrent invocations cannot mix records.
-    let skipped = 0;
     const pending = Array.from(loggerCache.entries())
-      .map(([cacheKey, entry]) => {
-        const items = entry.collector.drain().filter((item) => {
-          if (!deliveredRecords.has(cacheKey, item)) return true;
-          skipped++;
-          return false;
-        });
-        return { cacheKey, entry, items };
-      })
-      .filter(({ items }) => items.length > 0);
-
-    if (skipped > 0) {
-      context.log(`Skipping ${skipped} log records already delivered by a previous attempt`);
-    }
+      .map(([cacheKey, entry]) => ({ cacheKey, entry, records: entry.collector.drain() }))
+      .filter(({ records }) => records.length > 0);
 
     const results = await Promise.allSettled(
-      pending.map(({ entry, items }) =>
-        exportRecords(
-          entry.exporter,
-          items.map((item) => item.record)
-        )
-      )
+      pending.map(({ entry, records }) => exportRecords(entry.exporter, records))
     );
 
     let retryableFailure: ExportError | undefined;
     results.forEach((result, i) => {
-      const { cacheKey, entry, items } = pending[i];
-      const markDelivered = (delivered: CollectedRecord[]) =>
-        delivered.forEach((item) => deliveredRecords.add(cacheKey, item));
-
-      if (result.status === "fulfilled") {
-        markDelivered(items);
-        return;
-      }
-
+      if (result.status === "fulfilled") return;
+      const { cacheKey, entry } = pending[i];
       const error: any = result.reason;
       logError(context, `Export to Coralogix failed for ${cacheKey}: ${error?.message}`);
 
-      if (error instanceof ExportError) markDelivered(items.slice(0, error.settled));
       if (error instanceof ExportError && !error.retryable) return;
 
       evictLogger(cacheKey, entry, context);
       retryableFailure ??=
-        error instanceof ExportError
-          ? error
-          : new ExportError(String(error?.message), true, 0, error);
+        error instanceof ExportError ? error : new ExportError(String(error?.message), true, error);
     });
 
-    // Throw before Event Hubs advances the checkpoint.
+    // Throw before Event Hubs advances the checkpoint; the retry policy re-delivers the batch.
     if (retryableFailure) throw retryableFailure;
-
-    if (eventKeys) deliveredRecords.forget(eventKeys);
   } catch (error: any) {
     logError(context, `Function error: ${error.message}`);
     throw error;
