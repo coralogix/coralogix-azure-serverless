@@ -2,7 +2,6 @@
 [FIX] Stop dropping logs silently when the export to Coralogix fails:
 * Each invocation now exports its own logs and checks the result, instead of a background batch processor whose errors were swallowed (the invocation reported success and the checkpoint advanced while logs were lost)
 * A failed export fails the invocation; a new Event Hub retry policy (`exponentialBackoff`, unlimited retries, 5s to 5 min) re-delivers the batch, so the checkpoint only advances once the export succeeded
-* Delivery is at-least-once, matching Azure Functions' Event Hubs guarantee: a retried batch is sent again in full, so logs may occasionally be duplicated
 * The exporter and its gRPC connection are recreated after a failed export, so a broken connection no longer persists until the instance is replaced
 * A request rejected as invalid (`INVALID_ARGUMENT`) is split until the offending record is isolated, so only that record is dropped (logged, not retried); records reported as rejected in an OTLP partial-success response are logged and not retried
 * Export requests are bounded by size (2 MB, Coralogix's recommended request size) as well as record count; a request still rejected as too large is split until the offending record is isolated, and a record that is too large on its own is logged and dropped instead of blocking the partition
