@@ -100,31 +100,62 @@ export class ExportError extends Error {
 
 // Process-wide cap on exports in flight, across all exporters (there is one exporter per
 // application/subsystem). Each in-flight 2 MB request costs ~8 MB of buffers, so 64 keeps
-// export buffers to ~500 MB, within the 1.5 GB Consumption plan memory limit. Exports over
-// the cap fail fast with a retryable saturation error, so the batch is retried later.
+// export buffers to ~500 MB, within the 1.5 GB Consumption plan memory limit.
+// Exports over the cap wait in a FIFO queue for a permit, so an invocation with more
+// scopes than permits still completes. Only a wait longer than PERMIT_WAIT_TIMEOUT_MS
+// fails, with a retryable saturation error. A permit is held for a single request only.
 export const MAX_IN_FLIGHT_EXPORTS = 64;
+export const PERMIT_WAIT_TIMEOUT_MS = 60_000;
 let inFlightExports = 0;
+const permitQueue: Array<() => void> = [];
 
-function exportBatch(
+function acquirePermit(): Promise<boolean> {
+  if (inFlightExports < MAX_IN_FLIGHT_EXPORTS) {
+    inFlightExports++;
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    const grant = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      const index = permitQueue.indexOf(grant);
+      if (index !== -1) permitQueue.splice(index, 1);
+      resolve(false);
+    }, PERMIT_WAIT_TIMEOUT_MS);
+    permitQueue.push(grant);
+  });
+}
+
+function releasePermit(): void {
+  const next = permitQueue.shift();
+  if (next)
+    next(); // hand the permit straight to the next waiter
+  else inFlightExports--;
+}
+
+async function exportBatch(
   exporter: LogRecordExporter,
   batch: ReadableLogRecord[]
 ): Promise<ExportResult> {
-  if (inFlightExports >= MAX_IN_FLIGHT_EXPORTS) {
-    return Promise.resolve({
+  if (!(await acquirePermit())) {
+    return {
       code: ExportResultCode.FAILED,
       error: new Error("Concurrent export limit reached (process-wide)"),
-    });
+    };
   }
-  inFlightExports++;
-  return new Promise<ExportResult>((resolve) => {
-    try {
-      exporter.export(batch, resolve);
-    } catch (error: any) {
-      resolve({ code: ExportResultCode.FAILED, error });
-    }
-  }).finally(() => {
-    inFlightExports--;
-  });
+  try {
+    return await new Promise<ExportResult>((resolve) => {
+      try {
+        exporter.export(batch, resolve);
+      } catch (error: any) {
+        resolve({ code: ExportResultCode.FAILED, error });
+      }
+    });
+  } finally {
+    releasePermit();
+  }
 }
 
 // Extra requests allowed per export for splitting rejected batches. Isolating one bad

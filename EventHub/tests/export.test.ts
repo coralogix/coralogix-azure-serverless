@@ -632,48 +632,89 @@ describe("split budget", () => {
 });
 
 describe("process-wide export cap", () => {
-  it("limits exports in flight across all exporters and fails the rest fast as retryable", async () => {
+  function loadExport() {
     let mod: any;
     jest.isolateModules(() => {
       mod = require("../EventHub/export");
     });
-    const { exportRecords, isSaturation, MAX_IN_FLIGHT_EXPORTS } = mod;
+    return mod;
+  }
 
-    // Exports that complete only when released, spread over two exporters.
-    const releases: Array<() => void> = [];
-    const exporter = () => ({
-      export: (_: ReadableLogRecord[], cb: (r: ExportResult) => void) =>
-        releases.push(() => cb(SUCCESS)),
+  // Exports that complete only when released.
+  function heldExporter(releases: Array<() => void>, inFlight: { now: number; max: number }) {
+    return {
+      export: (_: ReadableLogRecord[], cb: (r: ExportResult) => void) => {
+        inFlight.now++;
+        inFlight.max = Math.max(inFlight.max, inFlight.now);
+        releases.push(() => {
+          inFlight.now--;
+          cb(SUCCESS);
+        });
+      },
       shutdown: () => Promise.resolve(),
-    });
-    const exporters = [exporter(), exporter()];
-    const one = [{ body: "log" } as unknown as ReadableLogRecord];
+    };
+  }
+  const one = [{ body: "log" } as unknown as ReadableLogRecord];
+  const tick = () => new Promise((r) => setImmediate(r));
+
+  it("queues exports over the cap and runs them as capacity frees, across exporters", async () => {
+    const { exportRecords, MAX_IN_FLIGHT_EXPORTS } = loadExport();
+    const releases: Array<() => void> = [];
+    const inFlight = { now: 0, max: 0 };
+    const exporters = [heldExporter(releases, inFlight), heldExporter(releases, inFlight)];
 
     const total = MAX_IN_FLIGHT_EXPORTS + 6;
-    const results = Array.from({ length: total }, (_, i) =>
-      exportRecords(exporters[i % 2], one).then(
-        () => "ok",
-        (e: any) => e
-      )
-    );
-    await new Promise((r) => setImmediate(r));
+    const results = Array.from({ length: total }, (_, i) => exportRecords(exporters[i % 2], one));
+    await tick();
     expect(releases).toHaveLength(MAX_IN_FLIGHT_EXPORTS);
 
-    releases.forEach((release) => release());
-    const settled = await Promise.all(results);
-    const rejected = settled.filter((r) => r !== "ok");
-    expect(settled.filter((r) => r === "ok")).toHaveLength(MAX_IN_FLIGHT_EXPORTS);
-    expect(rejected).toHaveLength(6);
-    for (const error of rejected) {
+    // Release everything as it starts, until all queued exports have run.
+    while (releases.length > 0) {
+      releases.shift()!();
+      await tick();
+    }
+    await expect(Promise.all(results)).resolves.toHaveLength(total);
+    expect(inFlight.max).toBe(MAX_IN_FLIGHT_EXPORTS);
+  });
+
+  it("fails a queued export as retryable saturation after the permit wait timeout", async () => {
+    jest.useFakeTimers({ doNotFake: ["setImmediate"] });
+    try {
+      const { exportRecords, isSaturation, MAX_IN_FLIGHT_EXPORTS, PERMIT_WAIT_TIMEOUT_MS } =
+        loadExport();
+      const releases: Array<() => void> = [];
+      const inFlight = { now: 0, max: 0 };
+      const exporter = heldExporter(releases, inFlight);
+
+      const holders = Array.from({ length: MAX_IN_FLIGHT_EXPORTS }, () =>
+        exportRecords(exporter, one)
+      );
+      const waiting = exportRecords(exporter, one).catch((e: any) => e);
+      await tick();
+
+      jest.advanceTimersByTime(PERMIT_WAIT_TIMEOUT_MS);
+      const error = await waiting;
       expect(error.retryable).toBe(true);
       expect(isSaturation(error)).toBe(true);
-    }
 
-    // Capacity is released once exports complete.
-    releases.length = 0;
-    const later = exportRecords(exporters[0], one);
-    await new Promise((r) => setImmediate(r));
-    releases[0]();
-    await expect(later).resolves.toBeUndefined();
+      releases.forEach((r) => r());
+      await Promise.all(holders);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("completes one invocation with more scopes than permits", async () => {
+    const { MAX_IN_FLIGHT_EXPORTS } = require("../EventHub/export");
+    const { eventHubTrigger, calls } = loadFunction(() => SUCCESS, {
+      CORALOGIX_SUBSYSTEM_SELECTOR: "{{ $.sub }}",
+    });
+    const scopes = MAX_IN_FLIGHT_EXPORTS + 6;
+    const events = Array.from({ length: scopes }, (_, i) => ({ sub: `scope-${i}` }));
+
+    await expect(eventHubTrigger(createMockContext(), events)).resolves.toBeUndefined();
+
+    expect(calls).toHaveLength(scopes);
+    expect(new Set(calls.map((c) => c.exporterId)).size).toBe(scopes);
   });
 });
