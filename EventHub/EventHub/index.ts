@@ -11,12 +11,30 @@
  */
 
 import { InvocationContext } from "@azure/functions";
+import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { Logger } from "@opentelemetry/api-logs";
-import { LoggerProvider, BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
+import { LoggerProvider } from "@opentelemetry/sdk-logs";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 import { resolveSelector, TemplateContext } from "./nameResolution";
+import {
+  CollectingLogRecordProcessor,
+  ExportError,
+  exportRecords,
+  isSaturation,
+  MAX_IN_FLIGHT_EXPORTS,
+} from "./export";
+
+// The OTel packages do not configure diagnostics from OTEL_LOG_LEVEL themselves.
+// Default warn: partial-success rejections from Coralogix are only reported via diag.warn.
+const OTEL_LOG_LEVEL =
+  DiagLogLevel[(process.env.OTEL_LOG_LEVEL || "").toUpperCase() as keyof typeof DiagLogLevel] ??
+  DiagLogLevel.WARN;
+diag.setLogger(new DiagConsoleLogger(), {
+  logLevel: OTEL_LOG_LEVEL,
+  suppressOverrideMessage: true,
+});
 
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
@@ -37,42 +55,81 @@ const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
   [ATTR_SERVICE_NAME]: "eventhub-to-otel",
 };
 
+// Concurrent invocations for the same app/subsystem share one exporter; the OTel default
+// of 30 in-flight exports is easy to hit under a backlog. Each exporter allows as many
+// exports as the process-wide cap (MAX_IN_FLIGHT_EXPORTS in export.ts), which is what
+// actually bounds memory.
+const EXPORTER_CONCURRENCY_LIMIT = MAX_IN_FLIGHT_EXPORTS;
+
 interface LoggerCacheEntry {
   provider: LoggerProvider;
   logger: Logger;
+  collector: CollectingLogRecordProcessor;
+  exporter: OTLPLogExporter;
+  /** Invocations currently exporting through this entry. */
+  inUse: number;
+  /** Replaced after a failure; shut down once no invocation is using it. */
+  evicted: boolean;
 }
 
 const loggerCache = new Map<string, LoggerCacheEntry>();
 
-function createLoggerProvider(resourceAttributes: Record<string, any>): LoggerProvider {
-  const resource = resourceFromAttributes(resourceAttributes);
-  const otlpExporter = new OTLPLogExporter();
-  const logRecordProcessor = new BatchLogRecordProcessor(otlpExporter, {
-    maxExportBatchSize: 512,
-    scheduledDelayMillis: 1000,
-    exportTimeoutMillis: 30000,
-  });
-
-  return new LoggerProvider({ resource, processors: [logRecordProcessor] });
+// Support both the v3 and v4 Node programming models.
+function logError(context: InvocationContext, message: string): void {
+  const ctx: any = context;
+  if (typeof ctx.error === "function") ctx.error(message);
+  else if (typeof ctx.log?.error === "function") ctx.log.error(message);
+  else ctx.log(message);
 }
 
-// Get or create a logger for a specific app/subsystem combination.
+function logWarn(context: InvocationContext, message: string): void {
+  const ctx: any = context;
+  if (typeof ctx.warn === "function") ctx.warn(message);
+  else if (typeof ctx.log?.warn === "function") ctx.log.warn(message);
+  else ctx.log(message);
+}
+
 function getLoggerForAppSubsystem(appName: string, subsystemName: string): Logger {
   const cacheKey = `${appName}::${subsystemName}`;
   const cached = loggerCache.get(cacheKey);
 
   if (cached) return cached.logger;
 
-  const loggerProvider = createLoggerProvider({
+  const resource = resourceFromAttributes({
     ...BASE_RESOURCE_ATTRIBUTES,
     "cx.application.name": appName,
     "cx.subsystem.name": subsystemName,
   });
+  const collector = new CollectingLogRecordProcessor();
+  const exporter = new OTLPLogExporter({ concurrencyLimit: EXPORTER_CONCURRENCY_LIMIT });
+  const provider = new LoggerProvider({ resource, processors: [collector] });
 
-  const logger = loggerProvider.getLogger("azure-eventhub-logs");
-  loggerCache.set(cacheKey, { provider: loggerProvider, logger });
+  const logger = provider.getLogger("azure-eventhub-logs");
+  loggerCache.set(cacheKey, { provider, logger, collector, exporter, inUse: 0, evicted: false });
 
   return logger;
+}
+
+function shutdownExporter(cacheKey: string, entry: LoggerCacheEntry, context: InvocationContext) {
+  entry.exporter
+    .shutdown()
+    .catch((e: any) =>
+      logWarn(context, `Failed to shut down exporter for ${cacheKey}: ${e?.message}`)
+    );
+}
+
+// Recreate the gRPC connection after a transport failure. The old exporter is shut down
+// only once no other invocation is still exporting through it.
+function evictLogger(cacheKey: string, entry: LoggerCacheEntry, context: InvocationContext): void {
+  if (loggerCache.get(cacheKey) === entry) loggerCache.delete(cacheKey);
+  if (entry.evicted) return;
+  entry.evicted = true;
+  if (entry.inUse === 0) shutdownExporter(cacheKey, entry, context);
+}
+
+function releaseLogger(cacheKey: string, entry: LoggerCacheEntry, context: InvocationContext) {
+  entry.inUse--;
+  if (entry.evicted && entry.inUse === 0) shutdownExporter(cacheKey, entry, context);
 }
 
 function isBlocked(body: string): boolean {
@@ -341,16 +398,36 @@ const eventHubTrigger = async function (context: InvocationContext, events: any)
       }
     });
 
-    // Add delay before force flush to allow batch to accumulate
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Drain before the first await so concurrent invocations cannot mix records.
+    const pending = Array.from(loggerCache.entries())
+      .map(([cacheKey, entry]) => ({ cacheKey, entry, records: entry.collector.drain() }))
+      .filter(({ records }) => records.length > 0);
+    pending.forEach(({ entry }) => entry.inUse++);
 
-    const flushPromises = Array.from(loggerCache.values()).map((entry) =>
-      entry.provider.forceFlush()
+    const results = await Promise.allSettled(
+      pending.map(({ entry, records }) => exportRecords(entry.exporter, records))
     );
+    pending.forEach(({ cacheKey, entry }) => releaseLogger(cacheKey, entry, context));
 
-    await Promise.all(flushPromises);
+    let retryableFailure: ExportError | undefined;
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled") return;
+      const { cacheKey, entry } = pending[i];
+      const error: any = result.reason;
+      logError(context, `Export to Coralogix failed for ${cacheKey}: ${error?.message}`);
+
+      if (error instanceof ExportError && !error.retryable) return;
+
+      // A saturated or throttled exporter is fine; only a transport failure needs a new one.
+      if (!isSaturation(error)) evictLogger(cacheKey, entry, context);
+      retryableFailure ??=
+        error instanceof ExportError ? error : new ExportError(String(error?.message), true, error);
+    });
+
+    // Throw before Event Hubs advances the checkpoint; the retry policy re-delivers the batch.
+    if (retryableFailure) throw retryableFailure;
   } catch (error: any) {
-    context.log(`Function error: ${error.message}`);
+    logError(context, `Function error: ${error.message}`);
     throw error;
   }
 };

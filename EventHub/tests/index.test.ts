@@ -4,6 +4,8 @@ const createMockContext = (): InvocationContext =>
   ({
     invocationId: "test-id",
     log: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
   }) as unknown as InvocationContext;
 
 type LogModule = {
@@ -548,7 +550,6 @@ describe("INCLUDE_METADATA behaviour", () => {
         };
         return {
           LoggerProvider: jest.fn().mockReturnValue(provider),
-          BatchLogRecordProcessor: jest.fn(),
         };
       });
       jest.doMock("@opentelemetry/exporter-logs-otlp-grpc", () => ({

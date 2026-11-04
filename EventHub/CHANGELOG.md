@@ -1,3 +1,15 @@
+### 3.8.6 / 04 Nov 2026
+[FIX] Stop dropping logs silently when the export to Coralogix fails:
+* Each invocation now exports its own logs and checks the result, instead of a background batch processor whose errors were swallowed (the invocation reported success and the checkpoint advanced while logs were lost)
+* A failed export fails the invocation; a new Event Hub retry policy (`exponentialBackoff`, unlimited retries, 5s to 5 min) re-delivers the batch, so the checkpoint only advances once the export succeeded
+* The exporter and its gRPC connection are recreated after a transport failure (not when the exporter or Coralogix is only busy), so a broken connection no longer persists until the instance is replaced; the old exporter is shut down once no invocation is using it
+* A cap on exports in flight per Node worker process, across all application/subsystem exporters (default 64, configurable with the new `MaxInFlightExports` ARM parameter / `MAX_IN_FLIGHT_EXPORTS` app setting, 1 to 1024), bounds memory within the Consumption plan limit; each exporter allows the same number of concurrent exports (OTel default: 30). Exports over the cap wait for capacity (up to 60s, then fail as retryable), so invocations with many application/subsystem pairs still complete
+* Delivery uses at-least-once retries: after a failed export the whole Event Hub batch is replayed, so records already accepted by Coralogix may be duplicated
+* A request rejected as invalid (`INVALID_ARGUMENT`) is split to isolate the offending record (logged, not retried), with a budget of 64 extra requests per batch; with several scattered bad records in one batch, a still-rejected chunk can be dropped as a whole. Records reported as rejected in an OTLP partial-success response are logged as warnings and not retried
+* Export requests are bounded by size (2 MB, Coralogix's recommended request size) as well as record count; a request still rejected as too large is split until the offending record is isolated, and a record that is too large on its own is logged and dropped instead of blocking the partition
+* Removed the fixed 2s wait per invocation and the 2048-record queue limit that could drop records silently
+* OpenTelemetry diagnostic messages, including partial-success warnings, are written to the function logs at `warn` by default; new optional `OtelLogLevel` ARM parameter (`OTEL_LOG_LEVEL` app setting) to change or silence them
+
 ### 3.8.5 / 07 Oct 2026
 [FIX] Apply in-place security hardening defaults to the ARM templates:
 * `httpsOnly` enabled on the function app

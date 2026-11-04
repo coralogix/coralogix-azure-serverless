@@ -58,6 +58,10 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 
 **Blocking Pattern** (Optional) - Regex pattern to filter/block logs. Logs matching this pattern will not be sent to Coralogix. Example: `healthcheck|heartbeat` to filter health check logs, or `secret` to block logs containing sensitive data.
 
+**Max In Flight Exports** (Optional) - Maximum number of export requests to Coralogix in flight at once, per Node worker process (default `64`, from 1 to 1024; app setting `MAX_IN_FLIGHT_EXPORTS`). The default keeps memory within the Consumption plan limit: each in-flight 2 MB request uses about 8 MB. If `FUNCTIONS_WORKER_PROCESS_COUNT` is above 1, each worker process has its own limit, so total usage on an instance multiplies. Raise it only with enough memory (for example on Premium) and after load testing; higher values can also increase ingress throttling, network (SNAT) pressure and duplicates after retries.
+
+**Otel Log Level** (Optional) - Level of OpenTelemetry diagnostic messages written to the function logs: `none`, `error`, `warn` (default), `info`, `debug` or `verbose`. The default includes warnings for records that Coralogix rejects in a partial-success response. Failed exports are always logged as errors regardless of this setting.
+
 ## Configuration Examples for Application and Subsystem Selectors
 
 ### JSON Logs (Template Syntax)
@@ -132,3 +136,13 @@ BLOCKING_PATTERN="password|secret|token"
 # Block specific log levels
 BLOCKING_PATTERN="\\[DEBUG\\]|\\[TRACE\\]"
 ```
+
+## Delivery and Retries
+
+Each invocation exports its logs to Coralogix and waits for the result. If an export fails (for example a timeout or a lost connection), the invocation fails and the Event Hub retry policy in `function.json` re-delivers the batch with exponential backoff (5s up to 5 minutes, retrying indefinitely), so the checkpoint only advances once the export succeeded. The exporter connection is recreated after a transport failure; it is kept when the failure only means the exporter or Coralogix is busy.
+
+Delivery uses at-least-once retries: after a failed export, the whole Event Hub batch is replayed, so records already accepted by Coralogix may be duplicated. Permanent rejections follow the drop behavior described below. Retries pause partition progress but do not extend Event Hub retention; monitor failed invocations and consumer lag.
+
+Records that Coralogix rejects as invalid, or that are too large to send even on their own, are logged as an error and not retried, so they cannot block the partition. Each export request holds up to 512 records and about 2 MB (Coralogix accepts OTLP requests of up to 10 MB and recommends 2 MB). A request rejected as invalid or too large is split to isolate the offending record. Splitting is limited to 64 extra requests per 512-record batch so a badly rejected batch still finishes within the function timeout: a single bad record is always isolated, but when a batch contains several scattered bad records the budget can run out, and a still-rejected chunk is then dropped as a whole, including valid records in it. Dropped records are counted in the error log. Likewise, if Coralogix accepts a request but reports some of its records as rejected (an OTLP partial success), the export counts as successful: the rejection is logged as a warning and those records are not retried.
+
+Failed exports are always written to the function logs as errors. OpenTelemetry's own diagnostic messages, including partial-success warnings, are logged at `warn` by default; set the `Otel Log Level` parameter (app setting `OTEL_LOG_LEVEL`) to `none` or `error` to silence them.
