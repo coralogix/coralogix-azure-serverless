@@ -128,6 +128,15 @@
         "description": "Optional: When enabled, attaches additional metadata to each log record: invocation thread ID, message index, and Azure resource attributes (subscription ID, resource group, provider) parsed from the log payload."
       }
     },
+    "MaxInFlightExports": {
+      "type": "int",
+      "defaultValue": 64,
+      "minValue": 1,
+      "maxValue": 1024,
+      "metadata": {
+        "description": "Optional: Maximum number of export requests to Coralogix in flight at once, per Node worker process. The default (64) keeps memory within the Consumption plan limit; raise it only with enough memory (e.g. Premium) and after load testing."
+      }
+    },
     "OtelLogLevel": {
       "type": "string",
       "defaultValue": "warn",
@@ -280,7 +289,8 @@
         "CORALOGIX_APPLICATION_SELECTOR": "[parameters('CoralogixApplicationSelector')]",
         "CORALOGIX_SUBSYSTEM_SELECTOR": "[parameters('CoralogixSubsystemSelector')]",
         "INCLUDE_METADATA": "[if(parameters('IncludeMetadata'), 'true', 'false')]",
-        "OTEL_LOG_LEVEL": "[parameters('OtelLogLevel')]"
+        "OTEL_LOG_LEVEL": "[parameters('OtelLogLevel')]",
+        "MAX_IN_FLIGHT_EXPORTS": "[string(parameters('MaxInFlightExports'))]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"

@@ -58,6 +58,8 @@ Deploy the EventHub integration by clicking the button below and signing into yo
 
 **Blocking Pattern** (Optional) - Regex pattern to filter/block logs. Logs matching this pattern will not be sent to Coralogix. Example: `healthcheck|heartbeat` to filter health check logs, or `secret` to block logs containing sensitive data.
 
+**Max In Flight Exports** (Optional) - Maximum number of export requests to Coralogix in flight at once, per Node worker process (default `64`, from 1 to 1024; app setting `MAX_IN_FLIGHT_EXPORTS`). The default keeps memory within the Consumption plan limit: each in-flight 2 MB request uses about 8 MB. If `FUNCTIONS_WORKER_PROCESS_COUNT` is above 1, each worker process has its own limit, so total usage on an instance multiplies. Raise it only with enough memory (for example on Premium) and after load testing; higher values can also increase ingress throttling, network (SNAT) pressure and duplicates after retries.
+
 **Otel Log Level** (Optional) - Level of OpenTelemetry diagnostic messages written to the function logs: `none`, `error`, `warn` (default), `info`, `debug` or `verbose`. The default includes warnings for records that Coralogix rejects in a partial-success response. Failed exports are always logged as errors regardless of this setting.
 
 ## Configuration Examples for Application and Subsystem Selectors

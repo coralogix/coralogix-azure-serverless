@@ -98,13 +98,30 @@ export class ExportError extends Error {
   }
 }
 
-// Process-wide cap on exports in flight, across all exporters (there is one exporter per
-// application/subsystem). Each in-flight 2 MB request costs ~8 MB of buffers, so 64 keeps
-// export buffers to ~500 MB, within the 1.5 GB Consumption plan memory limit.
+// Cap on exports in flight per Node worker process, across all exporters (there is one
+// exporter per application/subsystem). Each in-flight 2 MB request costs ~8 MB of buffers,
+// so the default of 64 keeps export buffers to ~500 MB, within the 1.5 GB Consumption plan
+// memory limit. Configurable with MAX_IN_FLIGHT_EXPORTS; with FUNCTIONS_WORKER_PROCESS_COUNT
+// above 1, each worker process has its own cap, so instance-wide usage multiplies.
 // Exports over the cap wait in a FIFO queue for a permit, so an invocation with more
 // scopes than permits still completes. Only a wait longer than PERMIT_WAIT_TIMEOUT_MS
 // fails, with a retryable saturation error. A permit is held for a single request only.
-export const MAX_IN_FLIGHT_EXPORTS = 64;
+export const DEFAULT_MAX_IN_FLIGHT_EXPORTS = 64;
+export const MAX_IN_FLIGHT_EXPORTS_LIMIT = 1024;
+
+export function parseMaxInFlightExports(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return DEFAULT_MAX_IN_FLIGHT_EXPORTS;
+  const value = Number(raw.trim());
+  if (Number.isInteger(value) && value >= 1 && value <= MAX_IN_FLIGHT_EXPORTS_LIMIT) {
+    return value;
+  }
+  console.warn(
+    `Invalid MAX_IN_FLIGHT_EXPORTS "${raw}": expected an integer from 1 to ${MAX_IN_FLIGHT_EXPORTS_LIMIT}; using ${DEFAULT_MAX_IN_FLIGHT_EXPORTS}`
+  );
+  return DEFAULT_MAX_IN_FLIGHT_EXPORTS;
+}
+
+export const MAX_IN_FLIGHT_EXPORTS = parseMaxInFlightExports(process.env.MAX_IN_FLIGHT_EXPORTS);
 export const PERMIT_WAIT_TIMEOUT_MS = 60_000;
 let inFlightExports = 0;
 const permitQueue: Array<() => void> = [];

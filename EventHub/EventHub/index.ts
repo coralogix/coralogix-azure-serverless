@@ -18,7 +18,13 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
 import { resolveSelector, TemplateContext } from "./nameResolution";
-import { CollectingLogRecordProcessor, ExportError, exportRecords, isSaturation } from "./export";
+import {
+  CollectingLogRecordProcessor,
+  ExportError,
+  exportRecords,
+  isSaturation,
+  MAX_IN_FLIGHT_EXPORTS,
+} from "./export";
 
 // The OTel packages do not configure diagnostics from OTEL_LOG_LEVEL themselves.
 // Default warn: partial-success rejections from Coralogix are only reported via diag.warn.
@@ -50,10 +56,10 @@ const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
 };
 
 // Concurrent invocations for the same app/subsystem share one exporter; the OTel default
-// of 30 in-flight exports is easy to hit under a backlog (an instance runs up to one
-// invocation per owned partition, i.e. up to 32 on Event Hubs Standard). This limit is per
-// exporter; the process-wide memory bound is MAX_IN_FLIGHT_EXPORTS in export.ts.
-const EXPORTER_CONCURRENCY_LIMIT = 64;
+// of 30 in-flight exports is easy to hit under a backlog. Each exporter allows as many
+// exports as the process-wide cap (MAX_IN_FLIGHT_EXPORTS in export.ts), which is what
+// actually bounds memory.
+const EXPORTER_CONCURRENCY_LIMIT = MAX_IN_FLIGHT_EXPORTS;
 
 interface LoggerCacheEntry {
   provider: LoggerProvider;

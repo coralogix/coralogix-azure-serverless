@@ -718,3 +718,74 @@ describe("process-wide export cap", () => {
     expect(new Set(calls.map((c) => c.exporterId)).size).toBe(scopes);
   });
 });
+
+describe("MAX_IN_FLIGHT_EXPORTS setting", () => {
+  const { parseMaxInFlightExports, DEFAULT_MAX_IN_FLIGHT_EXPORTS } = require("../EventHub/export");
+
+  it.each([
+    [undefined, DEFAULT_MAX_IN_FLIGHT_EXPORTS],
+    ["", DEFAULT_MAX_IN_FLIGHT_EXPORTS],
+    ["128", 128],
+    [" 32 ", 32],
+    ["1", 1],
+    ["1024", 1024],
+  ])("parses %p as %p", (raw, expected) => {
+    expect(parseMaxInFlightExports(raw)).toBe(expected);
+  });
+
+  it.each(["0", "-5", "1.5", "abc", "1025", "1e9"])(
+    "falls back to the default for invalid %p and warns",
+    (raw) => {
+      const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        expect(parseMaxInFlightExports(raw)).toBe(DEFAULT_MAX_IN_FLIGHT_EXPORTS);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("Invalid MAX_IN_FLIGHT_EXPORTS"));
+      } finally {
+        warn.mockRestore();
+      }
+    }
+  );
+
+  it("uses the configured value for both the process-wide cap and the exporter's concurrencyLimit", async () => {
+    const original = process.env.MAX_IN_FLIGHT_EXPORTS;
+    process.env.MAX_IN_FLIGHT_EXPORTS = "8";
+    try {
+      const releases: Array<() => void> = [];
+      let exporterConfig: any;
+      let mod: any;
+      let trigger: any;
+      jest.isolateModules(() => {
+        jest.doMock("@opentelemetry/exporter-logs-otlp-grpc", () => ({
+          OTLPLogExporter: jest.fn().mockImplementation((config: any) => {
+            exporterConfig = config;
+            return {
+              export: (_: ReadableLogRecord[], cb: (r: ExportResult) => void) =>
+                releases.push(() => cb(SUCCESS)),
+              shutdown: () => Promise.resolve(),
+            };
+          }),
+        }));
+        mod = require("../EventHub/export");
+        trigger = require("../EventHub/index").eventHubTrigger;
+      });
+      expect(mod.MAX_IN_FLIGHT_EXPORTS).toBe(8);
+
+      // 12 single-record invocations at once: only 8 exports may be in flight.
+      const invocations = Array.from({ length: 12 }, (_, i) =>
+        trigger(createMockContext(String(i)), [`log-${i}`])
+      );
+      await new Promise((r) => setImmediate(r));
+      expect(exporterConfig).toMatchObject({ concurrencyLimit: 8 });
+      expect(releases).toHaveLength(8);
+
+      while (releases.length > 0) {
+        releases.shift()!();
+        await new Promise((r) => setImmediate(r));
+      }
+      await expect(Promise.all(invocations)).resolves.toHaveLength(12);
+    } finally {
+      if (original === undefined) delete process.env.MAX_IN_FLIGHT_EXPORTS;
+      else process.env.MAX_IN_FLIGHT_EXPORTS = original;
+    }
+  });
+});
