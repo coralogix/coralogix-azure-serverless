@@ -25,7 +25,10 @@ import { CollectingLogRecordProcessor, ExportError, exportRecords, isSaturation 
 const OTEL_LOG_LEVEL =
   DiagLogLevel[(process.env.OTEL_LOG_LEVEL || "").toUpperCase() as keyof typeof DiagLogLevel] ??
   DiagLogLevel.WARN;
-diag.setLogger(new DiagConsoleLogger(), OTEL_LOG_LEVEL);
+diag.setLogger(new DiagConsoleLogger(), {
+  logLevel: OTEL_LOG_LEVEL,
+  suppressOverrideMessage: true,
+});
 
 const APPLICATION_NAME = process.env.CORALOGIX_APPLICATION;
 const SUBSYSTEM_NAME = process.env.CORALOGIX_SUBSYSTEM;
@@ -47,8 +50,11 @@ const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
 };
 
 // Concurrent invocations for the same app/subsystem share one exporter; the OTel default
-// of 30 in-flight exports is easy to hit under a backlog.
-const EXPORTER_CONCURRENCY_LIMIT = 256;
+// of 30 in-flight exports is easy to hit under a backlog (an instance runs up to one
+// invocation per owned partition, i.e. up to 32 on Event Hubs Standard). Each in-flight
+// 2 MB request costs ~8 MB of buffers, so 64 keeps the worst case (~500 MB) well within
+// the 1.5 GB Consumption plan memory limit.
+const EXPORTER_CONCURRENCY_LIMIT = 64;
 
 interface LoggerCacheEntry {
   provider: LoggerProvider;
