@@ -51,9 +51,8 @@ const BASE_RESOURCE_ATTRIBUTES: Record<string, any> = {
 
 // Concurrent invocations for the same app/subsystem share one exporter; the OTel default
 // of 30 in-flight exports is easy to hit under a backlog (an instance runs up to one
-// invocation per owned partition, i.e. up to 32 on Event Hubs Standard). Each in-flight
-// 2 MB request costs ~8 MB of buffers, so 64 keeps the worst case (~500 MB) well within
-// the 1.5 GB Consumption plan memory limit.
+// invocation per owned partition, i.e. up to 32 on Event Hubs Standard). This limit is per
+// exporter; the process-wide memory bound is MAX_IN_FLIGHT_EXPORTS in export.ts.
 const EXPORTER_CONCURRENCY_LIMIT = 64;
 
 interface LoggerCacheEntry {

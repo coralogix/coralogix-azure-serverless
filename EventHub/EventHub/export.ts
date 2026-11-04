@@ -98,16 +98,32 @@ export class ExportError extends Error {
   }
 }
 
+// Process-wide cap on exports in flight, across all exporters (there is one exporter per
+// application/subsystem). Each in-flight 2 MB request costs ~8 MB of buffers, so 64 keeps
+// export buffers to ~500 MB, within the 1.5 GB Consumption plan memory limit. Exports over
+// the cap fail fast with a retryable saturation error, so the batch is retried later.
+export const MAX_IN_FLIGHT_EXPORTS = 64;
+let inFlightExports = 0;
+
 function exportBatch(
   exporter: LogRecordExporter,
   batch: ReadableLogRecord[]
 ): Promise<ExportResult> {
-  return new Promise((resolve) => {
+  if (inFlightExports >= MAX_IN_FLIGHT_EXPORTS) {
+    return Promise.resolve({
+      code: ExportResultCode.FAILED,
+      error: new Error("Concurrent export limit reached (process-wide)"),
+    });
+  }
+  inFlightExports++;
+  return new Promise<ExportResult>((resolve) => {
     try {
       exporter.export(batch, resolve);
     } catch (error: any) {
       resolve({ code: ExportResultCode.FAILED, error });
     }
+  }).finally(() => {
+    inFlightExports--;
   });
 }
 

@@ -630,3 +630,50 @@ describe("split budget", () => {
     expect(delivered).toEqual(second.filter((r) => r !== second[300]));
   });
 });
+
+describe("process-wide export cap", () => {
+  it("limits exports in flight across all exporters and fails the rest fast as retryable", async () => {
+    let mod: any;
+    jest.isolateModules(() => {
+      mod = require("../EventHub/export");
+    });
+    const { exportRecords, isSaturation, MAX_IN_FLIGHT_EXPORTS } = mod;
+
+    // Exports that complete only when released, spread over two exporters.
+    const releases: Array<() => void> = [];
+    const exporter = () => ({
+      export: (_: ReadableLogRecord[], cb: (r: ExportResult) => void) =>
+        releases.push(() => cb(SUCCESS)),
+      shutdown: () => Promise.resolve(),
+    });
+    const exporters = [exporter(), exporter()];
+    const one = [{ body: "log" } as unknown as ReadableLogRecord];
+
+    const total = MAX_IN_FLIGHT_EXPORTS + 6;
+    const results = Array.from({ length: total }, (_, i) =>
+      exportRecords(exporters[i % 2], one).then(
+        () => "ok",
+        (e: any) => e
+      )
+    );
+    await new Promise((r) => setImmediate(r));
+    expect(releases).toHaveLength(MAX_IN_FLIGHT_EXPORTS);
+
+    releases.forEach((release) => release());
+    const settled = await Promise.all(results);
+    const rejected = settled.filter((r) => r !== "ok");
+    expect(settled.filter((r) => r === "ok")).toHaveLength(MAX_IN_FLIGHT_EXPORTS);
+    expect(rejected).toHaveLength(6);
+    for (const error of rejected) {
+      expect(error.retryable).toBe(true);
+      expect(isSaturation(error)).toBe(true);
+    }
+
+    // Capacity is released once exports complete.
+    releases.length = 0;
+    const later = exportRecords(exporters[0], one);
+    await new Promise((r) => setImmediate(r));
+    releases[0]();
+    await expect(later).resolves.toBeUndefined();
+  });
+});
