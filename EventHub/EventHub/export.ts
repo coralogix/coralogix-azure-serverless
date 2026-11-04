@@ -22,6 +22,14 @@ export function isMessageTooLarge(error: any): boolean {
   return error?.code === GRPC_RESOURCE_EXHAUSTED && MESSAGE_TOO_LARGE.test(String(error?.message));
 }
 
+// Failures that say nothing about the connection: the exporter's own in-flight limit,
+// and Coralogix throttling or load shedding. Retry them, but keep the exporter.
+export function isSaturation(error: any): boolean {
+  const cause = error instanceof ExportError ? error.cause : error;
+  if (cause?.code === GRPC_RESOURCE_EXHAUSTED) return true;
+  return /Concurrent export limit reached/i.test(String(cause?.message ?? error?.message));
+}
+
 export function estimateRecordBytes(record: ReadableLogRecord): number {
   const body = typeof record.body === "string" ? record.body : JSON.stringify(record.body ?? "");
   const attributes = record.attributes ? JSON.stringify(record.attributes) : "";
@@ -153,9 +161,11 @@ export async function exportRecords(
   maxBatchSize: number = MAX_EXPORT_BATCH_SIZE,
   maxBatchBytes: number = MAX_EXPORT_BATCH_BYTES
 ): Promise<void> {
-  const progress: ExportProgress = { dropped: 0, splitBudget: MAX_SPLIT_REQUESTS };
+  const progress: ExportProgress = { dropped: 0, splitBudget: 0 };
 
   for (const batch of toBatches(records, maxBatchSize, maxBatchBytes)) {
+    // Each batch gets its own split budget, so one bad batch can't use up the next one's.
+    progress.splitBudget = MAX_SPLIT_REQUESTS;
     const failure = await exportChunk(exporter, batch, progress);
     if (failure) {
       throw new ExportError(

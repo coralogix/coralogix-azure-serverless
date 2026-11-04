@@ -130,10 +130,10 @@
     },
     "OtelLogLevel": {
       "type": "string",
-      "defaultValue": "none",
+      "defaultValue": "warn",
       "allowedValues": ["none", "error", "warn", "info", "debug", "verbose"],
       "metadata": {
-        "description": "Optional: Level of OpenTelemetry diagnostic messages (for example, partial-success warnings) written to the function logs. Off by default. Failed exports are always logged as errors regardless of this setting."
+        "description": "Optional: Level of OpenTelemetry diagnostic messages written to the function logs. The default, warn, includes warnings for records that Coralogix rejects in a partial-success response. Failed exports are always logged as errors regardless of this setting."
       }
     }
   },

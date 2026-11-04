@@ -473,3 +473,160 @@ describe("eventHubTrigger retries", () => {
     expect(calls.flatMap((c) => c.records)).toHaveLength(700);
   });
 });
+
+describe("OpenTelemetry diagnostics", () => {
+  // The OTLP exporter reports partial-success rejections only through
+  // diag.warn("Received Partial Success response:", ...) (logging-response-handler.js).
+  const partialSuccessWarning = () =>
+    require("@opentelemetry/api").diag.warn(
+      "Received Partial Success response:",
+      JSON.stringify({ rejectedLogRecords: 3, errorMessage: "invalid" })
+    );
+
+  it("shows partial-success warnings with default settings", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      loadFunction();
+      partialSuccessWarning();
+      expect(warn).toHaveBeenCalledWith(
+        "Received Partial Success response:",
+        expect.stringContaining("rejectedLogRecords")
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("can be silenced with OTEL_LOG_LEVEL=none", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      loadFunction(() => SUCCESS, { OTEL_LOG_LEVEL: "none" });
+      partialSuccessWarning();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("exporter lifecycle", () => {
+  it.each([
+    ["the exporter's in-flight limit", failure("Concurrent export limit reached")],
+    ["Coralogix throttling", failure("8 RESOURCE_EXHAUSTED: rate limit exceeded", 8)],
+  ])("keeps the exporter on %s, but still fails the invocation for a retry", async (_, result) => {
+    let saturated = true;
+    const { eventHubTrigger, calls, shutdowns } = loadFunction(() =>
+      saturated ? result : SUCCESS
+    );
+
+    await expect(eventHubTrigger(createMockContext("1"), ["log"])).rejects.toThrow();
+    saturated = false;
+    await eventHubTrigger(createMockContext("2"), ["log"]);
+
+    expect(shutdowns).toEqual([]);
+    expect(calls.map((c) => c.exporterId)).toEqual([1, 1]);
+  });
+
+  it("shuts a replaced exporter down only after other invocations stopped using it", async () => {
+    // Exports complete only when the test releases them.
+    const releases: Array<() => void> = [];
+    const shutdowns: number[] = [];
+    let exportersCreated = 0;
+    let trigger: typeof import("../EventHub/index").eventHubTrigger;
+    jest.isolateModules(() => {
+      jest.doMock("@opentelemetry/exporter-logs-otlp-grpc", () => ({
+        OTLPLogExporter: jest.fn().mockImplementation(() => {
+          const id = ++exportersCreated;
+          return {
+            export: (records: ReadableLogRecord[], cb: (r: ExportResult) => void) => {
+              const body = String(records[0].body);
+              releases.push(() => cb(body === "fails" ? failure("14 UNAVAILABLE", 14) : SUCCESS));
+            },
+            shutdown: jest.fn(() => {
+              shutdowns.push(id);
+              return Promise.resolve();
+            }),
+          };
+        }),
+      }));
+      trigger = require("../EventHub/index").eventHubTrigger;
+    });
+    const flush = () => new Promise((r) => setImmediate(r));
+
+    // Two concurrent invocations share exporter 1.
+    const failing = trigger!(createMockContext("a"), ["fails"]);
+    const ongoing = trigger!(createMockContext("b"), ["succeeds"]);
+    await flush();
+    expect(releases).toHaveLength(2);
+
+    // The first fails with a transport error: exporter 1 is replaced...
+    releases[0]();
+    await expect(failing).rejects.toThrow("UNAVAILABLE");
+    // ...but not shut down while the second invocation is still exporting through it.
+    expect(shutdowns).toEqual([]);
+
+    releases[1]();
+    await expect(ongoing).resolves.toBeUndefined();
+    expect(shutdowns).toEqual([1]);
+
+    // New invocations get a fresh exporter.
+    const next = trigger!(createMockContext("c"), ["succeeds"]);
+    await flush();
+    releases[2]();
+    await next;
+    expect(exportersCreated).toBe(2);
+  });
+});
+
+describe("split budget", () => {
+  const { exportRecords, MAX_SPLIT_REQUESTS } = require("../EventHub/export");
+  const records = (n: number, tag: string) =>
+    Array.from({ length: n }, (_, i) => ({ body: `${tag}-${i}` }) as unknown as ReadableLogRecord);
+
+  function rejecting(poison: Set<ReadableLogRecord>) {
+    const delivered: ReadableLogRecord[] = [];
+    let requests = 0;
+    const exporter = {
+      export: (batch: ReadableLogRecord[], cb: (r: ExportResult) => void) => {
+        requests++;
+        if (batch.some((r) => poison.has(r))) return cb(failure("3 INVALID_ARGUMENT", 3));
+        delivered.push(...batch);
+        cb(SUCCESS);
+      },
+      shutdown: () => Promise.resolve(),
+    };
+    return { exporter, delivered, requests: () => requests };
+  }
+
+  it("handles sparse poison records within a bounded number of requests and accounts for every record", async () => {
+    const batch = records(512, "r");
+    const poison = new Set([5, 120, 250, 380, 505].map((i) => batch[i]));
+    const { exporter, delivered, requests } = rejecting(poison);
+
+    let dropped = 0;
+    await exportRecords(exporter, batch).catch((e: any) => {
+      expect(e.retryable).toBe(false);
+      dropped = Number(/rejected (\d+) log records/.exec(e.message)?.[1]);
+    });
+
+    expect(requests()).toBeLessThanOrEqual(1 + MAX_SPLIT_REQUESTS);
+    expect(delivered.some((r) => poison.has(r))).toBe(false);
+    expect(dropped).toBeGreaterThanOrEqual(poison.size);
+    // Nothing disappears unreported: every record is either delivered or counted as dropped.
+    expect(delivered.length + dropped).toBe(512);
+  });
+
+  it("gives each batch its own budget, so a bad batch doesn't use up the next one's", async () => {
+    const first = records(512, "a"); // entirely invalid: spends its whole budget
+    const second = records(512, "b"); // one invalid record
+    const poison = new Set([...first, second[300]]);
+    const { exporter, delivered } = rejecting(poison);
+
+    await expect(exportRecords(exporter, [...first, ...second])).rejects.toMatchObject({
+      retryable: false,
+      message: expect.stringContaining("rejected 513 log records"),
+    });
+    // The second batch still isolates its single bad record.
+    expect(delivered).toEqual(second.filter((r) => r !== second[300]));
+  });
+});
