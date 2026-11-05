@@ -5,6 +5,9 @@
 <!-- ### version / full date -->
 <!-- * [Update/Bug fix] message that describes the changes that you apply -->
 
+### 2.1.5 / 05 Nov 2026
+* [Update] fix(deps): Bump @grpc/grpc-js to ^1.14.5 to resolve CVE-2026-101916 and CVE-2026-101915
+
 ### 2.1.4 / 07 Oct 2026
 * [Bug] Change the storage account `kind` from `Storage` (GPv1) to `StorageV2`. Azure no longer allows creating GPv1 accounts, so fresh deployments failed with `AccountKindNotSupported`. Existing GPv1 accounts are upgraded in place on redeploy.
 
