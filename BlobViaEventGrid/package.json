@@ -1,7 +1,7 @@
 {
   "name": "coralogix-azure-serverless",
   "title": "Azure Functions for integration with Coralogix",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "description": "Azure Functions Set for integration with Coralogix",
   "homepage": "https://coralogix.com",
   "license": "Apache-2.0",
@@ -71,7 +71,7 @@
   ],
   "type": "commonjs",
   "overrides": {
-    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/grpc-js": "^1.14.5",
     "protobufjs": "^7.6.1"
   }
 }
